@@ -1,5 +1,7 @@
 <?php
 
+use App\Acquisition\Tools\Http\FetchResult;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -59,4 +61,30 @@ function acquisitionFixture(string $name): array
     $meta = json_decode((string) file_get_contents($directory.'/response.json'), true, 512, JSON_THROW_ON_ERROR);
 
     return ['meta' => $meta, 'body' => (string) file_get_contents($directory.'/'.$meta['body_file'])];
+}
+
+/**
+ * A successful FetchResult as fetch_url would return it for a fixture,
+ * optionally with different bytes (to simulate a changed page).
+ */
+function fakeFetchResult(string $fixtureName, ?string $body = null): FetchResult
+{
+    $fixture = acquisitionFixture($fixtureName);
+    $mediaType = $fixture['meta']['media_type'];
+
+    return new FetchResult(
+        requestedUrl: $fixture['meta']['url'],
+        finalUrl: $fixture['meta']['final_url'],
+        redirectChain: [],
+        status: 200,
+        headers: ['content-type' => $mediaType],
+        declaredMediaType: $mediaType,
+        detectedMediaType: $mediaType,
+        contentTypeMismatch: false,
+        retrievedAt: CarbonImmutable::parse($fixture['meta']['retrieved_at']),
+        durationMs: 10,
+        attempts: 1,
+        body: $body ?? $fixture['body'],
+        notModified: false,
+    );
 }

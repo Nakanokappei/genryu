@@ -33,4 +33,35 @@ return [
         'max_retry_after_seconds' => 300,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | robots.txt
+    |--------------------------------------------------------------------------
+    |
+    | The product token matched against User-agent groups. Falls back to "*".
+    |
+    */
+
+    'robots_token' => env('ACQUISITION_ROBOTS_TOKEN', 'TechnologyWatch'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Runs
+    |--------------------------------------------------------------------------
+    |
+    | run_timeout_seconds bounds one queued run. The circuit breaker (ADR-0004)
+    | delays the next run of a source after a FAILED run, doubling the delay
+    | per consecutive failure up to max_minutes, and marks the source DEGRADED
+    | after degrade_after consecutive failures.
+    |
+    */
+
+    'run_timeout_seconds' => (int) env('ACQUISITION_RUN_TIMEOUT', 3600),
+
+    'circuit_breaker' => [
+        'base_minutes' => 60,
+        'max_minutes' => 24 * 60,
+        'degrade_after' => 3,
+    ],
+
 ];
