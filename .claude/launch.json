@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "technologywatch",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["artisan", "serve", "--port=8036"],
+      "port": 8036
+    }
+  ]
+}

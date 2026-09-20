@@ -24,7 +24,6 @@ yarn-error.log
 /.zed
 /.agents
 /.amp
-/.claude
 /.cursor
 /.factory
 /.grok
@@ -33,7 +32,13 @@ yarn-error.log
 /.pi
 /.mcp.json
 /AGENTS.md
-/CLAUDE.md
 /boost.json
 /opencode.json
 /opencode.jsonc
+
+# macOS / external SSD artifacts
+.DS_Store
+._*
+
+# Claude Code: CLAUDE.md and .claude/launch.json are shared; local permissions are not
+.claude/settings.local.json

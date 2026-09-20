@@ -1,0 +1,26 @@
+<?php
+
+namespace App\Providers;
+
+use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
+use App\Acquisition\Infrastructure\BlobStorage\FilesystemBlobStore;
+use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
+use Illuminate\Support\ServiceProvider;
+
+/**
+ * Wires the acquisition platform's ports to their infrastructure adapters.
+ */
+class AcquisitionServiceProvider extends ServiceProvider
+{
+    /**
+     * Register any application services.
+     */
+    public function register(): void
+    {
+        // The disk is resolved lazily so Storage::fake('acquisition') in
+        // tests takes effect before the store is first used.
+        $this->app->bind(BlobStore::class, function ($app): BlobStore {
+            return new FilesystemBlobStore($app->make(FilesystemFactory::class)->disk('acquisition'));
+        });
+    }
+}

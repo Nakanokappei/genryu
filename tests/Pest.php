@@ -18,6 +18,10 @@ pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
 
+// Acquisition unit tests need the container (Storage::fake, bindings) but no database.
+pest()->extend(TestCase::class)
+    ->in('Unit/Acquisition');
+
 /*
 |--------------------------------------------------------------------------
 | Expectations
