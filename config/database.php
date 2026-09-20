@@ -97,6 +97,9 @@ return [
             'prefix_indexes' => true,
             'search_path' => 'public',
             'sslmode' => env('DB_SSLMODE', 'prefer'),
+            // Timestamps are stored and compared in UTC (plan §18). Without this
+            // the session inherits the server's local zone and shifts every write.
+            'timezone' => 'UTC',
         ],
 
         'sqlsrv' => [

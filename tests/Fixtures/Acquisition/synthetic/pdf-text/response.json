@@ -1,0 +1,12 @@
+{
+  "url": "https://www.example.org/files/pdf-text.pdf",
+  "final_url": "https://www.example.org/files/pdf-text.pdf",
+  "status": 200,
+  "headers": {
+    "content-type": "application/pdf"
+  },
+  "media_type": "application/pdf",
+  "retrieved_at": "2026-09-21T00:00:00Z",
+  "body_file": "body.pdf",
+  "note": "Two-page text PDF with Info dictionary; happy path for pdf.text@1."
+}

@@ -4,8 +4,12 @@ namespace App\Providers;
 
 use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
 use App\Acquisition\Infrastructure\BlobStorage\FilesystemBlobStore;
+use App\Acquisition\Tools\Html\ParseHtmlTool;
 use App\Acquisition\Tools\Http\FetchUrlTool;
+use App\Acquisition\Tools\Normalize\NormalizeDocumentTool;
+use App\Acquisition\Tools\Pdf\ParsePdfTool;
 use App\Acquisition\Tools\ToolRegistry;
+use App\Acquisition\Tools\Xml\ParseXmlTool;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Support\ServiceProvider;
 
@@ -30,6 +34,10 @@ class AcquisitionServiceProvider extends ServiceProvider
         $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
             return new ToolRegistry([
                 $app->make(FetchUrlTool::class),
+                $app->make(ParseHtmlTool::class),
+                $app->make(ParseXmlTool::class),
+                $app->make(ParsePdfTool::class),
+                $app->make(NormalizeDocumentTool::class),
             ]);
         });
     }

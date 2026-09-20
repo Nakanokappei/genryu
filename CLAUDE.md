@@ -67,6 +67,14 @@ The starter kit's auth screens (login, register, settings, 2FA, passkeys)
 came with the scaffold. They are not a Phase 0 deliverable; leave them
 dormant rather than extending them.
 
+## Gotchas
+
+- **Pest prints nothing and exits 1** when a PHP fatal error (not a test
+  failure) happens while loading a class. The agent-mode JSON reporter
+  swallows it. Run `php -d error_log=/tmp/php-err.log vendor/bin/pest <file>`
+  and read the log, or `php -l` the suspect file. Pint and PHPStan do not
+  catch every compile error (e.g. unparenthesized nested ternaries).
+
 ## Conventions
 
 - Tests never hit the network. Fixture-based tests live under

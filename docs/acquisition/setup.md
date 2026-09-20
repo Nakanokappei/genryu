@@ -73,7 +73,8 @@ Milestone 3 までに次を用意する。
 
 ## 未確定（実装を左右するもの）
 
-1. **PDF テキスト抽出ライブラリ。** 優先度は低い（2026-09-21 の判断）。PDF Tool は Milestone 2 の最後に回し、システム依存のない `smalot/pdfparser` から試す。品質不足なら poppler ベースの `spatie/pdf-to-text` に替える。どちらでも `pdf.text@1` の Parser ID の裏に隠す。
-2. **Revision 判定の hash 源。** ADR-0003 の「未解決」。Milestone 6 で実測。
+1. **Revision 判定の hash 源。** ADR-0003 の「未解決」。Milestone 6 で実測。
+
+PDF テキスト抽出は `smalot/pdfparser`（純 PHP、システム依存なし）で `pdf.text@1` として実装した（2026-09-21、優先度低の判断に沿って最小構成）。レイアウト復元は弱く、OCR はない。DARPA の実 PDF で品質不足が出たら poppler ベースの実装を `pdf.text@2` として追加し、旧版と併存させる。
 
 `ANTHROPIC_API_KEY` は用意済み（2026-09-21）。Milestone 4 で `worker/.env` に置く。それまでは `FakeOrchestrator` で進む。

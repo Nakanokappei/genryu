@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "source_key": "example",
+  "display_name": "Example Agency",
+  "profile_version": 1,
+  "status": "PENDING_APPROVAL",
+  "base_url": "https://www.example.org/",
+  "allowed_hosts": ["www.example.org", "example.org"],
+  "entrypoints": [
+    {"type": "rss", "url": "https://www.example.org/feed.xml", "priority": 100},
+    {"type": "sitemap_index", "url": "https://www.example.org/sitemap.xml", "priority": 50}
+  ],
+  "document_patterns": [
+    {"include": "^https://www\\.example\\.org/news/[a-z0-9-]+$", "exclude": null, "document_type": "news", "identity": {"from": "feed_guid"}},
+    {"include": "^https://www\\.example\\.org/files/.+\\.pdf$", "document_type": "report"}
+  ],
+  "content_types": ["text/html", "application/rss+xml", "application/xml", "application/pdf"],
+  "parser_bindings": {
+    "text/html": "html.generic@1",
+    "application/rss+xml": "xml.feed@1",
+    "application/xml": "xml.feed@1"
+  },
+  "quality_expectations": {
+    "required_fields": ["canonical_url", "title"],
+    "minimum_text_characters": 200,
+    "minimum_item_ratio_to_baseline": 0.5
+  },
+  "crawl_policy": {
+    "max_depth": 3,
+    "max_urls_per_run": 500,
+    "requests_per_minute": 30,
+    "timeout_seconds": 20,
+    "max_body_bytes": 52428800
+  },
+  "evidence": {"robots_txt": "https://www.example.org/robots.txt", "sample_urls": ["https://www.example.org/news/simple-article"]},
+  "discovered_at": "2026-09-21T00:00:00Z",
+  "last_verified_at": null,
+  "approved_at": null,
+  "approved_by": null
+}
