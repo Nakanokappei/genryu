@@ -45,6 +45,19 @@ final class RobotsPolicy
     }
 
     /**
+     * Sitemap URLs advertised by the host's robots.txt (empty when none or unreachable).
+     *
+     * @param  list<string>  $allowedHosts
+     * @return list<string>
+     */
+    public function sitemaps(string $url, array $allowedHosts, ToolContext $context): array
+    {
+        $uri = new Uri($url);
+
+        return $this->rulesFor($uri->getScheme() ?: 'https', strtolower($uri->getHost()), $allowedHosts, $context)?->sitemaps() ?? [];
+    }
+
+    /**
      * @param  list<string>  $allowedHosts
      */
     private function rulesFor(string $scheme, string $host, array $allowedHosts, ToolContext $context): ?RobotsRules

@@ -64,4 +64,60 @@ return [
         'degrade_after' => 3,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Agent worker (ADR-0001)
+    |--------------------------------------------------------------------------
+    |
+    | The Claude Agent SDK runs as a Python sidecar in worker/. Laravel starts
+    | it with the Process facade; the worker calls back into
+    | `php artisan acquisition:tool` for every Tool. Secrets stay in
+    | worker/.env; the model can be overridden here for a whole deployment.
+    |
+    */
+
+    'worker' => [
+        'dir' => env('ACQUISITION_WORKER_DIR', base_path('worker')),
+        'python' => env('ACQUISITION_WORKER_PYTHON', base_path('worker/.venv/bin/python')),
+        'php' => env('ACQUISITION_WORKER_PHP', PHP_BINARY),
+        'timeout_seconds' => (int) env('ACQUISITION_WORKER_TIMEOUT', 1800),
+        'model' => env('TW_AGENT_MODEL', 'claude-opus-5'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Tools exposed to the Agent (AT-14)
+    |--------------------------------------------------------------------------
+    |
+    | The complete allowlist. The bridge refuses anything else, whatever the
+    | worker asks for. Storage writes happen inside these tools, never directly.
+    |
+    */
+
+    'agent_tools' => [
+        'discover_web',
+        'fetch_url',
+        'parse_html',
+        'parse_xml',
+        'parse_pdf',
+        'normalize_document',
+        'store_source_profile_candidate',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Discovery budget defaults (plan §5.1)
+    |--------------------------------------------------------------------------
+    */
+
+    'discovery' => [
+        'max_depth' => 2,
+        'max_urls' => 50,
+        'max_seconds' => 120,
+        'requests_per_minute' => 30,
+        'max_tool_calls' => 40,
+        'max_turns' => 30,
+        'max_budget_usd' => 2.0,
+    ],
+
 ];

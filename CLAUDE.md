@@ -67,6 +67,16 @@ The starter kit's auth screens (login, register, settings, 2FA, passkeys)
 came with the scaffold. They are not a Phase 0 deliverable; leave them
 dormant rather than extending them.
 
+## Worker (`worker/`)
+
+Python sidecar running the Claude Agent SDK. `uv sync` once, then
+`uv run ruff check acquisition_agent tests && uv run pytest`. It has no
+built-in tools; every action is one of the seven names in
+`config/acquisition.php` `agent_tools`, executed by
+`php artisan acquisition:tool`. Host scope and budgets are enforced on the
+PHP side (`AgentToolBridge`), never trusted from the Agent. To exercise the
+whole chain without an LLM: `acquisition:discover <source> --script=calls.json`.
+
 ## Gotchas
 
 - **Pest prints nothing and exits 1** when a PHP fatal error (not a test

@@ -27,12 +27,30 @@ php artisan migrate
 npm install && npm run build
 ```
 
-ワーカー（Milestone 4 以降）:
+ワーカー（Claude Agent SDK、ADR-0001）:
 
 ```bash
 cd worker
-uv sync
-cp .env.example .env   # ANTHROPIC_API_KEY を記入
+uv sync                # .venv に claude-agent-sdk / python-dotenv / pytest / ruff
+cp .env.example .env   # ANTHROPIC_API_KEY を記入（Git には入らない）
+uv run ruff check acquisition_agent tests && uv run pytest
+```
+
+境界の煙テスト（LLM なし）。Laravel → Python → `php artisan acquisition:tool` → DB を一往復させる:
+
+```bash
+php artisan acquisition:source add example "Example Agency" https://www.example.org/
+php artisan acquisition:discover example --script=path/to/calls.json
+```
+
+`calls.json` は `[{"tool": "store_source_profile_candidate", "payload": {"profile": {...}, "change_reason": "..."}}]` の形。
+`tests/Fixtures/Acquisition/profiles/example.v1.json` をそのまま `profile` に使える。
+
+本番の Discovery（LLM あり、費用発生）:
+
+```bash
+php artisan acquisition:discover darpa --max-urls=50 --max-tool-calls=40
+php artisan acquisition:profile approve darpa 1   # Milestone 5 で追加
 ```
 
 ### 検査
@@ -53,7 +71,7 @@ Herd の CLI PHP は `memory_limit=128M` で php.ini を読まないため、PHP
 | Integration | `tests/Integration/Acquisition/` | なし（fixture の RAW を `BlobStore` に投入） | する |
 | Acceptance | `tests/Acceptance/Acquisition/` | なし | する |
 | Live smoke | 上記のうち `->group('live')` を付けたもの | あり（実サイト、実 LLM） | しない。`php artisan test --group=live` で明示実行 |
-| Python | `worker/tests/` | なし（MCP ハンドラの引数変換のみ） | `uv run pytest` |
+| Python | `worker/tests/` | なし（`conftest.py` が artisan 子プロセスを偽装） | `cd worker && uv run pytest` |
 
 `phpunit.xml` の `<groups><exclude>` に `live` を入れる。live smoke は Milestone 6 以降に追加する。
 

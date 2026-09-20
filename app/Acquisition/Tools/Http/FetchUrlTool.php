@@ -227,6 +227,12 @@ final class FetchUrlTool implements Tool
         }
 
         $stream = $response->toPsrResponse()->getBody();
+
+        // A live response stream starts at 0; a reused (faked) one may not.
+        if ($stream->isSeekable()) {
+            $stream->rewind();
+        }
+
         $body = '';
 
         while (! $stream->eof()) {

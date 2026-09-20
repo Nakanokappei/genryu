@@ -12,12 +12,14 @@ final class RobotsRules
 {
     /**
      * @param  array<string, list<array{allow: bool, path: string}>>  $groups  lower-cased token => rules
+     * @param  list<string>  $sitemaps  absolute URLs from Sitemap: directives
      */
-    private function __construct(private array $groups) {}
+    private function __construct(private array $groups, private array $sitemaps = []) {}
 
     public static function parse(string $robotsTxt): self
     {
         $groups = [];
+        $sitemaps = [];
         $currentTokens = [];
         $lastWasUserAgent = false;
 
@@ -47,6 +49,13 @@ final class RobotsRules
 
             $lastWasUserAgent = false;
 
+            // Sitemap directives are global, not part of any group.
+            if ($field === 'sitemap' && $value !== '') {
+                $sitemaps[] = $value;
+
+                continue;
+            }
+
             if (($field === 'allow' || $field === 'disallow') && $currentTokens !== []) {
                 foreach ($currentTokens as $token) {
                     $groups[$token][] = ['allow' => $field === 'allow', 'path' => $value];
@@ -54,7 +63,17 @@ final class RobotsRules
             }
         }
 
-        return new self($groups);
+        return new self($groups, array_values(array_unique($sitemaps)));
+    }
+
+    /**
+     * Sitemap URLs the file advertises, in order of appearance.
+     *
+     * @return list<string>
+     */
+    public function sitemaps(): array
+    {
+        return $this->sitemaps;
     }
 
     /**

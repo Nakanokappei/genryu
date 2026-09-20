@@ -2,12 +2,22 @@
 
 namespace App\Providers;
 
+use App\Acquisition\Agent\AcquisitionOrchestrator;
+use App\Acquisition\Agent\AgentToolBridge;
+use App\Acquisition\Agent\Tools\AgentFetchTool;
+use App\Acquisition\Agent\Tools\AgentNormalizeTool;
+use App\Acquisition\Agent\Tools\BlobBackedParseTool;
+use App\Acquisition\Agent\Tools\StoreProfileCandidateTool;
+use App\Acquisition\Infrastructure\AgentSdk\ClaudeAgentSdkOrchestrator;
 use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
 use App\Acquisition\Infrastructure\BlobStorage\FilesystemBlobStore;
+use App\Acquisition\Tools\Discovery\DiscoverWebTool;
 use App\Acquisition\Tools\Html\ParseHtmlTool;
 use App\Acquisition\Tools\Http\FetchUrlTool;
+use App\Acquisition\Tools\Http\RobotsPolicy;
 use App\Acquisition\Tools\Normalize\NormalizeDocumentTool;
 use App\Acquisition\Tools\Pdf\ParsePdfTool;
+use App\Acquisition\Tools\ToolDispatcher;
 use App\Acquisition\Tools\ToolRegistry;
 use App\Acquisition\Tools\Xml\ParseXmlTool;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
@@ -40,5 +50,27 @@ class AcquisitionServiceProvider extends ServiceProvider
                 $app->make(NormalizeDocumentTool::class),
             ]);
         });
+
+        // The Agent-facing tool set behind the CLI bridge (ADR-0001, AT-14).
+        // Byte-oriented parsers are wrapped so the Agent passes RAW blob
+        // references, never bodies. Names must match config acquisition.agent_tools.
+        $this->app->singleton(AgentToolBridge::class, function ($app): AgentToolBridge {
+            $blobs = $app->make(BlobStore::class);
+
+            return new AgentToolBridge(new ToolDispatcher(new ToolRegistry([
+                $app->make(DiscoverWebTool::class),
+                $app->make(AgentFetchTool::class),
+                new BlobBackedParseTool($app->make(ParseHtmlTool::class), 'html', $blobs),
+                new BlobBackedParseTool($app->make(ParseXmlTool::class), 'xml', $blobs),
+                new BlobBackedParseTool($app->make(ParsePdfTool::class), 'pdf', $blobs),
+                $app->make(AgentNormalizeTool::class),
+                $app->make(StoreProfileCandidateTool::class),
+            ])));
+        });
+
+        $this->app->bind(AcquisitionOrchestrator::class, ClaudeAgentSdkOrchestrator::class);
+
+        // One robots.txt cache per request/job, shared by every fetcher in it.
+        $this->app->scoped(RobotsPolicy::class);
     }
 }

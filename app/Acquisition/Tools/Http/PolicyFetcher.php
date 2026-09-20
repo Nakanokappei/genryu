@@ -27,6 +27,12 @@ final class PolicyFetcher
     {
         $host = UrlNormalizer::host($request->url) ?? '';
 
+        // Scope first: a URL outside the allowed hosts is refused before any
+        // request (robots.txt included) is made for it.
+        if (! in_array($host, $request->allowedHosts, true)) {
+            throw new ToolError(ErrorCode::HostNotAllowed, "Host of {$request->url} is not in the allowed hosts.", ['url' => $request->url, 'allowed_hosts' => $request->allowedHosts]);
+        }
+
         // robots.txt itself goes through the throttle as well.
         $this->throttle->await($host, $requestsPerMinute);
 
