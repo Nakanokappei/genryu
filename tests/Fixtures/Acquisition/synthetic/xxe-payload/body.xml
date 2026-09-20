@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!DOCTYPE rss [
+  <!ENTITY xxe SYSTEM "file:///etc/hostname">
+]>
+<rss version="2.0"><channel><title>&xxe;</title><item><title>x</title><link>https://www.example.org/x</link></item></channel></rss>

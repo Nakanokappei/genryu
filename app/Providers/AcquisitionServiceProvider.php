@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
 use App\Acquisition\Infrastructure\BlobStorage\FilesystemBlobStore;
+use App\Acquisition\Tools\Http\FetchUrlTool;
+use App\Acquisition\Tools\ToolRegistry;
 use Illuminate\Contracts\Filesystem\Factory as FilesystemFactory;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +23,14 @@ class AcquisitionServiceProvider extends ServiceProvider
         // tests takes effect before the store is first used.
         $this->app->bind(BlobStore::class, function ($app): BlobStore {
             return new FilesystemBlobStore($app->make(FilesystemFactory::class)->disk('acquisition'));
+        });
+
+        // The complete allowlist of Tools (AT-14). Adding a Tool means adding
+        // it here and nowhere else.
+        $this->app->singleton(ToolRegistry::class, function ($app): ToolRegistry {
+            return new ToolRegistry([
+                $app->make(FetchUrlTool::class),
+            ]);
         });
     }
 }

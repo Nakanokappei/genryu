@@ -48,7 +48,15 @@ expect()->extend('toBeOne', function () {
 |
 */
 
-function something()
+/**
+ * Load a saved HTTP response from tests/Fixtures/Acquisition.
+ *
+ * @return array{meta: array<string, mixed>, body: string}
+ */
+function acquisitionFixture(string $name): array
 {
-    // ..
+    $directory = __DIR__.'/Fixtures/Acquisition/'.$name;
+    $meta = json_decode((string) file_get_contents($directory.'/response.json'), true, 512, JSON_THROW_ON_ERROR);
+
+    return ['meta' => $meta, 'body' => (string) file_get_contents($directory.'/'.$meta['body_file'])];
 }
