@@ -120,4 +120,29 @@ return [
         'max_budget_usd' => 2.0,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Monitoring, Health and drift (plan §12, §13)
+    |--------------------------------------------------------------------------
+    |
+    | baseline_runs: how many earlier observations form the median baseline.
+    | quality_collapse_ratio: share of failed quality verdicts that counts as
+    | evidence, once at least min_documents_for_ratio documents were assessed.
+    | max_sitemap_children: cap on child sitemaps read per sitemap index.
+    | self_healing.auto_discover: queue one Discovery run when a source enters
+    | PARSER_DRIFT (it only creates a candidate; approval stays human).
+    |
+    */
+
+    'monitoring' => [
+        'baseline_runs' => 5,
+        'quality_collapse_ratio' => 0.5,
+        'min_documents_for_ratio' => 3,
+        'max_sitemap_children' => 20,
+    ],
+
+    'self_healing' => [
+        'auto_discover' => (bool) env('ACQUISITION_AUTO_DISCOVER', true),
+    ],
+
 ];

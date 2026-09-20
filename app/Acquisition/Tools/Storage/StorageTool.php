@@ -260,12 +260,13 @@ final class StorageTool
     /**
      * record_health_observation: one metric sample with its baseline.
      */
-    public function recordHealthObservation(Source $source, ?AcquisitionRun $run, string $metric, float $value, ?float $baseline, ?string $status, CarbonImmutable $observedAt): HealthObservation
+    public function recordHealthObservation(Source $source, ?AcquisitionRun $run, string $metric, float $value, ?float $baseline, ?string $status, CarbonImmutable $observedAt, ?string $dimension = null): HealthObservation
     {
         return HealthObservation::query()->create([
             'source_id' => $source->id,
             'run_id' => $run?->id,
             'metric' => $metric,
+            'dimension' => $dimension,
             'value' => $value,
             'baseline' => $baseline,
             'status' => $status,

@@ -15,12 +15,13 @@ use Illuminate\Support\Carbon;
  * @property int $source_id
  * @property int|null $run_id
  * @property string $metric
+ * @property string|null $dimension
  * @property string $value
  * @property string|null $baseline
  * @property string|null $status
  * @property Carbon $observed_at
  */
-#[Fillable(['source_id', 'run_id', 'metric', 'value', 'baseline', 'status', 'observed_at'])]
+#[Fillable(['source_id', 'run_id', 'metric', 'dimension', 'value', 'baseline', 'status', 'observed_at'])]
 class HealthObservation extends Model
 {
     public $timestamps = false;

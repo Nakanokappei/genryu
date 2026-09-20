@@ -46,12 +46,22 @@ php artisan acquisition:discover example --script=path/to/calls.json
 `calls.json` は `[{"tool": "store_source_profile_candidate", "payload": {"profile": {...}, "change_reason": "..."}}]` の形。
 `tests/Fixtures/Acquisition/profiles/example.v1.json` をそのまま `profile` に使える。
 
-本番の Discovery（LLM あり、費用発生）:
+本番の Discovery（LLM あり、費用発生）から Monitoring まで:
 
 ```bash
-php artisan acquisition:discover darpa --max-urls=50 --max-tool-calls=40
-php artisan acquisition:profile approve darpa 1   # Milestone 5 で追加
+php artisan acquisition:source add darpa DARPA https://www.darpa.mil/
+php artisan acquisition:discover darpa --max-urls=50 --max-tool-calls=40   # 候補を PENDING_APPROVAL で保存
+php artisan acquisition:profile list darpa                                  # 版と状態の一覧
+php artisan acquisition:profile show darpa 1                                # 候補の JSON を確認
+php artisan acquisition:profile approve darpa 1 --by=<name>                 # ACTIVE 化（唯一の経路）
+php artisan acquisition:monitor darpa                                       # Monitoring を 1 回
+php artisan acquisition:profile rollback darpa --by=<name>                  # 直前の版へ戻す
 ```
+
+Scheduler は `routes/console.php` で `acquisition:monitor --all --queue` を毎時実行する（`php artisan schedule:work` または cron の `schedule:run`）。
+Monitoring は ACTIVE Profile のない Source と circuit breaker 中の Source を skip する。
+Health が `PARSER_DRIFT` に入った時だけ Discovery を 1 回キュー投入する（`ACQUISITION_AUTO_DISCOVER=false` で無効化）。
+候補ができても承認は必ず人間が `acquisition:profile approve` で行う。
 
 ### 検査
 

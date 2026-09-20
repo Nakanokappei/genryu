@@ -79,6 +79,10 @@ whole chain without an LLM: `acquisition:discover <source> --script=calls.json`.
 
 ## Gotchas
 
+- **`Http::fake()` keeps the first registered callback.** Registering a
+  second callable does not override the first. Tests that change what a
+  fake site serves between runs must read mutable state inside one callback
+  (see `MonitoringRunnerTest`), not call `Http::fake()` again.
 - **Pest prints nothing and exits 1** when a PHP fatal error (not a test
   failure) happens while loading a class. The agent-mode JSON reporter
   swallows it. Run `php -d error_log=/tmp/php-err.log vendor/bin/pest <file>`
