@@ -19,11 +19,38 @@ new #[Title('情報源')] class extends Component {
 
     public string $notes = '';
 
+    /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
+    public array $list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
+
     public function mount(): void
     {
         $this->name = $this->source->name;
         $this->url = $this->source->url;
         $this->notes = $this->source->notes ?? '';
+
+        foreach ($this->source->list_config ?? [] as $key => $value) {
+            if (array_key_exists($key, $this->list)) {
+                $this->list[$key] = (string) $value;
+            }
+        }
+    }
+
+    // The HTML list settings are saved separately from the name / URL form; an empty item means "read a feed".
+    public function saveList(): void
+    {
+        $validated = $this->validate([
+            'list.item' => ['nullable', 'string', 'max:255'],
+            'list.title' => ['nullable', 'string', 'max:255'],
+            'list.date' => ['nullable', 'string', 'max:255'],
+            'list.next' => ['nullable', 'string', 'max:255'],
+            'list.max_pages' => ['required', 'integer', 'min:1', 'max:100'],
+        ])['list'];
+
+        $this->source->update(['list_config' => $validated['item'] !== '' && $validated['item'] !== null
+            ? [...$validated, 'max_pages' => (int) $validated['max_pages']]
+            : null]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
     public function save(): void
@@ -54,7 +81,9 @@ new #[Title('情報源')] class extends Component {
         }
 
         $this->source->refresh();
-        Flux::toast(variant: 'success', text: __(':added added, :existing already listed (:feed)', ['added' => $result['added'], 'existing' => $result['existing'], 'feed' => $result['feed_url']]), duration: 8000);
+        Flux::toast(variant: 'success', duration: 8000, text: $result['feed_url'] !== null
+            ? __(':added added, :existing already listed (:feed)', ['added' => $result['added'], 'existing' => $result['existing'], 'feed' => $result['feed_url']])
+            : __(':added added, :existing already listed (:pages pages)', ['added' => $result['added'], 'existing' => $result['existing'], 'pages' => $result['pages']]));
     }
 }; ?>
 
@@ -85,6 +114,19 @@ new #[Title('情報源')] class extends Component {
         </flux:text>
         <flux:text class="ms-auto">{{ __('Fetched at') }}: {{ $source->fetched_at?->format('Y-m-d H:i') ?? '—' }}</flux:text>
     </div>
+
+    <form wire:submit="saveList" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('HTML list settings') }}</flux:heading>
+        <flux:text>{{ __('CSS selectors. Leave the item empty to read a feed instead. The next page is read only while the page just read had something new.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-5">
+            <flux:input wire:model="list.item" :label="__('Item')" placeholder="table.table1 tr" />
+            <flux:input wire:model="list.title" :label="__('Title link')" placeholder="td a" />
+            <flux:input wire:model="list.date" :label="__('Date')" placeholder="time" />
+            <flux:input wire:model="list.next" :label="__('Next page link')" placeholder='a[title="next page"]' />
+            <flux:input wire:model="list.max_pages" :label="__('Max pages')" type="number" min="1" max="100" />
+        </div>
+        <flux:button type="submit">{{ __('Save') }}</flux:button>
+    </form>
 
     <flux:heading size="lg">{{ __('Updates') }}</flux:heading>
     <x-pages::table :columns="[__('Title'), __('Published at')]" :empty="$source->updateEntries->isEmpty()">
