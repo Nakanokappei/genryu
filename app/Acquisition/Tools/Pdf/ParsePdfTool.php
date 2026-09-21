@@ -131,11 +131,9 @@ final class ParsePdfTool implements Tool
         $metadata = [];
 
         foreach ($details as $key => $value) {
-            if (is_array($value)) {
-                $value = implode(', ', array_map('strval', $value));
-            }
-
-            $value = trim((string) $value);
+            // Info values may be nested arrays (XMP metadata); flatten them
+            // to text rather than letting PHP fail the whole parse on them.
+            $value = trim(is_array($value) ? self::flatten($value) : (string) $value);
 
             if ($value !== '') {
                 $metadata[strtolower((string) $key)] = $value;
@@ -145,6 +143,26 @@ final class ParsePdfTool implements Tool
         ksort($metadata);
 
         return $metadata;
+    }
+
+    /**
+     * Join a possibly nested metadata value into one string.
+     *
+     * @param  array<mixed>  $value
+     */
+    private static function flatten(array $value): string
+    {
+        $parts = [];
+
+        foreach ($value as $item) {
+            $text = is_array($item) ? self::flatten($item) : trim((string) $item);
+
+            if ($text !== '') {
+                $parts[] = $text;
+            }
+        }
+
+        return implode(', ', $parts);
     }
 
     /**

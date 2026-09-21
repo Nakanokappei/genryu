@@ -306,9 +306,19 @@ final class MonitoringRunner
             $counters->increment(RunCounters::SKIPPED, $skipped);
         }
 
-        foreach (array_slice($candidates, 0, $limit) as $normalized => $candidate) {
+        // Unknown documents first, so a large sitemap is backfilled a slice per
+        // run instead of the same known pages being re-checked forever.
+        $knownDocuments = [];
+
+        foreach ($candidates as $normalized => $candidate) {
+            $knownDocuments[$normalized] = $this->knownDocument($source, $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null, $normalized);
+        }
+
+        uksort($candidates, static fn (string $a, string $b): int => ($knownDocuments[$a] === null ? 0 : 1) <=> ($knownDocuments[$b] === null ? 0 : 1));
+
+        foreach (array_slice($candidates, 0, $limit, true) as $normalized => $candidate) {
             $feedGuid = $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null;
-            $known = $this->knownDocument($source, $feedGuid, $normalized);
+            $known = $knownDocuments[$normalized];
             $counters->increment(RunCounters::FETCHED);
 
             try {
