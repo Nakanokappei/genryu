@@ -49,7 +49,7 @@ it('normalizes a parsed article into the common document model with provenance',
         ->and($document->updatedAt)->toBeNull()
         ->and($document->retrievedAt)->toBe('2026-09-21T00:00:00Z')
         ->and($document->parserId)->toBe('html.generic@1')
-        ->and($document->normalizerVersion)->toBe('normalize.document@1')
+        ->and($document->normalizerVersion)->toBe('normalize.document@2')
         ->and($document->rawSha256)->toBe(hash('sha256', $fixture['body']))
         ->and($document->outboundLinks)->toHaveCount(2)
         ->and($document->quality)->toMatchArray(['required_fields_missing' => [], 'passed' => true])

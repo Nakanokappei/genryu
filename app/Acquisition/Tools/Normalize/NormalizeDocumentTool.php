@@ -17,7 +17,7 @@ use Carbon\CarbonImmutable;
 use Carbon\Exceptions\InvalidFormatException;
 
 /**
- * Normalize Tool, normalize.document@1 (plan §7.6). Folds HTML, XML and PDF
+ * Normalize Tool, normalize.document@2 (plan §7.6). Folds HTML, XML and PDF
  * parser output into the common Document Model, derives the stable
  * identity (ADR-0003), picks dates from candidates without discarding
  * them, and evaluates the profile's quality expectations. It records the
@@ -283,7 +283,7 @@ final class NormalizeDocumentTool implements Tool
             language: $language,
             contentType: $context->mediaType,
             parserId: $parserId,
-            normalizerVersion: ParserRegistry::NORMALIZE_DOCUMENT_V1,
+            normalizerVersion: ParserRegistry::NORMALIZE_DOCUMENT_CURRENT,
             rawSha256: $context->rawSha256,
             rawBlobUri: $context->rawBlobUri,
             outboundLinks: $outboundLinks,

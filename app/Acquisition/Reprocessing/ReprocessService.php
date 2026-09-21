@@ -149,7 +149,7 @@ final class ReprocessService
         return NormalizedArtifact::query()
             ->where('revision_id', $revision->id)
             ->where('parser_id', $parserId)
-            ->where('normalizer_version', ParserRegistry::NORMALIZE_DOCUMENT_V1)
+            ->where('normalizer_version', ParserRegistry::NORMALIZE_DOCUMENT_CURRENT)
             ->exists();
     }
 

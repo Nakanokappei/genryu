@@ -62,16 +62,83 @@ Agent が困った点（Milestone 8 への持ち越し）:
 
 ## 4. Monitoring 2 回と idempotency
 
-（実行後に記入: run ID、counters、2 回目で RAW / Revision / NORMALIZED が増えないこと、fetch observation は増えること）
+### 4.1 第 1 組（run #4・#5、修正前）
+
+| run | 状態 | counters | 所見 |
+|---|---|---|---|
+| #4 | COMPLETED_WITH_ERRORS | new 22、failed 1、quality_failed 9 | 22 件すべて `/news/features` index から。failed 1 は 17.99MB の PDF（`max_body_bytes` 16MB 超、`BODY_TOO_LARGE`）で、制限どおりの挙動 |
+| #5 | COMPLETED_WITH_ERRORS | unchanged 22、failed 1、new 0 | 22 件すべて条件付き GET で 304。新規 RAW・Revision・NORMALIZED はゼロ。fetch observation は 23 件増（AT-05 の文書レベルは成立） |
+
+この 2 run で見つかった問題と対処（コミット「Milestone 6 (3/4)」）:
+
+- **RSS と sitemap が候補を出していなかった。** Discovery が両 URL の RAW を保存していたため Monitoring は条件付き GET を送り 304 を受けたが、再生元の Document（Revision）がまだ存在せず、候補ゼロで素通りしていた。→ 条件付き GET は「その entrypoint の Revision が保存済みの場合」だけ送る
+- **PDF 9 件が品質不合格。** すべて `required_fields` の `title` 欠落。DARPA の PDF は Info 辞書に Title を持たない。→ Info に title がなければ 1 ページ目の先頭行を title に使い、`provenance.title_source = first_line` で明示
+- **候補の並び。** 2,369 URL の sitemap を 1 run 30 件で消化するには、未知文書を優先しないと同じ 30 件を再確認し続ける。一方で未知だけを優先すると既知文書の再確認が止まる。→ 未知と既知を交互に並べる
+- **`/news` index は候補ゼロ。** 保存 RAW を解析すると本文内リンクは 8 本で `/news/20xx/` は 0 本。一覧は JS で描画されており、HTML には載らない。news 記事の列挙経路は RSS（最新 10 件）と sitemap（全件）のみ。Agent の判断（sitemap を第 2 経路にする）は正しかった
+
+### 4.2 第 2 組（run #6・#7、修正後）
+
+| run | 状態 | counters | entrypoint の entry 数（baseline） |
+|---|---|---|---|
+| #6 | SUCCEEDED | fetched 30 = new 15 + unchanged 15、skipped 1,840、failed 0、quality_failed 0 | rss.xml 10（-）、rss/opportunities.xml 10（-）、sitemap.xml 2,368（-）、/news/features 23（23）、/news 0、/research/programs 0 |
+| #7 | SUCCEEDED | fetched 30 = new 15 + unchanged 15、skipped 1,840、failed 0、quality_failed 0 | 同じ 6 entrypoint すべて 304。値は baseline と一致（rss 10/10、sitemap 2,368/2,368 …） |
+
+idempotency（AT-05）の証跡:
+
+- run #7 の既知 15 件は条件付き GET がすべて 304 で `unchanged`。Revision・RAW・NORMALIZED は増えず、fetch observation だけ増えた（139 件）
+- 全 58 Document の Revision 数は 1（複数 Revision を持つ Document は 0）。同一内容の再取得で Revision が増えていない
+- 新規 15 件は sitemap のバックログからの補充（未知・既知の交互取得）。1,840 件の残りは以降の run で 15 件ずつ消化される見込み
+- run #7 で 3 つの XML entrypoint は 304 を受け、保存済み RAW から entries を再生して候補を作った（ネットワークなしの再生）
 
 ## 5. RAW / Markdown / Revision / Health の確認
 
-（実行後に記入: HTML・XML・PDF 各 1 例の RAW と NORMALIZED、Health observation）
+3 形式各 1 例を BlobStore から読み戻し、RAW の SHA-256 が `raw_artifacts.sha256` と一致することを確認した（AT-03）。
+
+| 形式 | Document | RAW | NORMALIZED |
+|---|---|---|---|
+| HTML | `guid:5501 at https://www.darpa.mil`（news、rev 1） | text/html 43,661B、hash 一致 | `html.generic@1`、title「$3.5M to advance autonomous trauma robotics \| DARPA」、published_at 2026-09-14T18:32:21Z（feed:published 由来）、quality passed |
+| XML | `url:https://www.darpa.mil/rss.xml`（feed、rev 1） | text/xml 4,955B、hash 一致 | `xml.feed@1`、outbound_links に 10 記事、quality passed |
+| PDF | `url:…/attachment/2025-01/darpa-vignette-arpanet.pdf`（report、rev 1） | application/pdf 410,405B、hash 一致 | `pdf.text@1`、title「DARPA vignettes: ARPANET」（Info 由来）、published_at 2020-07-07（CreationDate）、3 ページ 10,311 文字、quality passed |
+
+Health: run #6・#7 とも `HEALTHY -> HEALTHY`。`health_observations` に entrypoint 別 entry 数（dimension = URL）、run 所要時間、新規/失敗件数、取得成功率が記録され、run #7 以降は baseline（中央値）と比較されている。
 
 ## 6. RAW からのネットワークなし再処理
 
-（実行後に記入: `HTTPS_PROXY` を到達不能にした状態での `acquisition:reprocess --dry-run` と本実行）
+Normalizer を `normalize.document@1` から `@2` に版上げした（feed の pubDate を確度 0.8 の日付候補に、PDF の title 欠落時は 1 ページ目の先頭行を採用）。出力が変わる変更は版を上げるという計画書 §11 の規則に従い、保存済み RAW から `@2` を再生成した。
 
-## 7. 既知の制約
+ネットワーク遮断: `HTTP_PROXY` / `HTTPS_PROXY` に到達不能な `http://127.0.0.1:9` を設定した同じシェルで、まず `Http::get("https://www.darpa.mil/robots.txt")` が `ConnectionException` になることを確認したうえで実行。
 
-（実行後に記入）
+```bash
+export HTTP_PROXY=http://127.0.0.1:9 HTTPS_PROXY=http://127.0.0.1:9
+php artisan acquisition:reprocess --source=darpa --parser=html.generic@1 --dry-run   # 44 件、1,979,186 B
+php artisan acquisition:reprocess --source=darpa --parser=xml.feed@1 --dry-run       # 3 件、404,243 B
+php artisan acquisition:reprocess --source=darpa --parser=pdf.text@1 --dry-run       # 11 件、35,390,025 B
+php artisan acquisition:reprocess --source=darpa --parser=html.generic@1              # run #8  SUCCEEDED 44/0/0
+php artisan acquisition:reprocess --source=darpa --parser=xml.feed@1                  # run #9  SUCCEEDED 3/0/0
+php artisan acquisition:reprocess --source=darpa --parser=pdf.text@1                  # run #10 SUCCEEDED 11/0/0
+```
+
+結果（`normalized_artifacts` の版別件数と品質合格数）:
+
+| normalizer | parser | 件数 | 合格 |
+|---|---|---|---|
+| normalize.document@1 | html.generic@1 | 44 | 44 |
+| normalize.document@1 | xml.feed@1 | 3 | 3 |
+| normalize.document@1 | pdf.text@1 | 11 | **2** |
+| normalize.document@2 | html.generic@1 | 44 | 44 |
+| normalize.document@2 | xml.feed@1 | 3 | 3 |
+| normalize.document@2 | pdf.text@1 | 11 | **11** |
+
+`@1` の成果物は削除・上書きされず併存し、各 NORMALIZED は入力 RAW（`raw_sha256`）、parser、normalizer の版、生成 run（`produced_in_run_id`）へ追跡できる（AT-07）。
+
+## 7. 既知の制約と Phase 1 / Milestone 8 への持ち越し
+
+- **Agent が大きな Tool 結果を読めない。** sitemap（2,368 entries）の `parse_xml` 結果が長すぎて Agent は件数を確認できなかった。ブリッジ側で entries を「先頭 N 件 + 総件数」に要約する必要がある
+- **Discovery の well-known probe が予算切れで回らないことがある。** 優先度が hint / archive より低いため、30 URL の予算では `/rss.xml` に届かず、運用者ヒントで補った。probe を先に消化するか予算外にする
+- **Agent に robots.txt を読む手段がない。** Discovery Tool の結果に robots の要約（Disallow 一覧、Sitemap 指示）を含めれば足りる
+- **JS 描画の一覧ページ**（`/news`、`/research/programs`）は HTML に文書リンクを持たない。計画書 §2.2 のとおりブラウザクローラーは作らず、RSS と sitemap を経路とする。Agent はこれを正しく判断した
+- **17.99MB の PDF** は Profile の `max_body_bytes`（16MB）で `BODY_TOO_LARGE` になる。上限を上げるかは運用判断（大きな PDF は年報など）。毎 run 1 件 failed として数えられ続けるので、既知の恒久失敗を候補から除外する仕組み（`document_patterns.exclude` で URL を除くのが現状の手段）が欲しい
+- **品質不合格の内容でも Revision が作られる**（Milestone 5 の報告事項）。DARPA では title 対処後に不合格ゼロになったため実害は出なかった。方針は Milestone 8 で決める
+- **ADR-0003 の未解決（Revision 判定を RAW の hash で行うリスク）**: run #5〜#7 の既知文書 52 件は全件 ETag による 304 で、byte 比較に至らなかった。DARPA は ETag を返すため Revision の増殖は観測されず。ETag を返さないサイトでの検証は NEDO（Milestone 7）で行う
+- **`/rss/opportunities.xml`** は 10 entry が同一リンク先で、feed 文書としてのみ保存される（entry の summary が実体）。公募情報を文書単位で扱うなら Phase 1 の課題
+- **バックフィル速度**: 1 run 30 件・毎時実行で、sitemap の残り 1,840 件は約 5 日で消化される。`max_urls_per_run` は Profile の改版（v3 を候補として保存 → 承認）で変更できる
