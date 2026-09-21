@@ -1,0 +1,84 @@
+<?php
+
+use App\Models\Article;
+use App\Models\Document;
+use App\Models\Material;
+use App\Models\Source;
+use App\Models\UpdateEntry;
+use App\Models\User;
+use Livewire\Livewire;
+
+beforeEach(function () {
+    $this->actingAs(User::factory()->create());
+});
+
+// Every stage has a list and a detail screen that render for a signed-in user.
+it('renders the list and detail screen of every stage', function () {
+    $article = Article::factory()->create();
+    $material = $article->material;
+    $document = $material->document;
+    $update = $document->updateEntry;
+    $source = $update->source;
+
+    foreach ([
+        route('sources.index'), route('sources.show', $source),
+        route('updates.index'), route('updates.show', $update),
+        route('documents.index'), route('documents.show', $document),
+        route('materials.index'), route('materials.show', $material),
+        route('articles.index'), route('articles.show', $article),
+        route('dashboard'),
+    ] as $url) {
+        $this->get($url)->assertOk();
+    }
+
+    $this->get(route('sources.show', $source))->assertSee($source->name)->assertSee($update->title);
+    $this->get(route('articles.show', $article))->assertSee($article->title)->assertSee($document->title);
+});
+
+it('redirects guests to the login page', function () {
+    auth()->logout();
+
+    $this->get(route('sources.index'))->assertRedirect(route('login'));
+});
+
+// The hand-entry forms create one record each, following the flow from source to article.
+it('lets the user add a record on each stage by hand', function () {
+    Livewire::test('pages::sources.index')
+        ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
+        ->call('add')->assertHasNoErrors();
+    $source = Source::query()->sole();
+
+    Livewire::test('pages::updates.index')
+        ->set('source_id', (string) $source->id)->set('title', 'Press release')->set('url', 'https://www.nedo.go.jp/news/press/1.html')->set('published_at', '2026-09-17')
+        ->call('add')->assertHasNoErrors();
+    $update = UpdateEntry::query()->sole();
+
+    Livewire::test('pages::documents.index')
+        ->set('update_entry_id', (string) $update->id)->set('title', 'Press release')->set('url', $update->url)->set('format', 'html')->set('markdown', '# Press release')
+        ->call('add')->assertHasNoErrors();
+    $document = Document::query()->sole();
+
+    Livewire::test('pages::materials.index')
+        ->set('document_id', (string) $document->id)->set('data', '{"summary": "ammonia burner", "topics": ["energy"]}')
+        ->call('add')->assertHasNoErrors();
+    $material = Material::query()->sole();
+
+    Livewire::test('pages::articles.index')
+        ->set('material_id', (string) $material->id)->set('title', 'Article')->set('body', 'Body text')
+        ->call('add')->assertHasNoErrors();
+
+    expect($update->source->is($source))->toBeTrue()
+        ->and($document->fetched_at)->not->toBeNull()
+        ->and($material->data)->toEqual(['summary' => 'ammonia burner', 'topics' => ['energy']])
+        ->and(Article::query()->sole()->material->is($material))->toBeTrue();
+});
+
+it('rejects a material whose data is not JSON', function () {
+    $document = Document::factory()->create();
+
+    Livewire::test('pages::materials.index')
+        ->set('document_id', (string) $document->id)->set('data', 'not json')
+        ->call('add')->assertHasErrors(['data']);
+
+    expect(Material::query()->count())->toBe(0);
+});

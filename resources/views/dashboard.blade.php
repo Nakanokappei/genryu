@@ -1,18 +1,22 @@
 <x-layouts::app :title="__('Dashboard')">
-    <div class="flex h-full w-full flex-1 flex-col gap-4 rounded-xl">
-        <div class="grid auto-rows-min gap-4 md:grid-cols-3">
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-            <div class="relative aspect-video overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-                <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
-            </div>
-        </div>
-        <div class="relative h-full flex-1 overflow-hidden rounded-xl border border-neutral-200 dark:border-neutral-700">
-            <x-placeholder-pattern class="absolute inset-0 size-full stroke-gray-900/20 dark:stroke-neutral-100/20" />
+    {{-- One card per stage, in flow order, with its record count. --}}
+    <div class="flex h-full w-full flex-1 flex-col gap-6">
+        <flux:heading size="xl">{{ __('Dashboard') }}</flux:heading>
+        <flux:text>{{ __('Sources → Updates → Documents → Materials → Articles') }}</flux:text>
+
+        <div class="grid gap-4 md:grid-cols-5">
+            @foreach ([
+                ['Sources', \App\Models\Source::count(), route('sources.index')],
+                ['Updates', \App\Models\UpdateEntry::count(), route('updates.index')],
+                ['Documents', \App\Models\Document::count(), route('documents.index')],
+                ['Materials', \App\Models\Material::count(), route('materials.index')],
+                ['Articles', \App\Models\Article::count(), route('articles.index')],
+            ] as [$label, $count, $href])
+                <a href="{{ $href }}" wire:navigate class="rounded-xl border border-neutral-200 p-4 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">
+                    <flux:text>{{ __($label) }}</flux:text>
+                    <flux:heading size="xl">{{ $count }}</flux:heading>
+                </a>
+            @endforeach
         </div>
     </div>
 </x-layouts::app>

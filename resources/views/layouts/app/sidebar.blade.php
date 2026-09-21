@@ -11,24 +11,31 @@
             </flux:sidebar.header>
 
             <flux:sidebar.nav>
-                <flux:sidebar.group :heading="__('Platform')" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        {{ __('Dashboard') }}
+                <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
+                    {{ __('Dashboard') }}
+                </flux:sidebar.item>
+
+                {{-- The five stages of docs/HANDOVER.md, in flow order. --}}
+                <flux:sidebar.group :heading="__('Workflow')" class="grid">
+                    <flux:sidebar.item icon="globe-alt" :href="route('sources.index')" :current="request()->routeIs('sources.*')" wire:navigate>
+                        {{ __('Sources') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="list-bullet" :href="route('updates.index')" :current="request()->routeIs('updates.*')" wire:navigate>
+                        {{ __('Updates') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="document-text" :href="route('documents.index')" :current="request()->routeIs('documents.*')" wire:navigate>
+                        {{ __('Documents') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="cube" :href="route('materials.index')" :current="request()->routeIs('materials.*')" wire:navigate>
+                        {{ __('Materials') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="newspaper" :href="route('articles.index')" :current="request()->routeIs('articles.*')" wire:navigate>
+                        {{ __('Articles') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
             <flux:spacer />
-
-            <flux:sidebar.nav>
-                <flux:sidebar.item icon="folder-git-2" href="https://github.com/laravel/livewire-starter-kit" target="_blank">
-                    {{ __('Repository') }}
-                </flux:sidebar.item>
-
-                <flux:sidebar.item icon="book-open-text" href="https://laravel.com/docs/starter-kits#livewire" target="_blank">
-                    {{ __('Documentation') }}
-                </flux:sidebar.item>
-            </flux:sidebar.nav>
 
             <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
         </flux:sidebar>
