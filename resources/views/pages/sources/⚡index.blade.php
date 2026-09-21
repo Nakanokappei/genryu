@@ -1,6 +1,8 @@
 <?php
 
+use App\Jobs\ConfigureSource;
 use App\Models\Source;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -23,12 +25,16 @@ new #[Title('情報源')] class extends Component {
         return Source::query()->withCount('updateEntries')->latest()->get();
     }
 
+    // A new source is configured in the background (feed or agent-proposed HTML list settings).
     public function add(): void
     {
         $validated = $this->validate();
-        Source::create([...$validated, 'notes' => $this->notes !== '' ? $this->notes : null]);
+        $source = Source::create([...$validated, 'notes' => $this->notes !== '' ? $this->notes : null]);
+        ConfigureSource::dispatch($source);
         $this->reset('name', 'url', 'notes');
         unset($this->sources);
+
+        Flux::toast(variant: 'success', text: __('Configuration queued.'));
     }
 }; ?>
 
@@ -44,11 +50,12 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Name'), __('URL'), __('Updates'), __('Created')]" :empty="$this->sources->isEmpty()">
+    <x-pages::table :columns="[__('Name'), __('URL'), __('Status'), __('Updates'), __('Created')]" :empty="$this->sources->isEmpty()">
         @foreach ($this->sources as $source)
             <tr>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a></td>
                 <td class="max-w-md truncate px-3 py-2"><a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-500 underline">{{ $source->url }}</a></td>
+                <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
                 <td class="px-3 py-2">{{ $source->update_entries_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>

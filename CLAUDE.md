@@ -24,8 +24,14 @@ the product (purpose, the five stages, stack); read it first.
   `sources`, `updates`, `documents`, `materials`, `articles`.
 - Editorial policy is defined per layer (selection, structuring, article
   generation); where it lives in the app is still open.
-- Workers are Python, jobs go through a queue, Docker comes when the screens
-  are settled (AWS later). Models are not limited to Anthropic.
+- Jobs go through the database queue (`QUEUE_CONNECTION=database`); run
+  `php artisan queue:work` next to the dev server or nothing happens in the
+  background. Workers move to Python with Docker (AWS later). Models are not
+  limited to Anthropic: the agent that proposes HTML list settings for a new
+  source (`App\Actions\ProposeListSettings`) uses OpenAI (`OPENAI_API_KEY`,
+  `OPENAI_MODEL` in `.env`). Deterministic steps (feed discovery, list
+  reading) never call a model; an agent proposal is verified on the page
+  before it is saved.
 
 ## History
 

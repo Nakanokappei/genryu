@@ -57,26 +57,58 @@ class FetchUpdates
      */
     private function fromFeed(Source $source): array
     {
-        $body = $this->get($source->url)->body();
-
-        if (self::looksLikeFeed($body)) {
-            $feedUrl = $source->url;
-        } elseif (($feedUrl = self::advertisedFeed($body, $source->url)) !== null) {
-            $body = $this->get($feedUrl)->body();
-
-            if (! self::looksLikeFeed($body)) {
-                throw new RuntimeException(__('The advertised feed is not RSS or Atom.').' ('.$feedUrl.')');
-            }
-        } elseif (($probe = $this->probeWellKnown($source->url)) !== null) {
-            [$feedUrl, $body] = $probe;
-        } else {
-            throw new RuntimeException(__('No RSS or Atom feed found. Fill in the HTML list settings to read this page.'));
-        }
+        [$feedUrl, $body] = $this->discoverFeed($source->url, $this->page($source->url))
+            ?? throw new RuntimeException(__('No RSS or Atom feed found. Fill in the HTML list settings to read this page.'));
 
         $counts = $this->store($source, self::feedEntries($body));
         $source->update(['feed_url' => $feedUrl, 'fetched_at' => now()]);
 
         return ['feed_url' => $feedUrl, 'pages' => 1, ...$counts];
+    }
+
+    /**
+     * The body served at a URL, as the crawler identifies itself.
+     */
+    public function page(string $url): string
+    {
+        return $this->get($url)->body();
+    }
+
+    /**
+     * Find the feed for a page whose body was already fetched, in the fixed
+     * order: the body is a feed; it advertises one; a well-known path has one.
+     *
+     * @return array{0: string, 1: string}|null the feed URL and its body
+     */
+    public function discoverFeed(string $url, string $body): ?array
+    {
+        if (self::looksLikeFeed($body)) {
+            return [$url, $body];
+        }
+
+        if (($feedUrl = self::advertisedFeed($body, $url)) !== null) {
+            $feed = $this->get($feedUrl)->body();
+
+            if (! self::looksLikeFeed($feed)) {
+                throw new RuntimeException(__('The advertised feed is not RSS or Atom.').' ('.$feedUrl.')');
+            }
+
+            return [$feedUrl, $feed];
+        }
+
+        return $this->probeWellKnown($url);
+    }
+
+    /**
+     * What HTML list settings would list on a page, for verifying a proposal
+     * before it is saved.
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<array{title: string, url: string, published_at: ?string}>
+     */
+    public static function previewList(string $html, array $config, string $url): array
+    {
+        return ($config['item'] ?? '') === '' ? [] : self::listEntries(self::html($html), $config, $url);
     }
 
     /**

@@ -1,14 +1,18 @@
 <?php
 
+use App\Jobs\ConfigureSource;
 use App\Models\Article;
 use App\Models\Document;
 use App\Models\Material;
 use App\Models\Source;
 use App\Models\UpdateEntry;
 use App\Models\User;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 beforeEach(function () {
+    // Adding a source queues its configuration; the queue is faked so no job runs (or reaches the network) here.
+    Queue::fake();
     $this->actingAs(User::factory()->create());
 });
 
@@ -47,6 +51,8 @@ it('lets the user add a record on each stage by hand', function () {
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
         ->call('add')->assertHasNoErrors();
     $source = Source::query()->sole();
+    expect($source->status)->toBe('pending');
+    Queue::assertPushed(ConfigureSource::class, fn (ConfigureSource $job): bool => $job->source->is($source));
 
     Livewire::test('pages::updates.index')
         ->set('source_id', (string) $source->id)->set('title', 'Press release')->set('url', 'https://www.nedo.go.jp/news/press/1.html')->set('published_at', '2026-09-17')

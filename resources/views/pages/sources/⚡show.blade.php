@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Jobs\ConfigureSource;
 use App\Models\Source;
 use Flux\Flux;
 use Livewire\Attributes\Title;
@@ -69,6 +70,25 @@ new #[Title('情報源')] class extends Component {
         $this->redirectRoute('sources.index', navigate: true);
     }
 
+    // Queue the background configuration again (after a failure, or after the site changed).
+    public function configure(): void
+    {
+        $this->source->update(['status' => 'pending', 'status_message' => null]);
+        ConfigureSource::dispatch($this->source);
+
+        Flux::toast(variant: 'success', text: __('Configuration queued.'));
+    }
+
+    // Polled while pending so the screen follows the background job; the settings form is refilled once it is done.
+    public function refreshStatus(): void
+    {
+        $this->source->refresh();
+
+        if ($this->source->status !== 'pending') {
+            $this->mount();
+        }
+    }
+
     // Stage 2.1: read the feed (found deterministically) into the update list.
     public function fetchUpdates(FetchUpdates $fetch): void
     {
@@ -101,6 +121,12 @@ new #[Title('情報源')] class extends Component {
             <flux:text class="ms-auto">{{ __('Created') }}: {{ $source->created_at->format('Y-m-d H:i') }}</flux:text>
         </div>
     </form>
+
+    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700" @if ($source->status === 'pending') wire:poll.5s="refreshStatus" @endif>
+        <x-pages::status :status="$source->status" />
+        <flux:text class="flex-1">{{ $source->status_message ?? '—' }}</flux:text>
+        <flux:button wire:click="configure" size="sm" icon="sparkles">{{ __('Configure again') }}</flux:button>
+    </div>
 
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:button wire:click="fetchUpdates" variant="primary" icon="arrow-path">{{ __('Fetch updates') }}</flux:button>
