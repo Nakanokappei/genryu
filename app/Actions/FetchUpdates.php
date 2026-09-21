@@ -169,8 +169,17 @@ class FetchUpdates
         return ['added' => $added, 'existing' => $existing];
     }
 
+    public function __construct(private RobotsPolicy $robots) {}
+
+    /**
+     * @throws RuntimeException when robots.txt forbids the URL
+     */
     private function get(string $url): Response
     {
+        if (! $this->robots->allows($url)) {
+            throw new RuntimeException(__('robots.txt does not allow fetching :url', ['url' => $url]));
+        }
+
         return Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($url)->throw();
     }
 
@@ -185,6 +194,11 @@ class FetchUpdates
 
         foreach (self::WELL_KNOWN as $path) {
             $candidate = rtrim($origin, '/').$path;
+
+            if (! $this->robots->allows($candidate)) {
+                continue;
+            }
+
             $response = Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($candidate);
 
             if ($response->successful() && self::looksLikeFeed($response->body())) {

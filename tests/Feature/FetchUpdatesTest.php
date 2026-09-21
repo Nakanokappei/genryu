@@ -26,6 +26,8 @@ XML;
 beforeEach(function () {
     // Tests never hit the network: an unfaked URL fails the test instead of leaving the machine.
     Http::preventStrayRequests();
+    // No robots.txt anywhere unless a test says otherwise (registered first, so it wins for that path).
+    Http::fake(['*/robots.txt' => Http::response('', 404)]);
     $this->actingAs(User::factory()->create());
 });
 
@@ -117,13 +119,13 @@ it('stops paging at the first page with nothing new', function () {
     $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => [...LIST_CONFIG, 'max_pages' => 5]]);
 
     app(FetchUpdates::class)($source);
-    Http::assertSentCount(2);
+    Http::assertSentCount(3); // robots.txt, page 1, page 2
 
     $second = app(FetchUpdates::class)($source);
 
-    // Page 1 is entirely known, so page 2 is not requested again.
+    // Page 1 is entirely known, so page 2 is not requested again (robots.txt is cached).
     expect($second)->toMatchArray(['pages' => 1, 'added' => 0, 'existing' => 1]);
-    Http::assertSentCount(3);
+    Http::assertSentCount(4);
 });
 
 it('reports HTML list settings that match nothing', function () {

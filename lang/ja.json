@@ -43,6 +43,7 @@
     "HTML list settings proposed by the agent and verified on the page (:count entries).": "エージェントが提案した HTML 一覧の設定をページで検証しました（:count 件）。",
     "The proposed settings matched :count entries on the page; at least :minimum are needed.": "提案された設定はページで :count 件にしか一致しませんでした（最低 :minimum 件必要）。",
     "OPENAI_API_KEY is not set.": "OPENAI_API_KEY が設定されていません。",
+    "robots.txt does not allow fetching :url": "robots.txt が :url の取得を許可していません。",
     "The agent did not return valid JSON.": "エージェントの応答が JSON ではありませんでした。",
     "Item": "行（項目）",
     "Title link": "件名リンク",

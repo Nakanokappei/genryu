@@ -29,6 +29,7 @@ function agentAnswer(array $selectors): array
 
 beforeEach(function () {
     Http::preventStrayRequests();
+    Http::fake(['*/robots.txt' => Http::response('', 404)]);
     config(['services.openai.key' => 'test-key', 'services.openai.model' => 'gpt-4o-mini']);
     $this->actingAs(User::factory()->create());
 });
