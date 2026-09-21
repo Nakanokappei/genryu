@@ -73,6 +73,27 @@ it('lets the user add a record on each stage by hand', function () {
         ->and(Article::query()->sole()->material->is($material))->toBeTrue();
 });
 
+it('lets the user edit and delete a source from its detail screen', function () {
+    $source = Source::factory()->create(['name' => 'DARPA - Bews']);
+    $update = UpdateEntry::factory()->for($source)->create();
+
+    Livewire::test('pages::sources.show', ['source' => $source])
+        ->assertSet('name', 'DARPA - Bews')
+        ->set('name', 'DARPA - News')
+        ->call('save')->assertHasNoErrors();
+    expect($source->refresh()->name)->toBe('DARPA - News');
+
+    Livewire::test('pages::sources.show', ['source' => $source])
+        ->set('url', 'not a url')
+        ->call('save')->assertHasErrors(['url']);
+
+    Livewire::test('pages::sources.show', ['source' => $source])
+        ->call('delete')
+        ->assertRedirect(route('sources.index'));
+    expect(Source::query()->count())->toBe(0)
+        ->and(UpdateEntry::query()->whereKey($update->id)->exists())->toBeFalse();
+});
+
 it('rejects a material whose data is not JSON', function () {
     $document = Document::factory()->create();
 
