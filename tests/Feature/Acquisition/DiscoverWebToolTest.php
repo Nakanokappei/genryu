@@ -110,6 +110,22 @@ it('stops at the URL budget and reports what was left', function () {
         ->and(count($result['resources']))->toBe(3);
 });
 
+// Real sites (DARPA, NEDO) filled the URL budget with hint and archive links before any well-known probe ran.
+it('fetches the well-known probes before hint and archive links', function () {
+    fakeOfficialSite();
+
+    // Seed, the robots.txt sitemap and its child, then six unseen probes come before the first hint link.
+    $result = discover(['hints' => ['news'], 'max_urls' => 12]);
+
+    $urls = collect($result['resources'])->pluck('url');
+    $firstProbe = $urls->search('https://www.example.org/feed.xml');
+    $firstHint = collect($result['resources'])->search(fn (array $resource): bool => $resource['relation'] === 'hint');
+
+    expect($firstProbe)->toBeInt()
+        ->and($firstHint)->toBeInt()
+        ->and($firstProbe)->toBeLessThan($firstHint);
+});
+
 it('persists every fetched resource for the source with the run as first sighting', function () {
     fakeOfficialSite();
 

@@ -16,6 +16,7 @@ use App\Acquisition\Domain\Models\NormalizedArtifact;
 use App\Acquisition\Domain\Models\RawArtifact;
 use App\Acquisition\Domain\Models\Source;
 use App\Acquisition\Domain\Models\SourceProfile;
+use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -75,6 +76,8 @@ function fakeMonitoredSite(array $state = []): void
             $path === '/news/simple-article' && $state['article'] === 'v2' => $serve(str_replace('twelve performers', 'twenty performers', acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
             $path === '/news/simple-article' && $state['article'] === 'challenge' => $serve(acquisitionFixture('synthetic/empty-page')['body'], 'text/html'),
             $path === '/news/older-article' && $state['older'] === 'article' => $serve(str_replace(['simple-article', 'New Research Program'], ['older-article', 'Older Program'], acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
+            // The same page without its meta / JSON-LD dates: only the <time> element in the text remains.
+            $path === '/news/older-article' && $state['older'] === 'undated' => $serve(str_replace(['simple-article', 'New Research Program', '<meta property="article:published_time" content="2026-09-20T09:00:00Z">', '"datePublished":"2026-09-20T09:00:00Z",'], ['older-article', 'Older Program', '', ''], acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
             $path === '/news/older-article' => $serve(acquisitionFixture('synthetic/empty-page')['body'], 'text/html'),
             $path === '/files/fixture-parsing-baa.pdf' => $serve(acquisitionFixture('synthetic/pdf-text')['body'], 'application/pdf'),
             default => Http::response('not found', 404),
@@ -130,6 +133,21 @@ it('monitors the active profile entrypoints and ingests only documents matching 
 
     // /news/ (from the sitemap) matches no document pattern and is never fetched.
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/news/'));
+});
+
+// A sitemap <lastmod> is a modification time, not a publication date (NEDO lists pages whose printed date is older).
+it('does not turn a sitemap lastmod into the published date of a document', function () {
+    fakeMonitoredSite(['older' => 'undated']);
+
+    monitorOnce();
+
+    // older-article is listed only by the sitemap (lastmod 2026-08-01); its page keeps a <time> of 2026-11-01.
+    $document = Document::query()->where('stable_key', 'url:https://www.example.org/news/older-article')->sole();
+    $artifact = NormalizedArtifact::query()->where('revision_id', $document->revisions()->latest('revision_no')->sole()->id)->sole();
+    $markdown = app(BlobStore::class)->get($artifact->blob_uri);
+
+    expect($markdown)->toContain('published_at: "2026-11-01T00:00:00Z"')
+        ->and($markdown)->not->toContain('2026-08-01');
 });
 
 // AT-05: the second run is idempotent — conditional GETs, no new RAW, no new revisions, observations still recorded.

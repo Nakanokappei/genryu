@@ -39,7 +39,10 @@ final class DiscoverWebTool implements Tool
      */
     private const WELL_KNOWN = ['/sitemap.xml', '/sitemap_index.xml', '/feed', '/feed.xml', '/rss.xml', '/rss', '/atom.xml'];
 
-    private const PRIORITY = ['seed' => 100, 'sitemap' => 90, 'feed' => 90, 'hint' => 80, 'archive' => 60, 'pagination' => 50, 'probe' => 40, 'link' => 10];
+    // Well-known probes are a handful of cheap fetches that find the most
+    // stable routes, so they go before hint and archive links: on real sites
+    // (DARPA, NEDO) those links exhausted the URL budget before any probe ran.
+    private const PRIORITY = ['seed' => 100, 'sitemap' => 90, 'feed' => 90, 'probe' => 85, 'hint' => 80, 'archive' => 60, 'pagination' => 50, 'link' => 10];
 
     private const XML_TYPES = ['text/xml', 'application/xml', 'application/rss+xml', 'application/atom+xml'];
 

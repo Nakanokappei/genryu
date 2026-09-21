@@ -5,6 +5,7 @@ namespace App\Acquisition\Agent\Tools;
 use App\Acquisition\Domain\Enums\ErrorCode;
 use App\Acquisition\Infrastructure\BlobStorage\BlobNotFound;
 use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
+use App\Acquisition\Tools\ArrayResult;
 use App\Acquisition\Tools\RequestValidation;
 use App\Acquisition\Tools\Tool;
 use App\Acquisition\Tools\ToolContext;
@@ -19,6 +20,8 @@ use App\Acquisition\Tools\ToolResult;
  */
 final class BlobBackedParseTool implements Tool
 {
+    private const MAX_LIST_ITEMS = 50;
+
     /**
      * @param  string  $bytesKey  the inner request key that receives the bytes
      */
@@ -52,6 +55,28 @@ final class BlobBackedParseTool implements Tool
 
     public function run(ToolRequest $request, ToolContext $context): ToolResult
     {
-        return $this->inner->run($request, $context);
+        return new ArrayResult(self::capLists($this->inner->run($request, $context)->toArray()));
+    }
+
+    /**
+     * The Agent reads results as text, and a sitemap of thousands of entries
+     * or a long PDF is more than it can read: every top-level list is cut to
+     * the first MAX_LIST_ITEMS with its full count kept in "<key>_total",
+     * so the Agent still learns how many there were. Monitoring parses the
+     * RAW again in PHP, so nothing stored is affected.
+     *
+     * @param  array<string, mixed>  $result
+     * @return array<string, mixed>
+     */
+    private static function capLists(array $result): array
+    {
+        foreach ($result as $key => $value) {
+            if (is_array($value) && array_is_list($value) && count($value) > self::MAX_LIST_ITEMS) {
+                $result[$key] = array_slice($value, 0, self::MAX_LIST_ITEMS);
+                $result[$key.'_total'] = count($value);
+            }
+        }
+
+        return $result;
     }
 }

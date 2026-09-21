@@ -1,0 +1,12 @@
+{
+  "url": "https://www.nedo.go.jp/news/index.html",
+  "final_url": "https://www.nedo.go.jp/news/index.html",
+  "status": 200,
+  "headers": {
+    "content-type": "text/html; charset=UTF-8"
+  },
+  "media_type": "text/html",
+  "retrieved_at": "2026-09-21T06:32:11Z",
+  "body_file": "body.html",
+  "note": "Real NEDO news index captured for the Milestone 7 architecture test: server-rendered list of the latest press releases with <time datetime> elements."
+}

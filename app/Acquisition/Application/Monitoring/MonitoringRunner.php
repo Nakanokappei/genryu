@@ -246,9 +246,13 @@ final class MonitoringRunner
 
         $reading->entryCount = count($parsed->entries) + count($parsed->children);
 
+        // A feed entry's date is a publication date; a sitemap <lastmod> is a
+        // modification time and must not outrank the date printed in the page.
+        $isFeed = $parsed->kind === 'rss' || $parsed->kind === 'atom';
+
         foreach ($parsed->entries as $entry) {
             if ($entry['url'] !== null) {
-                $this->addCandidate($candidates, $patterns, $entry['url'], $entry['id'], $entry['published'] ?? $entry['updated']);
+                $this->addCandidate($candidates, $patterns, $entry['url'], $entry['id'], $isFeed ? ($entry['published'] ?? $entry['updated']) : null);
             }
         }
 

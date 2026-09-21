@@ -66,7 +66,8 @@ TOOL_SPECS: dict[str, dict[str, Any]] = {
     "parse_xml": {
         "description": (
             "Parse a stored RSS/Atom/sitemap RAW artifact: kind, feed metadata, entries (id, url, dates), "
-            "sitemap children, pagination, quality metrics."
+            "sitemap children, pagination, quality metrics. Lists longer than 50 items are cut to the first 50; "
+            "'<key>_total' (e.g. entries_total) then holds the full count."
         ),
         "schema": {
             "type": "object",
@@ -79,7 +80,10 @@ TOOL_SPECS: dict[str, dict[str, Any]] = {
         },
     },
     "parse_pdf": {
-        "description": "Extract the text layer of a stored PDF RAW artifact page by page. Scanned or encrypted PDFs fail with an explicit code.",
+        "description": (
+            "Extract the text layer of a stored PDF RAW artifact page by page. Scanned or encrypted PDFs fail with an "
+            "explicit code. Only the first 50 pages are returned; 'pages_total' holds the full count."
+        ),
         "schema": {
             "type": "object",
             "properties": {"raw_blob_uri": {"type": "string"}, "url": {"type": "string"}},
