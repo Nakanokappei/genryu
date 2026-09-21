@@ -37,6 +37,25 @@ Read it before any feature work. Non-negotiables it sets:
   used by all default tests.
 - Milestones run in order (0 → 8). NEDO is the final architecture gate.
 
+## Status (2026-09-21)
+
+Milestones 0–6 of the Phase 0 plan are done and committed; Milestone 7
+(NEDO architecture test) is next, then Milestone 8 (hardening). Read
+`docs/acquisition/darpa-vertical-slice.md` §7 for the known limitations
+carried forward. Dev database state: sources `example` (scaffold smoke) and
+`darpa` (profile v2 ACTIVE, approved by the operator, 58 documents, runs
+#2–#10). `worker/.env` holds the API key (not committed). The scheduler is
+not running locally; monitoring is triggered by hand with
+`php artisan acquisition:monitor darpa`.
+
+Milestone 7 checklist: register NEDO (`acquisition:source add nedo NEDO
+https://www.nedo.go.jp/`), run one live Discovery (budget defaults, about
+2 USD), review and approve the candidate as the operator, monitor twice,
+reprocess with the network blocked, and statically review that no
+source-name branch or DARPA-specific class was added (`grep -ri darpa app/`
+must hit nothing). Focus points: Japanese metadata and dates, and revision
+behaviour on a site that may not send ETags (ADR-0003 open item).
+
 ## Architecture decisions
 
 `docs/adr/` holds the Milestone 0 decisions. Read the relevant one before
