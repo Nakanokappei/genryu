@@ -92,7 +92,7 @@ final class MonitoringRunner
                 $this->readEntrypoint($run, $source, $profile, $entrypoint['url'], $entrypoint['type'], $context, $counters, $patterns, $readings, $candidates, 0);
             }
 
-            $this->fetchDocuments($run, $source, $profile, $context, $counters, $candidates);
+            $this->fetchDocuments($run, $source, $profile, $context, $counters, $patterns, $candidates);
 
             $verdict = $this->health->evaluate($run, $source, $profile, $readings, $counters, $patterns->warnings);
         } catch (Throwable $exception) {
@@ -315,17 +315,17 @@ final class MonitoringRunner
     /**
      * Fetch candidate documents up to max_urls_per_run: known documents
      * conditionally, unknown ones plainly. Each goes through the pipeline.
+     * With crawl_policy.max_depth of 2 or more, links inside an ingested
+     * document that match a document pattern (a press release's PDF, which
+     * no feed, sitemap or index lists) are fetched too, one hop, within the
+     * same limit. Monitoring still never explores beyond the patterns.
      *
      * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
-    private function fetchDocuments(AcquisitionRun $run, Source $source, SourceProfile $profile, ToolContext $context, RunCounters $counters, array $candidates): void
+    private function fetchDocuments(AcquisitionRun $run, Source $source, SourceProfile $profile, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array $candidates): void
     {
         $limit = (int) ($profile->profile_json['crawl_policy']['max_urls_per_run'] ?? 500);
-        $skipped = max(0, count($candidates) - $limit);
-
-        if ($skipped > 0) {
-            $counters->increment(RunCounters::SKIPPED, $skipped);
-        }
+        $followAttachments = (int) ($profile->profile_json['crawl_policy']['max_depth'] ?? 1) >= 2;
 
         // Interleave unknown and known documents so a large sitemap is
         // backfilled a slice per run while known pages still get re-checked.
@@ -357,48 +357,100 @@ final class MonitoringRunner
             }
         }
 
-        foreach (array_slice($ordered, 0, $limit, true) as $normalized => $candidate) {
-            $feedGuid = $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null;
-            $known = $knownDocuments[$normalized];
-            $counters->increment(RunCounters::FETCHED);
+        $fetched = 0;
+        $listedFetched = 0;
+        $seenAttachments = [];
 
-            try {
-                $result = $this->fetcher->fetch(
-                    $this->request($candidate['url'], $profile, $known !== null ? $this->conditionalHeaders($source, $candidate['url']) : null),
-                    $this->requestsPerMinute($profile),
-                    $context,
-                );
+        foreach ($ordered as $normalized => $candidate) {
+            if ($fetched >= $limit) {
+                break;
+            }
 
-                if ($result->notModified) {
-                    $this->storage->recordFetchObservation($run, $source, $candidate['url'], $result);
-                    $known?->update(['last_seen_at' => $result->retrievedAt]);
-                    $counters->increment(RunCounters::UNCHANGED);
+            $fetched++;
+            $listedFetched++;
+            $outcome = $this->fetchCandidate($run, $source, $profile, $context, $counters, $candidate, $knownDocuments[$normalized]);
+
+            if ($outcome === null || ! $followAttachments) {
+                continue;
+            }
+
+            // A document's attachments are fetched right after it and count
+            // against the same budget: on a large backlog nothing would be
+            // left for them at the end of the run.
+            $attachments = [];
+
+            foreach ($outcome->outboundLinks as $link) {
+                $this->addCandidate($attachments, $patterns, $link, null);
+            }
+
+            foreach (array_diff_key($attachments, $candidates, $seenAttachments) as $attachmentUrl => $attachment) {
+                $seenAttachments[$attachmentUrl] = true;
+
+                if ($fetched >= $limit) {
+                    $counters->increment(RunCounters::SKIPPED);
 
                     continue;
                 }
 
-                $outcome = $this->pipeline->ingest($run, $source, $profile, $result, $feedGuid, $candidate['document_type'], $candidate['published']);
-            } catch (ToolError $error) {
-                if ($error->errorCode->value !== 'PARSE_FAILED' && $error->errorCode->value !== 'QUALITY_FAILED') {
-                    // Pipeline errors already recorded their observation; fetch errors have not.
-                    $this->storage->recordFetchObservation($run, $source, $candidate['url'], null, null, $error);
-                }
-
-                $counters->increment(RunCounters::FAILED);
-
-                continue;
-            }
-
-            $counters->increment(match ($outcome->change) {
-                IngestOutcome::NEW => RunCounters::NEW,
-                IngestOutcome::REVISED => RunCounters::REVISED,
-                default => RunCounters::UNCHANGED,
-            });
-
-            if (! $outcome->qualityPassed) {
-                $counters->increment(RunCounters::QUALITY_FAILED);
+                $fetched++;
+                $this->fetchCandidate($run, $source, $profile, $context, $counters, $attachment, $this->knownDocument($source, null, $attachmentUrl));
             }
         }
+
+        // Listed candidates the budget did not reach; skipped attachments were counted above.
+        $counters->increment(RunCounters::SKIPPED, count($ordered) - $listedFetched);
+    }
+
+    /**
+     * Fetch one candidate (conditionally when it is a known document) and
+     * run it through the pipeline, counting the outcome. Null when nothing
+     * was ingested: unchanged (304) or failed.
+     *
+     * @param  array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}  $candidate
+     */
+    private function fetchCandidate(AcquisitionRun $run, Source $source, SourceProfile $profile, ToolContext $context, RunCounters $counters, array $candidate, ?Document $known): ?IngestOutcome
+    {
+        $feedGuid = $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null;
+        $counters->increment(RunCounters::FETCHED);
+
+        try {
+            $result = $this->fetcher->fetch(
+                $this->request($candidate['url'], $profile, $known !== null ? $this->conditionalHeaders($source, $candidate['url']) : null),
+                $this->requestsPerMinute($profile),
+                $context,
+            );
+
+            if ($result->notModified) {
+                $this->storage->recordFetchObservation($run, $source, $candidate['url'], $result);
+                $known?->update(['last_seen_at' => $result->retrievedAt]);
+                $counters->increment(RunCounters::UNCHANGED);
+
+                return null;
+            }
+
+            $outcome = $this->pipeline->ingest($run, $source, $profile, $result, $feedGuid, $candidate['document_type'], $candidate['published']);
+        } catch (ToolError $error) {
+            if ($error->errorCode->value !== 'PARSE_FAILED' && $error->errorCode->value !== 'QUALITY_FAILED') {
+                // Pipeline errors already recorded their observation; fetch errors have not.
+                $this->storage->recordFetchObservation($run, $source, $candidate['url'], null, null, $error);
+            }
+
+            $counters->increment(RunCounters::FAILED);
+
+            return null;
+        }
+
+        $counters->increment(match ($outcome->change) {
+            IngestOutcome::NEW => RunCounters::NEW,
+            IngestOutcome::REVISED => RunCounters::REVISED,
+            default => RunCounters::UNCHANGED,
+        });
+
+        if (! $outcome->qualityPassed) {
+            $counters->increment(RunCounters::QUALITY_FAILED);
+        }
+
+        return $outcome;
     }
 
     private function knownDocument(Source $source, ?string $feedGuid, string $normalizedUrl): ?Document

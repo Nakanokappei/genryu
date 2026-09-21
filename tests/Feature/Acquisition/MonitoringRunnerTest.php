@@ -75,6 +75,9 @@ function fakeMonitoredSite(array $state = []): void
             $path === '/news/simple-article' && $state['article'] === 'v1' => $serve(acquisitionFixture('synthetic/simple-article')['body'], 'text/html; charset=utf-8'),
             $path === '/news/simple-article' && $state['article'] === 'v2' => $serve(str_replace('twelve performers', 'twenty performers', acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
             $path === '/news/simple-article' && $state['article'] === 'challenge' => $serve(acquisitionFixture('synthetic/empty-page')['body'], 'text/html'),
+            // The article links a PDF that no feed, sitemap or index lists (NEDO press releases do this).
+            $path === '/news/simple-article' && $state['article'] === 'with-attachment' => $serve(str_replace('</article>', '<p><a href="/files/attachment.pdf">Attachment (PDF)</a></p></article>', acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
+            $path === '/files/attachment.pdf' => $serve(acquisitionFixture('synthetic/pdf-text')['body'], 'application/pdf'),
             $path === '/news/older-article' && $state['older'] === 'article' => $serve(str_replace(['simple-article', 'New Research Program'], ['older-article', 'Older Program'], acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
             // The same page without its meta / JSON-LD dates: only the <time> element in the text remains.
             $path === '/news/older-article' && $state['older'] === 'undated' => $serve(str_replace(['simple-article', 'New Research Program', '<meta property="article:published_time" content="2026-09-20T09:00:00Z">', '"datePublished":"2026-09-20T09:00:00Z",'], ['older-article', 'Older Program', '', ''], acquisitionFixture('synthetic/simple-article')['body']), 'text/html; charset=utf-8'),
@@ -133,6 +136,45 @@ it('monitors the active profile entrypoints and ingests only documents matching 
 
     // /news/ (from the sitemap) matches no document pattern and is never fetched.
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/news/'));
+});
+
+// Attachments: a document's own links that match a pattern are one allowed hop when max_depth >= 2.
+it('fetches documents attached to an ingested document when the profile allows a second hop', function () {
+    fakeMonitoredSite(['article' => 'with-attachment']);
+
+    $run = monitorOnce();
+
+    expect($run->counters)->toMatchArray(['new' => 4, 'failed' => 0])
+        ->and(Document::query()->where('stable_key', 'url:https://www.example.org/files/attachment.pdf')->sole()->document_type)->toBe('report');
+});
+
+// On a large backlog the listed candidates alone would use the whole budget (NEDO run #15 fetched no PDF).
+it('fetches attachments right after their document instead of after the whole budget', function () {
+    $profile = $this->source->activeProfile()->sole()->profile_json;
+    $profile['crawl_policy']['max_urls_per_run'] = 2;
+    SourceProfile::factory()->for($this->source)->create(['version' => 2, 'profile_json' => $profile]);
+    app(ProfileApproval::class)->approve($this->source, 2, 'tests');
+    fakeMonitoredSite(['article' => 'with-attachment']);
+
+    $run = monitorOnce();
+
+    // The article (first listed candidate) and its attachment fill the budget; the other two listed candidates wait.
+    expect($run->counters)->toMatchArray(['fetched' => 2, 'new' => 2, 'skipped' => 2])
+        ->and(Document::query()->where('stable_key', 'url:https://www.example.org/files/attachment.pdf')->exists())->toBeTrue();
+});
+
+it('does not follow attachments when max_depth is 1', function () {
+    $profile = $this->source->activeProfile()->sole()->profile_json;
+    $profile['crawl_policy']['max_depth'] = 1;
+    SourceProfile::factory()->for($this->source)->create(['version' => 2, 'profile_json' => $profile]);
+    app(ProfileApproval::class)->approve($this->source, 2, 'tests');
+    fakeMonitoredSite(['article' => 'with-attachment']);
+
+    $run = monitorOnce();
+
+    expect($run->counters['new'])->toBe(3)
+        ->and(Document::query()->where('stable_key', 'url:https://www.example.org/files/attachment.pdf')->exists())->toBeFalse();
+    Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/files/attachment.pdf'));
 });
 
 // A sitemap <lastmod> is a modification time, not a publication date (NEDO lists pages whose printed date is older).

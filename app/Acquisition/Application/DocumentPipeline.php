@@ -63,7 +63,7 @@ final class DocumentPipeline
             default => IngestOutcome::REVISED,
         };
 
-        return new IngestOutcome($raw, $document, $append->revision, $artifact, $change, (bool) $normalized->quality['passed']);
+        return new IngestOutcome($raw, $document, $append->revision, $artifact, $change, (bool) $normalized->quality['passed'], $normalized->outboundLinks);
     }
 
     /**

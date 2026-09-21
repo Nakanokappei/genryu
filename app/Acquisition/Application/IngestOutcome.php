@@ -20,6 +20,9 @@ final readonly class IngestOutcome
 
     public const UNCHANGED = 'unchanged';
 
+    /**
+     * @param  list<string>  $outboundLinks  links the normalized document points to (its attachments among them)
+     */
     public function __construct(
         public RawArtifact $raw,
         public Document $document,
@@ -27,5 +30,6 @@ final readonly class IngestOutcome
         public NormalizedArtifact $normalized,
         public string $change,
         public bool $qualityPassed,
+        public array $outboundLinks = [],
     ) {}
 }
