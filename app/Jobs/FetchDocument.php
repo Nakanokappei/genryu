@@ -70,7 +70,7 @@ class FetchDocument implements ShouldQueue
 
             [$markdown, $message] = $format === 'pdf'
                 ? [$read->pdf($body), null]
-                : $this->markdown($body, $source, $document->url, $read, $propose);
+                : $this->markdown($body, $source, $document, $read, $propose);
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
         } catch (Throwable $exception) {
@@ -84,15 +84,15 @@ class FetchDocument implements ShouldQueue
      *
      * @return array{0: string, 1: ?string} the Markdown and a note on how the settings came about
      */
-    private function markdown(string $html, Source $source, string $url, ReadDocument $read, ProposeDocumentSettings $propose): array
+    private function markdown(string $html, Source $source, Document $document, ReadDocument $read, ProposeDocumentSettings $propose): array
     {
         try {
-            return [$read->html($html, $source->document_config ?? [], $url), null];
+            return [$read->html($html, $source->document_config ?? [], $document->url, $document->title), null];
         } catch (RuntimeException) {
             // Fall through: the settings need (re)making.
         }
 
-        [$settings, $markdown] = self::verify($html, $propose($html, $url), $url, $read);
+        [$settings, $markdown] = self::verify($html, $propose($html, $document->url), $document, $read);
         $source->update(['document_config' => $settings]);
 
         return [$markdown, __('Document settings proposed by the agent and verified on this page (content: :content).', ['content' => $settings['content']])];
@@ -106,13 +106,13 @@ class FetchDocument implements ShouldQueue
      * @param  array{content: string, remove: string}  $proposal
      * @return array{0: array{content: string, remove: string}, 1: string}
      */
-    private static function verify(string $html, array $proposal, string $url, ReadDocument $read): array
+    private static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
     {
         foreach (array_unique(array_filter([$proposal['content'], ...self::FALLBACK_CONTENT])) as $content) {
             $settings = ['content' => $content, 'remove' => $proposal['remove']];
 
             try {
-                return [$settings, $read->html($html, $settings, $url)];
+                return [$settings, $read->html($html, $settings, $document->url, $document->title)];
             } catch (Throwable) {
                 // A selector that misses, or is not valid CSS: try the next one.
                 continue;

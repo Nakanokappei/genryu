@@ -70,6 +70,31 @@ it('reads an HTML page into Markdown with the document settings of the source an
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
+// DARPA: the <h1> sits in the page header outside the article, prizes are a table, contact is a mailto link.
+it('puts the page heading first when the body has none, keeps tables and mailto links, and drops emptied headings', function () {
+    $page = '<html><body><header><h1> $1M to advance   AI tools </h1></header><article>'
+        .'<h2 class="share"><a href="/share">Share</a></h2>'
+        .'<p>DARPA is launching a prize competition designed to rapidly advance AI-driven medical tools for point-of-injury care.</p>'
+        .'<table><tr><td>1st place</td><td>$300,000</td></tr><tr><td>2nd place</td><td>$150,000</td></tr></table>'
+        .'<p>Media should contact <a href="mailto:outreach@darpa.mil">outreach@darpa.mil</a>.</p>'
+        .'</article></body></html>';
+    Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
+    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share a']]);
+
+    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Entry title']));
+
+    expect($document->status)->toBe('fetched')
+        ->and($document->markdown)->toStartWith("# \$1M to advance AI tools\n\nDARPA is launching")
+        ->toContain("| 1st place | \$300,000 |\n|---|---|\n| 2nd place | \$150,000 |")
+        ->toContain('<outreach@darpa.mil>')
+        ->not->toContain('##');
+
+    // Without any <h1> on the page, the update entry's title stands in.
+    Http::fake(['www.example.org/news/2' => Http::response(str_replace('<header><h1> $1M to advance   AI tools </h1></header>', '', $page), 200, ['Content-Type' => 'text/html'])]);
+    $untitled = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/2', 'title' => 'Entry title']));
+    expect($untitled->markdown)->toStartWith("# Entry title\n\n");
+});
+
 it('asks the agent for document settings when the source has none, verifies them on the page, and saves them for the next documents', function () {
     Http::fake([
         'www.example.org/news/*' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),

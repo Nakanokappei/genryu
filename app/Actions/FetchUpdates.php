@@ -376,7 +376,8 @@ class FetchUpdates
      */
     public static function absolute(string $href, string $baseUrl): string
     {
-        if (preg_match('#^https?://#i', $href) === 1) {
+        // Anything with a scheme (https:, mailto:, tel:) is already absolute.
+        if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $href) === 1) {
             return $href;
         }
 

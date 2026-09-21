@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use Dom\Element;
 use Dom\HTMLDocument;
+use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\HtmlConverter;
 use RuntimeException;
 use Smalot\PdfParser\Parser;
@@ -34,11 +35,13 @@ class ReadDocument
     /**
      * The body of an HTML page as Markdown, per the document settings.
      * Throws when the settings are missing, match nothing, or match too
-     * little, so the caller can have new settings proposed.
+     * little, so the caller can have new settings proposed. When the body
+     * has no heading of its own (DARPA keeps the <h1> in the page header),
+     * the page's <h1>, or failing that the given title, is put first.
      *
      * @param  array<string, mixed>  $config
      */
-    public function html(string $html, array $config, string $url): string
+    public function html(string $html, array $config, string $url, ?string $title = null): string
     {
         $selector = trim((string) ($config['content'] ?? ''));
 
@@ -68,15 +71,28 @@ class ReadDocument
             }
         }
 
-        $markdown = (new HtmlConverter(['header_style' => 'atx', 'strip_tags' => true, 'strip_placeholder_links' => true]))
-            ->convert($content->innerHTML);
+        // The page's own heading, when the body element does not hold one.
+        $pageHeading = $document->querySelector('h1');
+        $heading = match (true) {
+            $content->querySelector('h1') instanceof Element => null,
+            $pageHeading instanceof Element => $pageHeading->textContent,
+            default => $title,
+        };
+
+        $converter = new HtmlConverter(['header_style' => 'atx', 'strip_tags' => true, 'strip_placeholder_links' => true]);
+        $converter->getEnvironment()->addConverter(new TableConverter);
+        $markdown = $converter->convert($content->innerHTML);
+        // Headings left empty by the removals above become a lone (escaped) "##": drop them.
+        $markdown = (string) preg_replace('/^\\\\?#{1,6}\s*$/m', '', $markdown);
         $markdown = trim((string) preg_replace("/\n{3,}/", "\n\n", $markdown));
 
         if (mb_strlen($markdown) < self::MINIMUM_CHARS) {
             throw new RuntimeException(__('The document settings matched too little on this page (:count characters).', ['count' => mb_strlen($markdown)]));
         }
 
-        return $markdown;
+        $heading = trim((string) preg_replace('/\s+/u', ' ', (string) $heading));
+
+        return $heading !== '' ? "# {$heading}\n\n{$markdown}" : $markdown;
     }
 
     /**
