@@ -68,12 +68,27 @@ final class NormalizeDocumentTool implements Tool
         $published = $this->pdfDate($parsed->metadata['creationdate'] ?? null, $warnings);
         $updated = $this->pdfDate($parsed->metadata['moddate'] ?? null, $warnings);
 
+        // Many official PDFs carry no Info title; the first line of page one
+        // is the next best deterministic witness and is marked as such.
+        $title = $parsed->metadata['title'] ?? null;
+        $titleSource = 'pdf_metadata';
+
+        if ($title === null) {
+            $firstLine = trim((string) strtok($parsed->pages[0]['text'] ?? '', "\n"));
+
+            if ($firstLine !== '') {
+                $title = mb_substr($firstLine, 0, 200);
+                $titleSource = 'first_line';
+                $warnings[] = 'PDF has no title metadata; used the first line of page 1.';
+            }
+        }
+
         return $this->build(
             context: $context,
             stableKey: $identity->key,
             identityRule: $identity->rule,
             canonicalUrl: $context->finalUrl,
-            title: $parsed->metadata['title'] ?? null,
+            title: $title,
             documentType: $context->documentType,
             publishedAt: $published,
             updatedAt: $updated,
@@ -85,6 +100,7 @@ final class NormalizeDocumentTool implements Tool
             warnings: $warnings,
             provenance: [
                 'pdf_metadata' => $parsed->metadata,
+                'title_source' => $titleSource,
                 'page_count' => $parsed->pageCount,
                 'extraction_method' => $parsed->extractionMethod,
                 'parser_quality' => $parsed->quality,

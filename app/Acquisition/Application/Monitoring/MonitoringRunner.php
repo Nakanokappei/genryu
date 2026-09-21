@@ -12,6 +12,7 @@ use App\Acquisition\Domain\Enums\SourceStatus;
 use App\Acquisition\Domain\Identity\UrlNormalizer;
 use App\Acquisition\Domain\Models\AcquisitionRun;
 use App\Acquisition\Domain\Models\Document;
+use App\Acquisition\Domain\Models\DocumentRevision;
 use App\Acquisition\Domain\Models\FetchObservation;
 use App\Acquisition\Domain\Models\Source;
 use App\Acquisition\Domain\Models\SourceProfile;
@@ -131,8 +132,13 @@ final class MonitoringRunner
         $reading = new EntrypointReading($url, $type);
         $readings[] = $reading;
 
+        // A conditional GET is only useful when a 304 can be replayed from a
+        // stored revision of this entrypoint; a RAW left by Discovery alone
+        // (no document yet) must be fetched in full once.
+        $conditional = $this->storedEntrypointRevision($source, $url) !== null ? $this->conditionalHeaders($source, $url) : null;
+
         try {
-            $result = $this->fetcher->fetch($this->request($url, $profile, $this->conditionalHeaders($source, $url)), $this->requestsPerMinute($profile), $context);
+            $result = $this->fetcher->fetch($this->request($url, $profile, $conditional), $this->requestsPerMinute($profile), $context);
         } catch (ToolError $error) {
             $reading->error = $error->errorCode->value;
             $this->storage->recordFetchObservation($run, $source, $url, null, null, $error);
@@ -175,14 +181,11 @@ final class MonitoringRunner
      */
     private function replayStoredEntrypoint(AcquisitionRun $run, Source $source, SourceProfile $profile, string $url, string $type, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array &$readings, array &$candidates, EntrypointReading $reading, int $depth): void
     {
-        $revision = $source->documents()
-            ->where('stable_key', 'url:'.UrlNormalizer::normalize($url))
-            ->first()
-            ?->revisions()
-            ->orderByDesc('revision_no')
-            ->first();
+        $revision = $this->storedEntrypointRevision($source, $url);
 
         if ($revision === null) {
+            $reading->error = 'NO_STORED_REVISION';
+
             return;
         }
 
@@ -192,6 +195,20 @@ final class MonitoringRunner
         $metadata = $raw->metadata ?? [];
 
         $this->collectCandidates($run, $source, $profile, $this->blobs->get($raw->blob_uri), (string) ($metadata['final_url'] ?? $url), $type, $context, $counters, $patterns, $readings, $candidates, $reading, $depth);
+    }
+
+    /**
+     * The latest stored revision of an entrypoint's own document, if any.
+     */
+    private function storedEntrypointRevision(Source $source, string $url): ?DocumentRevision
+    {
+        try {
+            $key = 'url:'.UrlNormalizer::normalize($url);
+        } catch (InvalidArgumentException) {
+            return null;
+        }
+
+        return $source->documents()->where('stable_key', $key)->first()?->revisions()->orderByDesc('revision_no')->first();
     }
 
     /**
@@ -306,17 +323,37 @@ final class MonitoringRunner
             $counters->increment(RunCounters::SKIPPED, $skipped);
         }
 
-        // Unknown documents first, so a large sitemap is backfilled a slice per
-        // run instead of the same known pages being re-checked forever.
+        // Interleave unknown and known documents so a large sitemap is
+        // backfilled a slice per run while known pages still get re-checked.
         $knownDocuments = [];
+        $unknown = [];
+        $seenBefore = [];
 
         foreach ($candidates as $normalized => $candidate) {
             $knownDocuments[$normalized] = $this->knownDocument($source, $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null, $normalized);
+
+            if ($knownDocuments[$normalized] === null) {
+                $unknown[$normalized] = $candidate;
+            } else {
+                $seenBefore[$normalized] = $candidate;
+            }
         }
 
-        uksort($candidates, static fn (string $a, string $b): int => ($knownDocuments[$a] === null ? 0 : 1) <=> ($knownDocuments[$b] === null ? 0 : 1));
+        $ordered = [];
+        $unknownKeys = array_keys($unknown);
+        $seenKeys = array_keys($seenBefore);
 
-        foreach (array_slice($candidates, 0, $limit, true) as $normalized => $candidate) {
+        for ($i = 0, $rounds = max(count($unknownKeys), count($seenKeys)); $i < $rounds; $i++) {
+            if (isset($unknownKeys[$i])) {
+                $ordered[$unknownKeys[$i]] = $unknown[$unknownKeys[$i]];
+            }
+
+            if (isset($seenKeys[$i])) {
+                $ordered[$seenKeys[$i]] = $seenBefore[$seenKeys[$i]];
+            }
+        }
+
+        foreach (array_slice($ordered, 0, $limit, true) as $normalized => $candidate) {
             $feedGuid = $candidate['identity_from'] === 'feed_guid' ? $candidate['guid'] : null;
             $known = $knownDocuments[$normalized];
             $counters->increment(RunCounters::FETCHED);
