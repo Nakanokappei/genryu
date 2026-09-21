@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Exceptions\RobotsForbidden;
 use App\Models\Source;
 use App\Models\UpdateEntry;
 use Carbon\CarbonImmutable;
@@ -179,17 +180,12 @@ class FetchUpdates
         return ['added' => $added, 'existing' => $existing];
     }
 
-    public function __construct(private RobotsPolicy $robots) {}
-
     /**
-     * @throws RuntimeException when robots.txt forbids the URL
+     * robots.txt is enforced for every request by the global HTTP middleware
+     * (AppServiceProvider); a forbidden URL throws App\Exceptions\RobotsForbidden.
      */
     private function get(string $url): Response
     {
-        if (! $this->robots->allows($url)) {
-            throw new RuntimeException(__('robots.txt does not allow fetching :url', ['url' => $url]));
-        }
-
         return Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($url)->throw();
     }
 
@@ -205,11 +201,12 @@ class FetchUpdates
         foreach (self::WELL_KNOWN as $path) {
             $candidate = rtrim($origin, '/').$path;
 
-            if (! $this->robots->allows($candidate)) {
+            try {
+                $response = Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($candidate);
+            } catch (RobotsForbidden) {
+                // A probe robots.txt forbids is simply not a route.
                 continue;
             }
-
-            $response = Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($candidate);
 
             if ($response->successful() && self::looksLikeFeed($response->body())) {
                 return [$candidate, $response->body()];

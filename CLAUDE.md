@@ -32,6 +32,11 @@ the product (purpose, the five stages, stack); read it first.
   `OPENAI_MODEL` in `.env`). Deterministic steps (feed discovery, list
   reading) never call a model; an agent proposal is verified on the page
   before it is saved.
+- **robots.txt is a global HTTP middleware** (`AppServiceProvider`): every
+  outgoing request is checked, a forbidden URL throws
+  `App\Exceptions\RobotsForbidden` before anything is sent. API hosts we call
+  as a client are listed in `config/crawler.php`. New crawler code never
+  needs to check robots itself, and must not bypass `Http`.
 
 ## History
 
