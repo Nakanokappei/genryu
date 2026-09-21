@@ -62,7 +62,36 @@ final class RunLifecycle
         $run->update(['status' => RunStatus::Running, 'started_at' => CarbonImmutable::now('UTC')]);
         $this->log('info', 'acquisition.run.started', $run);
 
+        // A fatal error (memory exhausted, timeout) skips every catch block
+        // and would leave the run RUNNING forever, with the circuit breaker
+        // never advancing. The shutdown hook is the last chance to say so.
+        register_shutdown_function(fn () => $this->failIfAbandoned($run));
+
         return $run;
+    }
+
+    /**
+     * Mark a run FAILED when the process is ending while the run is still
+     * RUNNING because of a fatal error. Nothing happens for a run that
+     * reached a terminal status normally.
+     *
+     * @param  array{type: int, message: string, file: string, line: int}|null  $error  the fatal error, error_get_last() by default
+     */
+    public function failIfAbandoned(AcquisitionRun $run, ?array $error = null): void
+    {
+        $error ??= error_get_last();
+
+        if ($error === null || ! in_array($error['type'], [E_ERROR, E_CORE_ERROR, E_COMPILE_ERROR, E_RECOVERABLE_ERROR], true)) {
+            return;
+        }
+
+        $run->refresh();
+
+        if ($run->status !== RunStatus::Running) {
+            return;
+        }
+
+        $this->fail($run, "Fatal error: {$error['message']} at {$error['file']}:{$error['line']}");
     }
 
     /**

@@ -58,6 +58,12 @@ return [
 
     'run_timeout_seconds' => (int) env('ACQUISITION_RUN_TIMEOUT', 3600),
 
+    // One run fetches and parses hundreds of documents in one PHP process.
+    // PHP's default 128M was exhausted on NEDO (run #16) by a 1.9 MB PDF
+    // whose parse peaks at about 45 times its size on top of the run's
+    // working set; the CLI has no php.ini here, so the limit is set in code.
+    'memory_limit' => env('ACQUISITION_MEMORY_LIMIT', '1024M'),
+
     'circuit_breaker' => [
         'base_minutes' => 60,
         'max_minutes' => 24 * 60,

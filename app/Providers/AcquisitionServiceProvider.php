@@ -73,4 +73,17 @@ class AcquisitionServiceProvider extends ServiceProvider
         // One robots.txt cache per request/job, shared by every fetcher in it.
         $this->app->scoped(RobotsPolicy::class);
     }
+
+    /**
+     * Bootstrap any application services.
+     */
+    public function boot(): void
+    {
+        // Acquisition runs and the Agent's tool calls are console processes
+        // that hold hundreds of RAW bodies and PDF parses; PHP's default
+        // 128M killed NEDO run #16 (see config acquisition.memory_limit).
+        if ($this->app->runningInConsole()) {
+            ini_set('memory_limit', (string) config('acquisition.memory_limit'));
+        }
+    }
 }

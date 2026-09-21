@@ -51,6 +51,27 @@ it('derives COMPLETED_WITH_ERRORS and DEGRADED from what happened', function () 
         ->and($drifted->status)->toBe(RunStatus::Degraded);
 });
 
+// NEDO run #16 died of memory exhaustion inside a PDF parse and stayed RUNNING: the shutdown hook must record that.
+it('marks a run FAILED when the process dies of a fatal error while the run is RUNNING', function () {
+    $run = $this->lifecycle->begin($this->lifecycle->start($this->source, RunMode::Monitoring));
+    $fatal = ['type' => E_ERROR, 'message' => 'Allowed memory size of 134217728 bytes exhausted', 'file' => 'FilterHelper.php', 'line' => 270];
+
+    // A warning is not a fatal error: nothing changes.
+    $this->lifecycle->failIfAbandoned($run, ['type' => E_WARNING, 'message' => 'noise', 'file' => 'x', 'line' => 1]);
+    expect($run->refresh()->status)->toBe(RunStatus::Running);
+
+    $this->lifecycle->failIfAbandoned($run, $fatal);
+    expect($run->refresh()->status)->toBe(RunStatus::Failed)
+        ->and($run->error_message)->toContain('Allowed memory size')
+        ->and($this->source->refresh()->consecutive_failures)->toBe(1);
+
+    // A run that finished normally is left alone even when the process later dies.
+    $finished = $this->lifecycle->begin($this->lifecycle->start($this->source, RunMode::Monitoring));
+    $this->lifecycle->finish($finished, new RunCounters);
+    $this->lifecycle->failIfAbandoned($finished, $fatal);
+    expect($finished->refresh()->status)->toBe(RunStatus::Succeeded);
+});
+
 it('rejects illegal transitions', function () {
     $run = $this->lifecycle->start($this->source, RunMode::Monitoring);
 

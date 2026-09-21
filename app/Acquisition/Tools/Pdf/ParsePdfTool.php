@@ -8,6 +8,7 @@ use App\Acquisition\Tools\ToolContext;
 use App\Acquisition\Tools\ToolError;
 use App\Acquisition\Tools\ToolRequest;
 use App\Acquisition\Tools\ToolResult;
+use Smalot\PdfParser\Config;
 use Smalot\PdfParser\Parser;
 use Throwable;
 
@@ -53,8 +54,13 @@ final class ParsePdfTool implements Tool
             throw new ToolError(ErrorCode::EncryptedPdf, 'PDF is encrypted; text extraction is not supported.', ['url' => $url]);
         }
 
+        // Only the text layer is wanted; keeping decoded image streams in
+        // memory is what makes large PDFs expensive to parse.
+        $config = new Config;
+        $config->setRetainImageContent(false);
+
         try {
-            $document = (new Parser)->parseContent($pdf);
+            $document = (new Parser([], $config))->parseContent($pdf);
             $pages = $document->getPages();
             $details = $document->getDetails();
         } catch (Throwable $exception) {
