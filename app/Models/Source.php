@@ -17,11 +17,11 @@ class Source extends Model
     /** @use HasFactory<SourceFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'url', 'feed_url', 'list_config', 'status', 'status_message', 'notes', 'fetched_at'];
+    protected $fillable = ['name', 'url', 'feed_url', 'list_config', 'read_as_html', 'status', 'status_message', 'notes', 'fetched_at'];
 
     protected function casts(): array
     {
-        return ['fetched_at' => 'datetime', 'list_config' => 'array'];
+        return ['fetched_at' => 'datetime', 'list_config' => 'array', 'read_as_html' => 'boolean'];
     }
 
     /** @return HasMany<UpdateEntry, $this> */

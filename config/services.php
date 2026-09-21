@@ -31,7 +31,7 @@ return [
     // The agent that proposes HTML list settings for a new source (App\Actions\ProposeListSettings).
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
-        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'model' => env('OPENAI_MODEL', 'gpt-4.1'),
     ],
 
     'slack' => [

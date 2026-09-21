@@ -112,6 +112,16 @@ class FetchUpdates
     }
 
     /**
+     * The entries of a feed body, for judging a discovered feed before it is adopted.
+     *
+     * @return list<array{title: string, url: string, published_at: ?string}>
+     */
+    public static function previewFeed(string $xml): array
+    {
+        return self::feedEntries($xml);
+    }
+
+    /**
      * Read the HTML list page by page. The next page is read only while a
      * next link exists, the page just read listed something new, and the
      * page budget is not used up: a routine fetch stops at the first page

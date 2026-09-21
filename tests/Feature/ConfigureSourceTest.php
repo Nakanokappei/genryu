@@ -72,6 +72,32 @@ it('asks the agent for HTML list settings when there is no feed, verifies them, 
         && str_contains($request['messages'][1]['content'], 'table1'));
 });
 
+// CNRS: /rss.xml exists but is a newsletter, not the press list the operator pointed at.
+it('reports how many feed entries the page links to, and skips feeds when told to read the page as HTML', function () {
+    Http::fake([
+        'www.example.org/list' => Http::response(CONFIGURE_LIST, 200, ['Content-Type' => 'text/html']),
+        'www.example.org/rss.xml' => Http::response(CONFIGURE_RSS, 200, ['Content-Type' => 'application/rss+xml']),
+        'www.example.org/*' => Http::response('not found', 404),
+        'api.openai.com/*' => Http::response(agentAnswer(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => ''])),
+    ]);
+
+    $probed = configure(Source::factory()->create(['url' => 'https://www.example.org/list']));
+    expect($probed->status)->toBe('ready')->and($probed->feed_url)->toBe('https://www.example.org/rss.xml')
+        ->and($probed->status_message)->toContain('0 件');
+
+    $asHtml = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'read_as_html' => true]));
+    expect($asHtml->status)->toBe('ready')->and($asHtml->feed_url)->toBeNull()
+        ->and($asHtml->list_config['item'])->toBe('table.table1 tr');
+});
+
+it('saves the read-as-HTML choice from the source detail screen', function () {
+    $source = Source::factory()->create();
+
+    Livewire::test('pages::sources.show', ['source' => $source])->set('readAsHtml', true);
+
+    expect($source->refresh()->read_as_html)->toBeTrue();
+});
+
 it('does not save a proposal that matches too little on the page', function () {
     Http::fake([
         'www.example.org/list' => Http::response(CONFIGURE_LIST, 200, ['Content-Type' => 'text/html']),

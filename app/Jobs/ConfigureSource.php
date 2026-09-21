@@ -38,9 +38,14 @@ class ConfigureSource implements ShouldQueue
 
         try {
             $html = $fetch->page($source->url);
+            $feed = $source->read_as_html ? null : $fetch->discoverFeed($source->url, $html);
 
-            if (($feed = $fetch->discoverFeed($source->url, $html)) !== null) {
-                $source->update(['feed_url' => $feed[0], 'list_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed', ['feed' => $feed[0]])]);
+            if ($feed !== null) {
+                // How many feed entries the page itself links to: a probed feed
+                // that shares nothing with the page is probably another list.
+                $overlap = count(array_filter(FetchUpdates::previewFeed($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
+
+                $source->update(['feed_url' => $feed[0], 'list_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
             } else {
                 $proposal = $propose($html, $source->url);
                 $entries = FetchUpdates::previewList($html, $proposal, $source->url);
@@ -49,11 +54,14 @@ class ConfigureSource implements ShouldQueue
                     throw new RuntimeException(__('The proposed settings matched :count entries on the page; at least :minimum are needed.', ['count' => count($entries), 'minimum' => self::MINIMUM_ENTRIES]));
                 }
 
+                // The first titles let the operator see at a glance whether the right list was chosen.
+                $sample = implode(' / ', array_map(fn (array $entry): string => mb_substr($entry['title'], 0, 40), array_slice($entries, 0, 3)));
+
                 $source->update([
                     'feed_url' => null,
                     'list_config' => [...$proposal, 'max_pages' => self::DEFAULT_MAX_PAGES],
                     'status' => 'ready',
-                    'status_message' => __('HTML list settings proposed by the agent and verified on the page (:count entries).', ['count' => count($entries)]),
+                    'status_message' => __('HTML list settings proposed by the agent and verified on the page (:count entries: :sample).', ['count' => count($entries), 'sample' => $sample]),
                 ]);
             }
 

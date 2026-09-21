@@ -28,6 +28,7 @@ new #[Title('情報源')] class extends Component {
         $this->name = $this->source->name;
         $this->url = $this->source->url;
         $this->notes = $this->source->notes ?? '';
+        $this->readAsHtml = (bool) $this->source->read_as_html;
 
         foreach ($this->source->list_config ?? [] as $key => $value) {
             if (array_key_exists($key, $this->list)) {
@@ -68,6 +69,14 @@ new #[Title('情報源')] class extends Component {
         $this->source->delete();
 
         $this->redirectRoute('sources.index', navigate: true);
+    }
+
+    public bool $readAsHtml = false;
+
+    // The operator's choice to skip feeds is saved as soon as it is toggled.
+    public function updatedReadAsHtml(bool $value): void
+    {
+        $this->source->update(['read_as_html' => $value]);
     }
 
     // Queue the background configuration again (after a failure, or after the site changed).
@@ -125,6 +134,7 @@ new #[Title('情報源')] class extends Component {
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700" @if ($source->status === 'pending') wire:poll.5s="refreshStatus" @endif>
         <x-pages::status :status="$source->status" />
         <flux:text class="flex-1">{{ $source->status_message ?? '—' }}</flux:text>
+        <flux:checkbox wire:model.live="readAsHtml" :label="__('Read as HTML list (do not look for a feed)')" />
         <flux:button wire:click="configure" size="sm" icon="sparkles">{{ __('Configure again') }}</flux:button>
     </div>
 
