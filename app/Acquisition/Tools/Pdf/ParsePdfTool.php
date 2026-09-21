@@ -139,7 +139,7 @@ final class ParsePdfTool implements Tool
         foreach ($details as $key => $value) {
             // Info values may be nested arrays (XMP metadata); flatten them
             // to text rather than letting PHP fail the whole parse on them.
-            $value = trim(is_array($value) ? self::flatten($value) : (string) $value);
+            $value = trim(self::jsonSafeUtf8(is_array($value) ? self::flatten($value) : (string) $value));
 
             if ($value !== '') {
                 $metadata[strtolower((string) $key)] = $value;
@@ -177,11 +177,29 @@ final class ParsePdfTool implements Tool
      */
     private function normalizeText(string $text): string
     {
-        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $text = self::jsonSafeUtf8(str_replace(["\r\n", "\r"], "\n", $text));
         $text = preg_replace('/[ \t]+/', ' ', $text) ?? $text;
         $text = preg_replace('/ *\n */', "\n", $text) ?? $text;
         $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
 
         return trim($text);
+    }
+
+    /**
+     * PDF strings are decoded by the library from PDFDocEncoding or UTF-16
+     * and can come out as byte salad: invalid sequences, or UTF-8-encoded
+     * surrogate code points, which mb_check_encoding() accepts but
+     * json_encode() (and so every jsonb column) rejects. A NEDO PDF's Title
+     * failed a whole monitoring run this way. Invalid parts become U+FFFD.
+     */
+    public static function jsonSafeUtf8(string $text): string
+    {
+        if (json_encode($text) !== false) {
+            return $text;
+        }
+
+        $encoded = json_encode($text, JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_UNICODE);
+
+        return is_string($encoded) ? (string) json_decode($encoded) : '';
     }
 }

@@ -5,6 +5,7 @@ use App\Acquisition\Application\Monitoring\MonitoringRun;
 use App\Acquisition\Application\Monitoring\MonitoringRunner;
 use App\Acquisition\Application\Monitoring\MonitoringSkipped;
 use App\Acquisition\Application\Profile\ProfileApproval;
+use App\Acquisition\Domain\Enums\BlobLayer;
 use App\Acquisition\Domain\Enums\HealthStatus;
 use App\Acquisition\Domain\Enums\RunStatus;
 use App\Acquisition\Domain\Models\AcquisitionRun;
@@ -16,6 +17,7 @@ use App\Acquisition\Domain\Models\NormalizedArtifact;
 use App\Acquisition\Domain\Models\RawArtifact;
 use App\Acquisition\Domain\Models\Source;
 use App\Acquisition\Domain\Models\SourceProfile;
+use App\Acquisition\Infrastructure\BlobStorage\BlobRef;
 use App\Acquisition\Infrastructure\BlobStorage\BlobStore;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -175,6 +177,43 @@ it('does not follow attachments when max_depth is 1', function () {
     expect($run->counters['new'])->toBe(3)
         ->and(Document::query()->where('stable_key', 'url:https://www.example.org/files/attachment.pdf')->exists())->toBeFalse();
     Http::assertNotSent(fn (Request $request): bool => str_ends_with($request->url(), '/files/attachment.pdf'));
+});
+
+// NEDO run #17: an exception from one document's ingest ended the whole run. It is that document's failure.
+it('records an unexpected ingest exception as an INTERNAL failure of that document and keeps the run going', function () {
+    // A blob store that blows up on PDF bytes only, with an exception no tool knows about.
+    $real = app(BlobStore::class);
+    app()->instance(BlobStore::class, new class($real) implements BlobStore
+    {
+        public function __construct(private BlobStore $inner) {}
+
+        public function put(BlobLayer $layer, string $bytes, string $mediaType): BlobRef
+        {
+            if (str_starts_with($bytes, '%PDF-')) {
+                throw new RuntimeException('Malformed UTF-8 characters');
+            }
+
+            return $this->inner->put($layer, $bytes, $mediaType);
+        }
+
+        public function get(string $uri): string
+        {
+            return $this->inner->get($uri);
+        }
+
+        public function exists(string $uri): bool
+        {
+            return $this->inner->exists($uri);
+        }
+    });
+    $this->runner = app(MonitoringRunner::class);
+    fakeMonitoredSite();
+
+    $run = monitorOnce();
+
+    expect($run->status)->toBe(RunStatus::CompletedWithErrors)
+        ->and($run->counters)->toMatchArray(['new' => 2, 'failed' => 1])
+        ->and(FetchObservation::query()->where('run_id', $run->id)->where('error_code', 'INTERNAL')->sole()->url)->toBe('https://www.example.org/files/fixture-parsing-baa.pdf');
 });
 
 // A sitemap <lastmod> is a modification time, not a publication date (NEDO lists pages whose printed date is older).

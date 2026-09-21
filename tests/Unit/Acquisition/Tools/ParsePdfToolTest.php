@@ -41,6 +41,21 @@ it('extracts page text, metadata and Markdown with page markers from a text PDF'
 });
 
 // AT-11: scan-only, encrypted and corrupt PDFs are explicit non-success states.
+// A NEDO PDF's Title decoded to UTF-8-encoded surrogates: mb_check_encoding() accepts them,
+// json_encode() and every jsonb column reject them, and one document failed a whole run.
+it('replaces byte salad in PDF strings so every result is JSON-safe', function () {
+    // The exact kind of bytes the NEDO title carried: a UTF-8-encoded surrogate (U+DE30) and a truncated sequence.
+    $surrogate = "実施方針｜\xED\xB8\xB0R";
+    $truncated = "Title \xE6\x97";
+
+    expect(json_encode($surrogate))->toBeFalse()
+        ->and(ParsePdfTool::jsonSafeUtf8($surrogate))->toStartWith('実施方針｜')->toEndWith('R')->toContain("\u{FFFD}")
+        ->and(ParsePdfTool::jsonSafeUtf8($truncated))->toStartWith('Title ')->toContain("\u{FFFD}")
+        ->and(ParsePdfTool::jsonSafeUtf8('plain ascii'))->toBe('plain ascii')
+        ->and(json_encode(ParsePdfTool::jsonSafeUtf8($surrogate)))->not->toBeFalse()
+        ->and(json_encode(ParsePdfTool::jsonSafeUtf8($truncated)))->not->toBeFalse();
+});
+
 it('reports a PDF without any text layer as UNSUPPORTED_SCANNED_PDF', function () {
     expect(fn () => parsePdfFixture('synthetic/pdf-image-only'))
         ->toThrow(fn (ToolError $error) => expect($error->errorCode)->toBe(ErrorCode::UnsupportedScannedPdf)

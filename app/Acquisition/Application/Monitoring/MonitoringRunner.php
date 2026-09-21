@@ -6,6 +6,7 @@ use App\Acquisition\Application\DocumentPipeline;
 use App\Acquisition\Application\IngestOutcome;
 use App\Acquisition\Application\RunCounters;
 use App\Acquisition\Application\RunLifecycle;
+use App\Acquisition\Domain\Enums\ErrorCode;
 use App\Acquisition\Domain\Enums\ProfileStatus;
 use App\Acquisition\Domain\Enums\RunMode;
 use App\Acquisition\Domain\Enums\SourceStatus;
@@ -435,6 +436,14 @@ final class MonitoringRunner
                 $this->storage->recordFetchObservation($run, $source, $candidate['url'], null, null, $error);
             }
 
+            $counters->increment(RunCounters::FAILED);
+
+            return null;
+        } catch (Throwable $exception) {
+            // A defect on one document (NEDO run #17: a JsonException from a
+            // PDF title) is that document's failure, recorded as INTERNAL
+            // (ADR-0004), not the end of the run for the other documents.
+            $this->storage->recordFetchObservation($run, $source, $candidate['url'], null, null, new ToolError(ErrorCode::Internal, 'Unexpected failure while ingesting the document: '.$exception::class.': '.$exception->getMessage(), ['url' => $candidate['url']], null, $exception));
             $counters->increment(RunCounters::FAILED);
 
             return null;
