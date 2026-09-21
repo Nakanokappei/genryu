@@ -48,7 +48,7 @@ new #[Title('情報源')] class extends Component {
         @foreach ($this->sources as $source)
             <tr>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a></td>
-                <td class="max-w-md truncate px-3 py-2 text-neutral-500">{{ $source->url }}</td>
+                <td class="max-w-md truncate px-3 py-2"><a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-500 underline">{{ $source->url }}</a></td>
                 <td class="px-3 py-2">{{ $source->update_entries_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>

@@ -15,7 +15,12 @@ class Source extends Model
     /** @use HasFactory<SourceFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'url', 'notes'];
+    protected $fillable = ['name', 'url', 'feed_url', 'notes', 'fetched_at'];
+
+    protected function casts(): array
+    {
+        return ['fetched_at' => 'datetime'];
+    }
 
     /** @return HasMany<UpdateEntry, $this> */
     public function updateEntries(): HasMany
