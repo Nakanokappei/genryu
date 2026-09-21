@@ -261,9 +261,12 @@ class FetchUpdates
         $entries = [];
 
         foreach ($document->querySelectorAll((string) $config['item']) as $item) {
-            $link = ($config['title'] ?? '') !== '' ? $item->querySelector((string) $config['title']) : $item;
+            $titleNode = ($config['title'] ?? '') !== '' ? $item->querySelector((string) $config['title']) : $item;
+            // The title element may be the link, hold the link (a heading with an
+            // anchor) or sit inside it (an anchor wrapping a heading).
+            $link = $titleNode instanceof Element ? self::anchorOf($titleNode) : null;
             $href = $link instanceof Element ? trim((string) $link->getAttribute('href')) : '';
-            $title = $link instanceof Element ? trim((string) preg_replace('/\s+/u', ' ', $link->textContent)) : '';
+            $title = $titleNode instanceof Element ? trim((string) preg_replace('/\s+/u', ' ', $titleNode->textContent)) : '';
 
             if ($href === '' || $title === '') {
                 continue;
@@ -276,6 +279,21 @@ class FetchUpdates
         }
 
         return $entries;
+    }
+
+    /**
+     * The anchor an element stands for: itself, the first anchor inside it,
+     * or the nearest anchor around it.
+     */
+    private static function anchorOf(Element $element): ?Element
+    {
+        if (strtolower($element->tagName) === 'a' && $element->hasAttribute('href')) {
+            return $element;
+        }
+
+        $inside = $element->querySelector('a[href]');
+
+        return $inside instanceof Element ? $inside : $element->closest('a[href]');
     }
 
     /**
@@ -343,6 +361,11 @@ class FetchUpdates
         return explode('#', $url, 2)[0];
     }
 
+    /**
+     * Resolve a link against the page it was found on: absolute, protocol-
+     * relative, root-relative, query-only (?page=2, as Drupal pagers emit)
+     * or relative to the page's directory.
+     */
     private static function absolute(string $href, string $baseUrl): string
     {
         if (preg_match('#^https?://#i', $href) === 1) {
@@ -350,14 +373,15 @@ class FetchUpdates
         }
 
         $base = parse_url($baseUrl);
-        $origin = ($base['scheme'] ?? 'https').'://'.($base['host'] ?? '');
-
-        if (str_starts_with($href, '/')) {
-            return $origin.$href;
-        }
-
+        $scheme = $base['scheme'] ?? 'https';
+        $origin = $scheme.'://'.($base['host'] ?? '').(isset($base['port']) ? ':'.$base['port'] : '');
         $path = $base['path'] ?? '/';
 
-        return $origin.rtrim(dirname($path), '/').'/'.$href;
+        return match (true) {
+            str_starts_with($href, '//') => $scheme.':'.$href,
+            str_starts_with($href, '/') => $origin.$href,
+            str_starts_with($href, '?') => $origin.$path.$href,
+            default => $origin.rtrim(dirname($path), '/').'/'.$href,
+        };
     }
 }

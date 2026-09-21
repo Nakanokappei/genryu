@@ -111,6 +111,20 @@ it('reads an HTML list with the source settings, page by page, within the page b
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'p=3'));
 });
 
+// CNRS's pager links are query-only (?field…=354&page=1) and must resolve against the page's own path.
+it('resolves query-only and relative next links against the page', function () {
+    Http::fake([
+        'www.example.org/fr/newsroom?tag=354&page=1' => Http::response(listPage(2, 2, [['/fr/presse/b', 'B', '2026-09-01', '']]), 200, ['Content-Type' => 'text/html']),
+        'www.example.org/fr/newsroom?tag=354' => Http::response(str_replace('href="/list?p=2#table"', 'href="?tag=354&amp;page=1"', listPage(1, 2, [['presse/a', 'A', '2026-09-17', '']])), 200, ['Content-Type' => 'text/html']),
+    ]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/fr/newsroom?tag=354', 'list_config' => LIST_CONFIG]);
+
+    $result = app(FetchUpdates::class)($source);
+
+    expect($result)->toMatchArray(['pages' => 2, 'added' => 2])
+        ->and(UpdateEntry::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/a', 'https://www.example.org/fr/presse/b']);
+});
+
 it('stops paging at the first page with nothing new', function () {
     Http::fake([
         'www.example.org/list?p=2' => Http::response(listPage(2, 2, [['/news/2.html', 'Second', '2026-09-01', '']]), 200, ['Content-Type' => 'text/html']),

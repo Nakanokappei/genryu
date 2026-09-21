@@ -48,7 +48,7 @@ class ConfigureSource implements ShouldQueue
                 $source->update(['feed_url' => $feed[0], 'list_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
             } else {
                 $proposal = $propose($html, $source->url);
-                $entries = FetchUpdates::previewList($html, $proposal, $source->url);
+                [$proposal, $entries] = self::verify($html, $proposal, $source->url);
 
                 if (count($entries) < self::MINIMUM_ENTRIES) {
                     throw new RuntimeException(__('The proposed settings matched :count entries on the page; at least :minimum are needed.', ['count' => count($entries), 'minimum' => self::MINIMUM_ENTRIES]));
@@ -69,5 +69,38 @@ class ConfigureSource implements ShouldQueue
         } catch (Throwable $exception) {
             $source->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
         }
+    }
+
+    /**
+     * Apply the proposal to the page. The agent usually gets the item right
+     * and the title wrong (CNRS: an anchor wrapping a heading, proposed as
+     * a heading holding an anchor), so when the proposed title or date
+     * selector finds nothing, generic ones are tried in a fixed order and
+     * the settings that actually worked are what gets saved.
+     *
+     * @param  array<string, string>  $proposal
+     * @return array{0: array<string, string>, 1: list<array{title: string, url: string, published_at: ?string}>}
+     */
+    private static function verify(string $html, array $proposal, string $url): array
+    {
+        $best = [$proposal, []];
+
+        foreach (array_unique([$proposal['title'], 'h1, h2, h3, h4', 'a[href]']) as $title) {
+            foreach (array_unique([$proposal['date'], 'time', '']) as $date) {
+                $settings = [...$proposal, 'title' => $title, 'date' => $date];
+                $entries = FetchUpdates::previewList($html, $settings, $url);
+                $dated = count(array_filter($entries, fn (array $entry): bool => $entry['published_at'] !== null));
+
+                if (count($entries) >= self::MINIMUM_ENTRIES && ($date === '' || $dated > 0)) {
+                    return [$settings, $entries];
+                }
+
+                if (count($entries) > count($best[1])) {
+                    $best = [$settings, $entries];
+                }
+            }
+        }
+
+        return $best;
     }
 }

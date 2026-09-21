@@ -98,6 +98,23 @@ it('saves the read-as-HTML choice from the source detail screen', function () {
     expect($source->refresh()->read_as_html)->toBeTrue();
 });
 
+// CNRS: <a href><h2 class="article__title">…</h2></a>; the agent proposed "h2.article__title a", which is inside out.
+it('falls back to generic title and date selectors when the proposed ones find nothing, and saves what worked', function () {
+    $row = fn (int $i): string => "<div class=\"views-row\"><a href=\"/img/{$i}\" class=\"article__link\"><img alt=\"\"></a><time class=\"datetime\" datetime=\"2026-09-0{$i}\">0{$i}.09.2026</time><a href=\"/fr/presse/item-{$i}\"><h2 class=\"article__title\">Item {$i}</h2></a></div>";
+    $page = '<html><body>'.$row(1).$row(2).$row(3).$row(4).'</body></html>';
+    Http::fake([
+        'www.example.org/list' => Http::response($page, 200, ['Content-Type' => 'text/html']),
+        'www.example.org/*' => Http::response('not found', 404),
+        'api.openai.com/*' => Http::response(agentAnswer(['item' => 'div.views-row', 'title' => 'h2.article__title a', 'date' => 'time.datetime', 'next' => ''])),
+    ]);
+    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'read_as_html' => true]));
+
+    expect($source->status)->toBe('ready')
+        ->and($source->list_config)->toMatchArray(['item' => 'div.views-row', 'title' => 'h1, h2, h3, h4', 'date' => 'time.datetime'])
+        ->and(UpdateEntry::query()->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
+        ->and(UpdateEntry::query()->where('title', 'Item 2')->sole()->published_at?->toDateString())->toBe('2026-09-02');
+});
+
 it('does not save a proposal that matches too little on the page', function () {
     Http::fake([
         'www.example.org/list' => Http::response(CONFIGURE_LIST, 200, ['Content-Type' => 'text/html']),
