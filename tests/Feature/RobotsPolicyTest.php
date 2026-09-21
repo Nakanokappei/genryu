@@ -5,8 +5,10 @@ use App\Actions\RobotsPolicy;
 use App\Exceptions\RobotsForbidden;
 use App\Models\Source;
 use App\Models\User;
+use Carbon\CarbonInterval;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 beforeEach(function () {
     Http::preventStrayRequests();
@@ -49,6 +51,44 @@ it('refuses any outgoing request that robots.txt forbids, before it is sent', fu
 
     $source = Source::factory()->create(['url' => 'https://www.example.org/form/event.php?f=press.html']);
     expect(fn () => app(FetchUpdates::class)($source))->toThrow(RobotsForbidden::class);
+});
+
+// arXiv: "Crawl-delay: 15" for everyone. Requests to that host are spaced out; other hosts are not.
+it('waits out the Crawl-delay between two requests to the same host', function () {
+    Sleep::fake(syncWithCarbon: true);
+    $this->travelTo('2026-09-21 12:00:00');
+    Http::fake([
+        'slow.example.org/robots.txt' => Http::response("User-agent: *\nCrawl-delay: 15\nDisallow: /user\n", 200),
+        'fast.example.org/robots.txt' => Http::response("User-agent: *\nDisallow: /user\n", 200),
+        '*' => Http::response('ok', 200),
+    ]);
+
+    Http::get('https://slow.example.org/list/cs.AI/new');
+    Sleep::assertNeverSlept();
+
+    Http::get('https://slow.example.org/abs/2609.00001');
+    Sleep::assertSlept(fn (CarbonInterval $duration): bool => abs($duration->totalSeconds - 15) < 0.01);
+
+    // The wait advanced the clock, so the third request is again 15 s after the second.
+    Http::get('https://slow.example.org/abs/2609.00002');
+    Sleep::assertSleptTimes(2);
+
+    Http::get('https://fast.example.org/abs/1');
+    Http::get('https://fast.example.org/abs/2');
+    Sleep::assertSleptTimes(2);
+});
+
+it('takes the Crawl-delay of our own group over the * group', function () {
+    Sleep::fake(syncWithCarbon: true);
+    Http::fake([
+        'www.example.org/robots.txt' => Http::response("User-agent: *\nCrawl-delay: 30\n\nUser-agent: TechnologyWatch\nCrawl-delay: 2\n", 200),
+        '*' => Http::response('ok', 200),
+    ]);
+
+    Http::get('https://www.example.org/a');
+    Http::get('https://www.example.org/b');
+
+    Sleep::assertSlept(fn (CarbonInterval $duration): bool => abs($duration->totalSeconds - 2) < 0.01);
 });
 
 it('exempts robots.txt itself and the API hosts we call as a client', function () {

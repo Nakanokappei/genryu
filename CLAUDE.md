@@ -42,7 +42,8 @@ the product (purpose, the five stages, stack); read it first.
   ones, which are verified on the page before being saved to the source.
 - **robots.txt is a global HTTP middleware** (`AppServiceProvider`): every
   outgoing request is checked, a forbidden URL throws
-  `App\Exceptions\RobotsForbidden` before anything is sent. API hosts we call
+  `App\Exceptions\RobotsForbidden` before anything is sent, and a
+  `Crawl-delay` is waited out (`Sleep`) between requests to the host. API hosts we call
   as a client are listed in `config/crawler.php`. New crawler code never
   needs to check robots itself, and must not bypass `Http`.
 

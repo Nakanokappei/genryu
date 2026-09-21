@@ -51,15 +51,24 @@ class AppServiceProvider extends ServiceProvider
         Http::globalOptions(['verify' => CaBundle::getBundledCaBundlePath()]);
 
         // robots.txt is enforced here, on every outgoing request, so no
-        // crawler code path can forget it. robots.txt itself and the API
-        // hosts we call as a client are exempt.
+        // crawler code path can forget it: a forbidden URL is refused, and a
+        // Crawl-delay is waited out before the request leaves. robots.txt
+        // itself and the API hosts we call as a client are exempt.
         Http::globalRequestMiddleware(function (RequestInterface $request): RequestInterface {
             $uri = $request->getUri();
             $exempt = $uri->getPath() === '/robots.txt' || in_array(strtolower($uri->getHost()), (array) config('crawler.robots_exempt_hosts'), true);
 
-            if (! $exempt && ! app(RobotsPolicy::class)->allows((string) $uri)) {
+            if ($exempt) {
+                return $request;
+            }
+
+            $robots = app(RobotsPolicy::class);
+
+            if (! $robots->allows((string) $uri)) {
                 throw new RobotsForbidden(__('robots.txt does not allow fetching :url', ['url' => (string) $uri]));
             }
+
+            $robots->waitBefore((string) $uri);
 
             return $request;
         });

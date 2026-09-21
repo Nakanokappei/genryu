@@ -4,12 +4,15 @@ namespace App\Actions;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Sleep;
 
 /**
  * robots.txt, honoured before every fetch of a site. The file is read once
  * per host per hour; a missing file (404) allows everything, an unreadable
  * one (error, 5xx) allows nothing until it can be read. Rules for our own
  * product token win over the "*" group; the longest matching rule wins.
+ * A Crawl-delay in that group is the least time between two of our
+ * requests to the host.
  */
 class RobotsPolicy
 {
@@ -20,17 +23,8 @@ class RobotsPolicy
     public function allows(string $url): bool
     {
         $parts = parse_url($url);
-        $host = strtolower((string) ($parts['host'] ?? ''));
-
-        if ($host === '') {
-            return false;
-        }
-
-        $origin = ($parts['scheme'] ?? 'https').'://'.$host.(isset($parts['port']) ? ':'.$parts['port'] : '');
         $path = ($parts['path'] ?? '/').(isset($parts['query']) ? '?'.$parts['query'] : '');
-
-        /** @var array{status: int, body: string} $robots */
-        $robots = Cache::remember('robots:'.$origin, self::CACHE_SECONDS, fn (): array => $this->read($origin.'/robots.txt'));
+        $robots = $this->robots($url);
 
         if ($robots['status'] === 404) {
             return true;
@@ -40,7 +34,50 @@ class RobotsPolicy
             return false;
         }
 
-        return self::decide(self::rulesFor($robots['body']), $path);
+        return self::decide(self::groupFor($robots['body'])['rules'], $path);
+    }
+
+    /**
+     * Wait until the host's Crawl-delay has passed since our last request
+     * to it, then take the slot. Meant to be called right before sending.
+     */
+    public function waitBefore(string $url): void
+    {
+        $robots = $this->robots($url);
+        $delay = $robots['status'] === 200 ? self::groupFor($robots['body'])['delay'] : 0.0;
+
+        if ($delay <= 0) {
+            return;
+        }
+
+        $key = 'robots:last:'.strtolower((string) parse_url($url, PHP_URL_HOST));
+        $remaining = (float) Cache::get($key, 0.0) + $delay - (float) now()->format('U.u');
+
+        if ($remaining > 0) {
+            Sleep::for($remaining)->seconds();
+        }
+
+        Cache::put($key, (float) now()->format('U.u'), (int) ceil($delay) + 60);
+    }
+
+    /**
+     * The host's robots.txt, read once per hour.
+     *
+     * @return array{status: int, body: string}
+     */
+    private function robots(string $url): array
+    {
+        $parts = parse_url($url);
+        $host = strtolower((string) ($parts['host'] ?? ''));
+
+        if ($host === '') {
+            return ['status' => 0, 'body' => ''];
+        }
+
+        $origin = ($parts['scheme'] ?? 'https').'://'.$host.(isset($parts['port']) ? ':'.$parts['port'] : '');
+
+        /** @var array{status: int, body: string} */
+        return Cache::remember('robots:'.$origin, self::CACHE_SECONDS, fn (): array => $this->read($origin.'/robots.txt'));
     }
 
     /**
@@ -58,14 +95,16 @@ class RobotsPolicy
     }
 
     /**
-     * The Allow / Disallow rules of the group that applies to us: the group
-     * naming our token when there is one, else the "*" group.
+     * The Allow / Disallow rules and the Crawl-delay (seconds, 0 when none)
+     * of the group that applies to us: the group naming our token when
+     * there is one, else the "*" group.
      *
-     * @return list<array{allow: bool, path: string}>
+     * @return array{rules: list<array{allow: bool, path: string}>, delay: float}
      */
-    private static function rulesFor(string $body): array
+    private static function groupFor(string $body): array
     {
         $groups = ['own' => [], 'any' => []];
+        $delays = ['own' => 0.0, 'any' => 0.0];
         $current = [];
         $seenRule = true;
 
@@ -91,16 +130,22 @@ class RobotsPolicy
                 continue;
             }
 
-            if ($field === 'allow' || $field === 'disallow') {
+            if ($field === 'allow' || $field === 'disallow' || $field === 'crawl-delay') {
                 $seenRule = true;
 
                 foreach (array_unique(array_filter($current)) as $group) {
-                    $groups[$group][] = ['allow' => $field === 'allow', 'path' => $value];
+                    if ($field === 'crawl-delay') {
+                        $delays[$group] = max(0.0, (float) $value);
+                    } else {
+                        $groups[$group][] = ['allow' => $field === 'allow', 'path' => $value];
+                    }
                 }
             }
         }
 
-        return $groups['own'] !== [] ? $groups['own'] : $groups['any'];
+        $group = $groups['own'] !== [] || $delays['own'] > 0 ? 'own' : 'any';
+
+        return ['rules' => $groups[$group], 'delay' => $delays[$group]];
     }
 
     /**
