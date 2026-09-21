@@ -25,6 +25,9 @@ new #[Title('情報源')] class extends Component {
     /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
     public array $list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
 
+    /** @var array<string, string> JSON list settings: the file's URL, the path to the items, the keys inside an item, max_items */
+    public array $json = ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => '50'];
+
     /** @var array<string, string> Document settings: CSS selectors of the body and of what to drop inside it */
     public array $documentSettings = ['content' => '', 'remove' => ''];
 
@@ -41,11 +44,36 @@ new #[Title('情報源')] class extends Component {
             }
         }
 
+        foreach ($this->source->json_config ?? [] as $key => $value) {
+            if (array_key_exists($key, $this->json)) {
+                $this->json[$key] = (string) $value;
+            }
+        }
+
         foreach ($this->source->document_config ?? [] as $key => $value) {
             if (array_key_exists($key, $this->documentSettings)) {
                 $this->documentSettings[$key] = (string) $value;
             }
         }
+    }
+
+    // The JSON list settings are saved on their own; an empty URL means "not read from JSON".
+    public function saveJson(): void
+    {
+        $validated = $this->validate([
+            'json.url' => ['nullable', 'url', 'max:2048'],
+            'json.items' => ['nullable', 'string', 'max:255'],
+            'json.title' => ['required', 'string', 'max:255'],
+            'json.link' => ['required', 'string', 'max:255'],
+            'json.date' => ['nullable', 'string', 'max:255'],
+            'json.max_items' => ['required', 'integer', 'min:1', 'max:1000'],
+        ])['json'];
+
+        $this->source->update(['json_config' => ($validated['url'] ?? '') !== ''
+            ? [...$validated, 'items' => (string) ($validated['items'] ?? ''), 'date' => (string) ($validated['date'] ?? ''), 'max_items' => (int) $validated['max_items']]
+            : null]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
     // The document settings are saved on their own; an empty content selector means "let the agent propose at the next fetch".
@@ -195,6 +223,22 @@ new #[Title('情報源')] class extends Component {
             <flux:input wire:model="list.date" :label="__('Date')" placeholder="time" />
             <flux:input wire:model="list.next" :label="__('Next page link')" placeholder='a[title="next page"]' />
             <flux:input wire:model="list.max_pages" :label="__('Max pages')" type="number" min="1" max="100" />
+        </div>
+        <flux:button type="submit">{{ __('Save') }}</flux:button>
+    </form>
+
+    <form wire:submit="saveJson" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('JSON list settings') }}</flux:heading>
+        <flux:text>{{ __('For a page whose list is drawn by a script from a JSON file. With a URL here, the list is read from that file (newest first) instead of the feed or the HTML list. Path and keys use dot notation.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-6">
+            <div class="md:col-span-2">
+                <flux:input wire:model="json.url" :label="__('JSON URL')" type="url" placeholder="https://…/news-article.json" />
+            </div>
+            <flux:input wire:model="json.items" :label="__('Items path')" placeholder="news" />
+            <flux:input wire:model="json.title" :label="__('Title key')" placeholder="title" />
+            <flux:input wire:model="json.link" :label="__('Link key')" placeholder="url" />
+            <flux:input wire:model="json.date" :label="__('Date key')" placeholder="date" />
+            <flux:input wire:model="json.max_items" :label="__('Max items')" type="number" min="1" max="1000" />
         </div>
         <flux:button type="submit">{{ __('Save') }}</flux:button>
     </form>

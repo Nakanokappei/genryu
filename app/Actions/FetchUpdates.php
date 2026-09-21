@@ -17,11 +17,12 @@ use SimpleXMLElement;
 /**
  * 更新リストを取得 (UI: "Fetch updates", stage 2.1 of docs/HANDOVER.md).
  *
- * Deterministic. A source with an HTML list configuration is read from
- * its HTML list, page by page. Otherwise a feed is looked for in a fixed
- * order: the source URL itself is RSS / Atom; the HTML page advertises
- * one with <link rel="alternate">; a well-known path answers with one.
- * Without either there is nothing to read and the user is told so.
+ * Deterministic. A source with a JSON list configuration is read from
+ * that JSON file; one with an HTML list configuration from its HTML
+ * list, page by page. Otherwise a feed is looked for in a fixed order:
+ * the source URL itself is RSS / Atom; the HTML page advertises one with
+ * <link rel="alternate">; a well-known path answers with one. Without
+ * any of these there is nothing to read and the user is told so.
  */
 class FetchUpdates
 {
@@ -41,10 +42,30 @@ class FetchUpdates
     public const LIST_CONFIG_KEYS = ['item', 'title', 'date', 'next', 'max_pages'];
 
     /**
+     * Keys of the JSON list configuration (UI: "JSON list settings"): the
+     * URL of the JSON file the site draws its list from, the path to the
+     * item array inside it (dot notation, empty for the root), the keys of
+     * the title, the link and the date inside an item, and how many items
+     * from the top one fetch may take (the list is expected newest first).
+     */
+    public const JSON_CONFIG_KEYS = ['url', 'items', 'title', 'link', 'date', 'max_items'];
+
+    public const DEFAULT_MAX_ITEMS = 50;
+
+    /** A JSON list must hold at least this many entries to be believed. */
+    public const MINIMUM_JSON_ENTRIES = 3;
+
+    /**
      * @return array{feed_url: ?string, pages: int, added: int, existing: int}
      */
     public function __invoke(Source $source): array
     {
+        $json = $source->json_config ?? [];
+
+        if (($json['url'] ?? '') !== '') {
+            return $this->fromJsonList($source, $json);
+        }
+
         $config = $source->list_config ?? [];
 
         if (($config['item'] ?? '') !== '') {
@@ -52,6 +73,153 @@ class FetchUpdates
         }
 
         return $this->fromFeed($source);
+    }
+
+    /**
+     * Read the JSON file the site draws its list from, newest first, up
+     * to max_items entries.
+     *
+     * @param  array<string, mixed>  $config
+     * @return array{feed_url: null, pages: int, added: int, existing: int}
+     */
+    private function fromJsonList(Source $source, array $config): array
+    {
+        $entries = self::jsonEntries($this->get((string) $config['url'])->body(), $config, $source->url);
+
+        if ($entries === []) {
+            throw new RuntimeException(__('The JSON list settings matched nothing.'));
+        }
+
+        $counts = $this->store($source, array_slice($entries, 0, max(1, (int) ($config['max_items'] ?? self::DEFAULT_MAX_ITEMS))));
+        $source->update(['feed_url' => null, 'fetched_at' => now()]);
+
+        return ['feed_url' => null, 'pages' => 1, ...$counts];
+    }
+
+    /**
+     * The entries of a JSON list per the configuration: the item array at
+     * the configured path, each item's title / link / date by key (dot
+     * notation reaches into nested objects). Items without a title or a
+     * link are skipped; links resolve against the source page.
+     *
+     * @param  array<string, mixed>  $config
+     * @return list<array{title: string, url: string, published_at: ?string}>
+     */
+    public static function jsonEntries(string $json, array $config, string $baseUrl): array
+    {
+        $data = json_decode($json, true);
+        $items = ($config['items'] ?? '') === '' ? $data : data_get($data, (string) $config['items']);
+
+        if (! is_array($items)) {
+            return [];
+        }
+
+        $entries = [];
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $title = trim((string) preg_replace('/\s+/u', ' ', (string) data_get($item, (string) ($config['title'] ?? 'title'))));
+            $href = trim((string) data_get($item, (string) ($config['link'] ?? 'url')));
+
+            if ($title === '' || $href === '') {
+                continue;
+            }
+
+            $rawDate = ($config['date'] ?? '') !== '' ? (string) data_get($item, (string) $config['date']) : '';
+            $entries[] = ['title' => $title, 'url' => self::withoutFragment(self::absolute($href, $baseUrl)), 'published_at' => self::date($rawDate)];
+        }
+
+        return $entries;
+    }
+
+    /**
+     * Find the JSON list a page draws its entries from, deterministically:
+     * every ".json" the HTML refers to is fetched (a handful at most) and
+     * searched for an array of at least MINIMUM_JSON_ENTRIES objects that
+     * carry a title-like and a link-like key. The first such array wins.
+     *
+     * @return array{config: array<string, mixed>, entries: list<array{title: string, url: string, published_at: ?string}>}|null
+     */
+    public function discoverJsonList(string $html, string $pageUrl): ?array
+    {
+        preg_match_all('#["\'=]([^"\'\s<>]+\.json(?:\?[^"\'\s<>]*)?)["\']#i', $html, $matches);
+        $candidates = array_slice(array_unique(array_map(fn (string $href): string => self::absolute(html_entity_decode($href), $pageUrl), $matches[1])), 0, 5);
+
+        foreach ($candidates as $candidate) {
+            try {
+                $body = $this->get($candidate)->body();
+            } catch (\Throwable) {
+                // A reference that cannot be fetched (or that robots.txt forbids) is simply not the list.
+                continue;
+            }
+
+            $found = self::findItemArray(json_decode($body, true), '');
+
+            if ($found === null) {
+                continue;
+            }
+
+            $config = ['url' => $candidate, ...$found, 'max_items' => self::DEFAULT_MAX_ITEMS];
+            $entries = self::jsonEntries($body, $config, $pageUrl);
+
+            if (count($entries) >= self::MINIMUM_JSON_ENTRIES) {
+                return ['config' => $config, 'entries' => $entries];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * The first array of objects with a title-like and a link-like key,
+     * searched breadth-first a few levels deep, with the keys it uses.
+     *
+     * @return array{items: string, title: string, link: string, date: string}|null
+     */
+    private static function findItemArray(mixed $data, string $path, int $depth = 0): ?array
+    {
+        if (! is_array($data) || $depth > 3) {
+            return null;
+        }
+
+        $objects = array_values(array_filter($data, 'is_array'));
+
+        if (array_is_list($data) && count($objects) >= self::MINIMUM_JSON_ENTRIES) {
+            $keys = array_keys($objects[0]);
+            $title = self::keyLike($keys, '/title|headline|subject/i');
+            $link = self::keyLike($keys, '/^(url|link|href|path|permalink)$/i') ?? self::keyLike($keys, '/url|link|href/i');
+
+            if ($title !== null && $link !== null) {
+                return ['items' => $path, 'title' => $title, 'link' => $link, 'date' => self::keyLike($keys, '/date|published|time/i') ?? ''];
+            }
+        }
+
+        foreach ($data as $key => $value) {
+            $found = self::findItemArray($value, ltrim($path.'.'.$key, '.'), $depth + 1);
+
+            if ($found !== null) {
+                return $found;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  list<int|string>  $keys
+     */
+    private static function keyLike(array $keys, string $pattern): ?string
+    {
+        foreach ($keys as $key) {
+            if (is_string($key) && preg_match($pattern, $key) === 1) {
+                return $key;
+            }
+        }
+
+        return null;
     }
 
     /**

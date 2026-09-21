@@ -56,6 +56,27 @@ it('finds a feed deterministically, without asking the agent, and reads it', fun
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
+// 三菱電機: the page holds no entries; a script draws them from the JSON file named in a data attribute.
+it('finds the JSON list a page draws its entries from, without asking the agent, and reads it', function () {
+    $page = '<html><body><div data-js-component="newslist" data-js-newsjsonpath="/content/dam/news-article.json" data-js-prod-newsjsonpath="/global/common/news-data/news-article.json"></div>'
+        .'<script src="/etc.clientlibs/site.min.js"></script></body></html>';
+    $json = '{"news":[{"date":"2026年09月17日","title":"One","url":"/ja/pr/2026/0917_rd/"},{"date":"2026年09月17日","title":"Two","url":"/ja/pr/2026/0917_fa/"},{"date":"2026年09月15日","title":"Three","url":"/ja/pr/2026/0915_ds/"}],"meta":{"count":"3"}}';
+    Http::fake([
+        'www.example.org/ja/pr/' => Http::response($page, 200, ['Content-Type' => 'text/html']),
+        'www.example.org/content/dam/news-article.json' => Http::response('not found', 404),
+        'www.example.org/global/common/news-data/news-article.json' => Http::response($json, 200, ['Content-Type' => 'application/json']),
+        'www.example.org/*' => Http::response('not found', 404),
+    ]);
+    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/ja/pr/']));
+
+    expect($source->status)->toBe('ready')
+        ->and($source->json_config)->toEqual(['url' => 'https://www.example.org/global/common/news-data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 50])
+        ->and($source->list_config)->toBeNull()
+        ->and($source->status_message)->toContain('JSON 一覧を見つけました')->toContain('3 件')
+        ->and(UpdateEntry::query()->orderBy('id')->pluck('title')->all())->toBe(['One', 'Two', 'Three']);
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
+});
+
 it('asks the agent for HTML list settings when there is no feed, verifies them, saves them and reads the list', function () {
     Http::fake([
         'www.example.org/list' => Http::response(CONFIGURE_LIST, 200, ['Content-Type' => 'text/html']),

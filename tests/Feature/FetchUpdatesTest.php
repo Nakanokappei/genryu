@@ -145,6 +145,50 @@ it('stops paging at the first page with nothing new', function () {
     Http::assertSentCount(4);
 });
 
+/**
+ * A 三菱電機-shaped JSON list: an object with the items under "news", newest first, relative links, Japanese dates.
+ */
+const JSON_LIST = '{"news":[{"date":"2026年09月17日","title":"量子コンピューターの大規模化に向けた研究開発を開始","url":"/ja/pr/2026/0917_rd/","thumb":"x"},'
+    .'{"date":"2026年09月17日","title":"安全シーケンサで EU 型式認証を取得","url":"/ja/pr/2026/0917_fa/"},'
+    .'{"date":"2026年09月15日","title":"SWISSto12 と覚書を締結","url":"/ja/pr/2026/0915_ds/"},'
+    .'{"date":"2026年09月10日","title":"Fourth","url":"/ja/pr/2026/0910/"}],"meta":{"count":"4"}}';
+
+const JSON_CONFIG = ['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 3];
+
+it('reads a JSON list with the source settings, newest first, up to max_items', function () {
+    Http::fake(['www.example.org/data/news-article.json' => Http::response(JSON_LIST, 200, ['Content-Type' => 'application/json'])]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_config' => JSON_CONFIG]);
+
+    $result = app(FetchUpdates::class)($source);
+
+    expect($result)->toMatchArray(['feed_url' => null, 'pages' => 1, 'added' => 3, 'existing' => 0])
+        ->and(UpdateEntry::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/ja/pr/2026/0917_rd/', 'https://www.example.org/ja/pr/2026/0917_fa/', 'https://www.example.org/ja/pr/2026/0915_ds/'])
+        ->and(UpdateEntry::query()->where('url', 'like', '%0915_ds%')->sole()->published_at?->toDateString())->toBe('2026-09-15');
+});
+
+it('reports JSON list settings that match nothing', function () {
+    Http::fake(['www.example.org/data/news-article.json' => Http::response('{"items": []}', 200, ['Content-Type' => 'application/json'])]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_config' => JSON_CONFIG]);
+
+    expect(fn () => app(FetchUpdates::class)($source))->toThrow(RuntimeException::class, 'JSON 一覧の設定に一致する項目がありません');
+});
+
+it('saves the JSON list settings from the source detail screen', function () {
+    $source = Source::factory()->create();
+
+    Livewire::test('pages::sources.show', ['source' => $source])
+        ->set('json.url', 'https://www.example.org/data/news-article.json')->set('json.items', 'news')->set('json.date', 'date')->set('json.max_items', '20')
+        ->call('saveJson')->assertHasNoErrors();
+    expect($source->refresh()->json_config)->toEqual(['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 20]);
+
+    // Clearing the URL stops reading from JSON.
+    Livewire::test('pages::sources.show', ['source' => $source])
+        ->assertSet('json.items', 'news')
+        ->set('json.url', '')
+        ->call('saveJson')->assertHasNoErrors();
+    expect($source->refresh()->json_config)->toBeNull();
+});
+
 it('reports HTML list settings that match nothing', function () {
     Http::fake(['www.example.org/*' => Http::response('<html><body><p>no table</p></body></html>', 200, ['Content-Type' => 'text/html'])]);
     $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => LIST_CONFIG]);

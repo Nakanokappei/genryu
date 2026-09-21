@@ -11,9 +11,10 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Configure a new source in the background: find its feed
- * deterministically, or have the agent propose HTML list settings and
- * verify them on the page, then read the update list for the first time.
+ * Configure a new source in the background: find its feed or the JSON
+ * list it draws its entries from, both deterministically, or have the
+ * agent propose HTML list settings and verify them on the page, then
+ * read the update list for the first time.
  * The outcome lands on the source (status 設定中 / 設定済み / 失敗) rather
  * than in the queue's failed-jobs table, so the screen can show it.
  */
@@ -45,7 +46,10 @@ class ConfigureSource implements ShouldQueue
                 // that shares nothing with the page is probably another list.
                 $overlap = count(array_filter(FetchUpdates::previewFeed($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
 
-                $source->update(['feed_url' => $feed[0], 'list_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
+                $source->update(['feed_url' => $feed[0], 'list_config' => null, 'json_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
+            } elseif (($json = $fetch->discoverJsonList($html, $source->url)) !== null) {
+                // 三菱電機: the page holds no entries, a script draws them from a JSON file.
+                $source->update(['feed_url' => null, 'list_config' => null, 'json_config' => $json['config'], 'status' => 'ready', 'status_message' => __('JSON list found: :url (:count entries)', ['url' => $json['config']['url'], 'count' => count($json['entries'])])]);
             } else {
                 $proposal = $propose($html, $source->url);
                 [$proposal, $entries] = self::verify($html, $proposal, $source->url);
@@ -59,6 +63,7 @@ class ConfigureSource implements ShouldQueue
 
                 $source->update([
                     'feed_url' => null,
+                    'json_config' => null,
                     'list_config' => [...$proposal, 'max_pages' => self::DEFAULT_MAX_PAGES],
                     'status' => 'ready',
                     'status_message' => __('HTML list settings proposed by the agent and verified on the page (:count entries: :sample).', ['count' => count($entries), 'sample' => $sample]),
