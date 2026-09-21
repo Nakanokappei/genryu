@@ -39,22 +39,24 @@ Read it before any feature work. Non-negotiables it sets:
 
 ## Status (2026-09-21)
 
-Milestones 0–6 of the Phase 0 plan are done and committed; Milestone 7
-(NEDO architecture test) is next, then Milestone 8 (hardening). Read
-`docs/acquisition/darpa-vertical-slice.md` §7 for the known limitations
-carried forward. Dev database state: sources `example` (scaffold smoke) and
-`darpa` (profile v2 ACTIVE, approved by the operator, 58 documents, runs
-#2–#10). `worker/.env` holds the API key (not committed). The scheduler is
-not running locally; monitoring is triggered by hand with
-`php artisan acquisition:monitor darpa`.
+Milestones 0–7 of the Phase 0 plan are done and committed; Milestone 8
+(hardening) is next. Evidence: `docs/acquisition/darpa-vertical-slice.md`
+(Milestone 6) and `docs/acquisition/nedo-architecture-test.md` (Milestone 7);
+§7 of each lists the limitations carried into Milestone 8. Dev database
+state: sources `example` (scaffold smoke), `darpa` (profile v2 ACTIVE, 58
+documents, runs #2–#10) and `nedo` (profile v2 ACTIVE, approved by the
+operator after correcting the Agent's v1; about 600 documents including 175
+PDFs; runs #11–#22). `worker/.env` holds the API key (not committed). The
+scheduler is not running locally; monitoring is triggered by hand with
+`php artisan acquisition:monitor <source>` (a NEDO run takes about 14
+minutes at `max_urls_per_run` 200).
 
-Milestone 7 checklist: register NEDO (`acquisition:source add nedo NEDO
-https://www.nedo.go.jp/`), run one live Discovery (budget defaults, about
-2 USD), review and approve the candidate as the operator, monitor twice,
-reprocess with the network blocked, and statically review that no
-source-name branch or DARPA-specific class was added (`grep -ri darpa app/`
-must hit nothing). Focus points: Japanese metadata and dates, and revision
-behaviour on a site that may not send ETags (ADR-0003 open item).
+Milestone 8 starting points: quality-failed listing pages and permanent
+404s that count on every run (Profile `exclude` and a "known permanent
+failure" mechanism), per-document process isolation (one run is one PHP
+process; `acquisition.memory_limit` is the stopgap), `HostThrottle` lock
+timeouts surfacing as `INTERNAL`, the revision policy for quality-failed
+content, and the runbook / rollback documentation the plan requires.
 
 ## Architecture decisions
 
