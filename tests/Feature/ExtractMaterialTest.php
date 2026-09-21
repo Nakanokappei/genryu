@@ -97,6 +97,15 @@ it('reads the structuring layer from the editorial policy screen, with a default
     expect(extractMaterial(Document::factory()->create())->status)->toBe('extracted');
 });
 
+// jsonb hands the keys back sorted by length and letter; the screens show them in the policy's order.
+it('shows the items in the order the policy lists them', function () {
+    $material = Material::factory()->create(['data' => ['重要な事実' => ['a'], '要約' => 'x', 'メモ' => 'extra', '発表主体' => 'NEDO']]);
+
+    expect(array_keys($material->refresh()->data))->not->toBe(['要約', '発表主体', '重要な事実', 'メモ'])
+        ->and(array_keys((array) $material->dataInPolicyOrder()))->toBe(['要約', '発表主体', '重要な事実', 'メモ']);
+    $this->get(route('materials.show', $material))->assertSeeInOrder(['"要約"', '"発表主体"', '"重要な事実"', '"メモ"']);
+});
+
 it('queues the missing and failed materials of fetched documents, and one material again, from the screens', function () {
     Queue::fake();
     $missing = Document::factory()->create();

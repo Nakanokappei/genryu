@@ -44,7 +44,7 @@ new #[Title('素材情報')] class extends Component {
     </div>
 
     <flux:heading size="lg">{{ __('Data') }}</flux:heading>
-    <pre class="max-h-[32rem] overflow-auto rounded-xl border border-neutral-200 p-4 text-sm whitespace-pre-wrap dark:border-neutral-700">{{ $material->data !== null ? json_encode($material->data, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : __('Not extracted yet.') }}</pre>
+    <pre class="max-h-[32rem] overflow-auto rounded-xl border border-neutral-200 p-4 text-sm whitespace-pre-wrap dark:border-neutral-700">{{ $material->data !== null ? json_encode($material->dataInPolicyOrder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : __('Not extracted yet.') }}</pre>
 
     <flux:heading size="lg">{{ __('Articles') }}</flux:heading>
     <x-pages::table :columns="[__('Title'), __('Status'), __('Published at')]" :empty="$material->articles->isEmpty()">
