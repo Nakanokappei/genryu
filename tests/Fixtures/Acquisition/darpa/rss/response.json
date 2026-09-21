@@ -1,0 +1,14 @@
+{
+  "url": "https://www.darpa.mil/rss.xml",
+  "final_url": "https://www.darpa.mil/rss.xml",
+  "status": 200,
+  "headers": {
+    "content-type": "text/xml",
+    "last-modified": "Sun, 20 Sep 2026 07:04:32 GMT",
+    "etag": "\"1f9120b840e7e405c2aa08c4455b6358\""
+  },
+  "media_type": "application/rss+xml",
+  "retrieved_at": "2026-09-20T20:41:42Z",
+  "body_file": "body.xml",
+  "note": "Real DARPA RSS feed captured for the Phase 0 vertical slice; 10 items, GUIDs like '5501 at https://www.darpa.mil'."
+}

@@ -20,6 +20,7 @@ use App\Acquisition\Tools\ToolRequest;
 use App\Acquisition\Tools\ToolResult;
 use App\Acquisition\Tools\Xml\ParseXmlTool;
 use Carbon\CarbonImmutable;
+use Dom\HTMLDocument;
 use InvalidArgumentException;
 use SplPriorityQueue;
 
@@ -224,7 +225,9 @@ final class DiscoverWebTool implements Tool
 
         $sameHost = 0;
 
-        foreach ($parsed->links as $link) {
+        // Navigation links are exactly the routes discovery is after, so
+        // links come from the whole document, not from the main content.
+        foreach ($this->allLinks($result->body, $result->finalUrl) as $link) {
             $host = UrlNormalizer::host($link['url']);
 
             if (! in_array($host, $request->allowedHosts, true)) {
@@ -280,11 +283,15 @@ final class DiscoverWebTool implements Tool
             $enqueue($link['url'], $depth + 1, 'link', $result->finalUrl);
         }
 
+        // Navigation inflates whole-document counts on every page; only links
+        // inside the main content say whether a page is a listing.
+        $contentLinks = count(array_filter($parsed->links, fn (array $link): bool => in_array(UrlNormalizer::host($link['url']), $request->allowedHosts, true)));
         $resource['same_host_links'] = $sameHost;
+        $resource['content_links'] = $contentLinks;
 
-        // A page linking to many same-host documents is an index worth monitoring.
-        if ($sameHost >= 10) {
-            $candidates['indexes'][] = ['url' => $result->finalUrl, 'title' => $parsed->title, 'same_host_links' => $sameHost, 'depth' => $depth];
+        // A page whose content links to many same-host documents is an index worth monitoring.
+        if ($contentLinks >= 10) {
+            $candidates['indexes'][] = ['url' => $result->finalUrl, 'title' => $parsed->title, 'same_host_links' => $contentLinks, 'depth' => $depth];
         }
     }
 
@@ -333,6 +340,50 @@ final class DiscoverWebTool implements Tool
                 $enqueue($child['url'], $depth + 1, 'sitemap', $url);
             }
         }
+    }
+
+    /**
+     * Every absolute http(s) link in the document, deduplicated, in order.
+     *
+     * @return list<array{url: string, text: string}>
+     */
+    private function allLinks(string $html, string $baseUrl): array
+    {
+        try {
+            $document = HTMLDocument::createFromString($html, LIBXML_NOERROR | \Dom\HTML_NO_DEFAULT_NS);
+        } catch (\Throwable) {
+            return [];
+        }
+
+        $base = trim((string) $document->querySelector('base[href]')?->getAttribute('href'));
+
+        try {
+            $baseUrl = $base === '' ? $baseUrl : UrlNormalizer::resolve($baseUrl, $base);
+        } catch (InvalidArgumentException) {
+            // Keep the served URL as base.
+        }
+
+        $links = [];
+
+        foreach ($document->querySelectorAll('a[href]') as $anchor) {
+            $href = trim((string) $anchor->getAttribute('href'));
+
+            if ($href === '' || str_starts_with($href, '#')) {
+                continue;
+            }
+
+            try {
+                $url = UrlNormalizer::resolve($baseUrl, $href);
+            } catch (InvalidArgumentException) {
+                continue;
+            }
+
+            if ((str_starts_with($url, 'http://') || str_starts_with($url, 'https://')) && ! isset($links[$url])) {
+                $links[$url] = ['url' => $url, 'text' => mb_substr(trim((string) preg_replace('/\s+/u', ' ', $anchor->textContent)), 0, 200)];
+            }
+        }
+
+        return array_values($links);
     }
 
     /**

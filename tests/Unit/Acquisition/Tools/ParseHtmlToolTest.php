@@ -97,6 +97,17 @@ it('tolerates broken markup, invalid JSON-LD and relative canonicals', function 
         ->and(array_column($parsed->links, 'url'))->toBe(['https://www.example.org/news/docs/a.html']);
 });
 
+it('treats a <main> with several <article> cards as a listing and keeps every card', function () {
+    $cards = implode('', array_map(fn (int $i): string => "<article><h2><a href=\"/news/item-{$i}\">Item {$i}</a></h2><p>Teaser {$i}</p></article>", range(1, 5)));
+    $html = "<html><head><title>News</title></head><body><nav><a href=\"/\">Home</a></nav><main><h1>News</h1>{$cards}</main></body></html>";
+
+    $parsed = $this->tool->parse($html, 'https://www.example.org/news');
+
+    expect($parsed->mainContentSelector)->toBe('main')
+        ->and($parsed->links)->toHaveCount(5)
+        ->and($parsed->headings)->toHaveCount(6);
+});
+
 it('round-trips through its wire form', function () {
     $fixture = acquisitionFixture('synthetic/simple-article');
     $parsed = $this->tool->parse($fixture['body'], $fixture['meta']['final_url']);

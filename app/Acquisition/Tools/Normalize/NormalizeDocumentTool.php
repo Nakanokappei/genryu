@@ -119,8 +119,18 @@ final class NormalizeDocumentTool implements Tool
     private function fromHtml(ParsedHtml $parsed, SourceContext $context): NormalizedDocument
     {
         $identity = StableKeyResolver::resolve($context->feedGuid, $parsed->canonicalUrl, $context->finalUrl, $context->stripQueryParameters);
-        $published = $this->pick($parsed->dateCandidates, 'published');
-        $updated = $this->pick($parsed->dateCandidates, 'updated');
+        $candidates = $parsed->dateCandidates;
+
+        // The feed that listed this document is an authoritative, if external,
+        // witness of its publication date: stronger than text heuristics,
+        // weaker than the page's own metadata.
+        if ($context->feedPublishedAt !== null) {
+            $candidates[] = ['kind' => 'published', 'value' => $context->feedPublishedAt, 'raw' => $context->feedPublishedAt, 'source' => 'feed:published', 'confidence' => 0.8];
+            usort($candidates, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);
+        }
+
+        $published = $this->pick($candidates, 'published');
+        $updated = $this->pick($candidates, 'updated');
         $links = array_values(array_unique(array_map(static fn (array $link): string => $link['url'], $parsed->links)));
 
         return $this->build(
@@ -139,7 +149,7 @@ final class NormalizeDocumentTool implements Tool
             textCharacters: (int) ($parsed->quality['text_characters'] ?? mb_strlen($parsed->text)),
             warnings: $parsed->warnings,
             provenance: [
-                'date_candidates' => $parsed->dateCandidates,
+                'date_candidates' => $candidates,
                 'author' => $parsed->author,
                 'main_content_selector' => $parsed->mainContentSelector,
                 'headings' => $parsed->headings,

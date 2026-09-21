@@ -30,14 +30,14 @@ final class DocumentPipeline
     /**
      * @throws ToolError after recording the failed observation
      */
-    public function ingest(AcquisitionRun $run, Source $source, ?SourceProfile $profile, FetchResult $fetch, ?string $feedGuid = null, ?string $documentType = null): IngestOutcome
+    public function ingest(AcquisitionRun $run, Source $source, ?SourceProfile $profile, FetchResult $fetch, ?string $feedGuid = null, ?string $documentType = null, ?string $feedPublishedAt = null): IngestOutcome
     {
         $raw = $this->storage->storeRawArtifact($fetch);
 
         try {
             $parserId = $this->parsers->parserIdFor($fetch->declaredMediaType ?? $fetch->detectedMediaType ?? 'application/octet-stream', $profile);
             $parsed = $this->parsers->parse($parserId, $fetch->body, $fetch->finalUrl);
-            $normalized = $this->normalizer->normalize($parsed, self::contextFor($source, $profile, $fetch, $raw->sha256, $raw->blob_uri, $feedGuid, $documentType));
+            $normalized = $this->normalizer->normalize($parsed, self::contextFor($source, $profile, $fetch, $raw->sha256, $raw->blob_uri, $feedGuid, $documentType, $feedPublishedAt));
 
             $document = $this->storage->upsertDocumentIdentity(
                 $source,
@@ -70,7 +70,7 @@ final class DocumentPipeline
      * Build the normalizer's context from the fetch and the profile's
      * quality expectations (defaults when there is no profile).
      */
-    public static function contextFor(Source $source, ?SourceProfile $profile, FetchResult $fetch, string $rawSha256, string $rawBlobUri, ?string $feedGuid, ?string $documentType): SourceContext
+    public static function contextFor(Source $source, ?SourceProfile $profile, FetchResult $fetch, string $rawSha256, string $rawBlobUri, ?string $feedGuid, ?string $documentType, ?string $feedPublishedAt = null): SourceContext
     {
         /** @var array<string, mixed> $expectations */
         $expectations = $profile?->profile_json['quality_expectations'] ?? [];
@@ -90,6 +90,7 @@ final class DocumentPipeline
             requiredFields: array_values($expectations['required_fields'] ?? ['canonical_url', 'title']),
             minimumTextCharacters: (int) ($expectations['minimum_text_characters'] ?? 200),
             stripQueryParameters: $strip,
+            feedPublishedAt: $feedPublishedAt,
         );
     }
 }

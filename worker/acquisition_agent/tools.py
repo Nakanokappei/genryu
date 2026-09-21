@@ -98,6 +98,7 @@ TOOL_SPECS: dict[str, dict[str, Any]] = {
                 "raw_blob_uri": {"type": "string"},
                 "document_type": {"type": "string", "enum": ["news", "program", "report", "feed", "sitemap", "other"]},
                 "feed_guid": {"type": "string", "description": "The feed entry GUID when this document came from a feed."},
+                "feed_published_at": {"type": "string", "description": "The feed entry's published date (ISO 8601) when this document came from a feed."},
             },
             "required": ["parsed", "raw_blob_uri"],
         },

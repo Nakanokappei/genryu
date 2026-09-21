@@ -29,6 +29,7 @@ final readonly class SourceContext
         public array $requiredFields = ['canonical_url', 'title'],
         public int $minimumTextCharacters = 200,
         public array $stripQueryParameters = [],
+        public ?string $feedPublishedAt = null,
     ) {}
 
     /**
@@ -45,6 +46,7 @@ final readonly class SourceContext
             'raw_sha256' => ['required', 'string', 'size:64'],
             'raw_blob_uri' => ['nullable', 'string'],
             'feed_guid' => ['nullable', 'string'],
+            'feed_published_at' => ['nullable', 'date'],
             'document_type' => ['nullable', 'string', 'max:32'],
             'quality_expectations' => ['sometimes', 'array'],
             'quality_expectations.required_fields' => ['sometimes', 'array'],
@@ -70,6 +72,7 @@ final readonly class SourceContext
             requiredFields: array_values($expectations['required_fields'] ?? ['canonical_url', 'title']),
             minimumTextCharacters: (int) ($expectations['minimum_text_characters'] ?? 200),
             stripQueryParameters: array_values($data['strip_query_params'] ?? []),
+            feedPublishedAt: isset($data['feed_published_at']) ? CarbonImmutable::parse($data['feed_published_at'])->utc()->toIso8601ZuluString() : null,
         );
     }
 
@@ -87,6 +90,7 @@ final readonly class SourceContext
             'raw_sha256' => $this->rawSha256,
             'raw_blob_uri' => $this->rawBlobUri,
             'feed_guid' => $this->feedGuid,
+            'feed_published_at' => $this->feedPublishedAt,
             'document_type' => $this->documentType,
             'quality_expectations' => ['required_fields' => $this->requiredFields, 'minimum_text_characters' => $this->minimumTextCharacters],
             'strip_query_params' => $this->stripQueryParameters,

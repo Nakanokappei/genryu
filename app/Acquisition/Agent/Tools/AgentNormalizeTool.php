@@ -37,6 +37,7 @@ final class AgentNormalizeTool implements Tool
             'raw_blob_uri' => ['required', 'string', 'starts_with:acquisition://raw/'],
             'document_type' => ['nullable', 'string', 'max:32'],
             'feed_guid' => ['nullable', 'string'],
+            'feed_published_at' => ['nullable', 'date'],
         ]);
 
         // The run is not known until run(); carry the payload as-is.
@@ -75,6 +76,7 @@ final class AgentNormalizeTool implements Tool
                 'raw_sha256' => $raw->sha256,
                 'raw_blob_uri' => $raw->blob_uri,
                 'feed_guid' => $payload['feed_guid'] ?? null,
+                'feed_published_at' => $payload['feed_published_at'] ?? null,
                 'document_type' => $payload['document_type'] ?? null,
                 'quality_expectations' => [
                     'required_fields' => array_values($expectations['required_fields'] ?? ['canonical_url', 'title']),

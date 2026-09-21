@@ -124,7 +124,7 @@ final class MonitoringRunner
      * own, and collect the document candidates it lists.
      *
      * @param  list<EntrypointReading>  $readings
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function readEntrypoint(AcquisitionRun $run, Source $source, SourceProfile $profile, string $url, string $type, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array &$readings, array &$candidates, int $depth): void
     {
@@ -171,7 +171,7 @@ final class MonitoringRunner
      * documents are still checked without fetching the entrypoint again.
      *
      * @param  list<EntrypointReading>  $readings
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function replayStoredEntrypoint(AcquisitionRun $run, Source $source, SourceProfile $profile, string $url, string $type, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array &$readings, array &$candidates, EntrypointReading $reading, int $depth): void
     {
@@ -198,7 +198,7 @@ final class MonitoringRunner
      * Extract document candidates from an entrypoint body, XML or HTML.
      *
      * @param  list<EntrypointReading>  $readings
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function collectCandidates(AcquisitionRun $run, Source $source, SourceProfile $profile, string $body, string $finalUrl, string $type, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array &$readings, array &$candidates, EntrypointReading $reading, int $depth): void
     {
@@ -215,7 +215,7 @@ final class MonitoringRunner
 
     /**
      * @param  list<EntrypointReading>  $readings
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function readXmlEntries(AcquisitionRun $run, Source $source, SourceProfile $profile, string $body, string $finalUrl, ToolContext $context, RunCounters $counters, DocumentPatterns $patterns, array &$readings, array &$candidates, EntrypointReading $reading, int $depth): void
     {
@@ -231,7 +231,7 @@ final class MonitoringRunner
 
         foreach ($parsed->entries as $entry) {
             if ($entry['url'] !== null) {
-                $this->addCandidate($candidates, $patterns, $entry['url'], $entry['id']);
+                $this->addCandidate($candidates, $patterns, $entry['url'], $entry['id'], $entry['published'] ?? $entry['updated']);
             }
         }
 
@@ -244,7 +244,7 @@ final class MonitoringRunner
     }
 
     /**
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function readHtmlLinks(string $body, string $finalUrl, DocumentPatterns $patterns, array &$candidates, EntrypointReading $reading): void
     {
@@ -268,9 +268,9 @@ final class MonitoringRunner
     }
 
     /**
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
-    private function addCandidate(array &$candidates, DocumentPatterns $patterns, string $url, ?string $guid): bool
+    private function addCandidate(array &$candidates, DocumentPatterns $patterns, string $url, ?string $guid, ?string $published = null): bool
     {
         // Patterns and fetches work on the normalized URL, so tracking noise
         // in a feed link neither defeats a pattern nor splits an identity.
@@ -286,7 +286,7 @@ final class MonitoringRunner
             return false;
         }
 
-        $candidates[$normalized] ??= ['url' => $normalized, 'guid' => $guid, 'document_type' => $match['document_type'], 'identity_from' => $match['identity_from']];
+        $candidates[$normalized] ??= ['url' => $normalized, 'guid' => $guid, 'published' => $published, 'document_type' => $match['document_type'], 'identity_from' => $match['identity_from']];
 
         return true;
     }
@@ -295,7 +295,7 @@ final class MonitoringRunner
      * Fetch candidate documents up to max_urls_per_run: known documents
      * conditionally, unknown ones plainly. Each goes through the pipeline.
      *
-     * @param  array<string, array{url: string, guid: string|null, document_type: string, identity_from: string}>  $candidates
+     * @param  array<string, array{url: string, guid: string|null, published: string|null, document_type: string, identity_from: string}>  $candidates
      */
     private function fetchDocuments(AcquisitionRun $run, Source $source, SourceProfile $profile, ToolContext $context, RunCounters $counters, array $candidates): void
     {
@@ -326,7 +326,7 @@ final class MonitoringRunner
                     continue;
                 }
 
-                $outcome = $this->pipeline->ingest($run, $source, $profile, $result, $feedGuid, $candidate['document_type']);
+                $outcome = $this->pipeline->ingest($run, $source, $profile, $result, $feedGuid, $candidate['document_type'], $candidate['published']);
             } catch (ToolError $error) {
                 if ($error->errorCode->value !== 'PARSE_FAILED' && $error->errorCode->value !== 'QUALITY_FAILED') {
                     // Pipeline errors already recorded their observation; fetch errors have not.

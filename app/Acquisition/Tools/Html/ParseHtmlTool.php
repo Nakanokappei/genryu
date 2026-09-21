@@ -104,12 +104,12 @@ final class ParseHtmlTool implements Tool
         [$main, $selector] = $this->mainContent($document, $warnings);
         $this->removeNoise($document);
 
-        $dates = [...$dates, ...$this->timeElementCandidates($main, $warnings)];
-        usort($dates, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);
-
         $headings = $this->headings($main);
         $links = $this->links($main, $base);
         $text = $this->normalizeWhitespace($main->textContent);
+
+        $dates = [...$dates, ...$this->timeElementCandidates($main, $warnings), ...$this->leadingTextDateCandidates($text, $warnings)];
+        usort($dates, static fn (array $a, array $b): int => $b['confidence'] <=> $a['confidence']);
         $markdown = $this->markdown($main->innerHTML);
         $title = $this->title($document, $openGraph, $headings, $warnings);
 
@@ -351,6 +351,42 @@ final class ParseHtmlTool implements Tool
     }
 
     /**
+     * Many official sites (Drupal news pages among them) print the date only
+     * as text near the top of the article. The first date-looking string in
+     * the leading text is a weak candidate; the byline usually comes first.
+     *
+     * @param  list<string>  $warnings
+     * @return list<array{kind: string, value: string|null, raw: string, source: string, confidence: float}>
+     */
+    private function leadingTextDateCandidates(string $text, array &$warnings): array
+    {
+        $head = mb_substr($text, 0, 600);
+        $months = '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)[a-z]*\.?';
+        $patterns = [
+            "/\\b{$months}\\s+\\d{1,2},?\\s+\\d{4}\\b/u",   // Sept. 15, 2026
+            "/\\b\\d{1,2}\\s+{$months}\\s+\\d{4}\\b/u",     // 15 September 2026
+            '/\b\d{4}-\d{2}-\d{2}\b/',                       // 2026-09-15
+            '/\b\d{4}年\d{1,2}月\d{1,2}日/u',                 // 2026年9月15日
+        ];
+
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $head, $match) !== 1) {
+                continue;
+            }
+
+            $raw = $match[0];
+            // "Sept." and "2026年9月15日" are not formats the date parser knows.
+            $parseable = (string) preg_replace(['/(\d{4})年(\d{1,2})月(\d{1,2})日/u', '/([A-Za-z]{3,4})\./'], ['$1-$2-$3', '$1'], $raw);
+            $candidate = $this->candidate('published', $parseable, 'text:leading', 0.4, $warnings);
+            $candidate['raw'] = $raw;
+
+            return [$candidate];
+        }
+
+        return [];
+    }
+
+    /**
      * Normalize one raw date to ISO 8601 UTC; unparseable values keep the raw
      * string, lose confidence and leave a warning.
      *
@@ -376,6 +412,14 @@ final class ParseHtmlTool implements Tool
      */
     private function mainContent(HTMLDocument $document, array &$warnings): array
     {
+        // A <main> holding several <article>s is a listing page; the listing
+        // itself is the content, not the first card in it.
+        $main = $document->querySelector('main');
+
+        if ($main instanceof Element && $main->querySelectorAll('article')->length > 1) {
+            return [$main, 'main'];
+        }
+
         foreach (self::MAIN_SELECTORS as $selector) {
             $element = $document->querySelector($selector);
 
