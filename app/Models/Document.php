@@ -6,7 +6,7 @@ use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * 文書 (UI: "Documents"): the HTML or PDF fetched for an update, kept as
@@ -34,9 +34,9 @@ class Document extends Model
         return $this->belongsTo(UpdateEntry::class);
     }
 
-    /** @return HasMany<Material, $this> */
-    public function materials(): HasMany
+    /** @return HasOne<Material, $this> */
+    public function material(): HasOne
     {
-        return $this->hasMany(Material::class);
+        return $this->hasOne(Material::class);
     }
 }

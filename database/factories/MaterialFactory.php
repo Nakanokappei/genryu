@@ -14,6 +14,7 @@ class MaterialFactory extends Factory
         return [
             'document_id' => Document::factory(),
             'data' => ['summary' => fake()->sentence(), 'topics' => [fake()->word()]],
+            'status' => 'extracted',
         ];
     }
 }

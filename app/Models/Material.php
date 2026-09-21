@@ -10,14 +10,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * 素材情報 (UI: "Materials"): the structure extracted from a document per
- * the editorial policy, stored as JSON so the shape can evolve.
+ * the editorial policy, stored as JSON so the shape can evolve. Extracted
+ * in the background by App\Jobs\ExtractMaterial; status extracting /
+ * extracted / failed (UI: 抽出中 / 抽出済み / 失敗).
  */
 class Material extends Model
 {
     /** @use HasFactory<MaterialFactory> */
     use HasFactory;
 
-    protected $fillable = ['document_id', 'data'];
+    protected $fillable = ['document_id', 'data', 'status', 'status_message'];
 
     protected function casts(): array
     {

@@ -30,6 +30,7 @@ it('renders the list and detail screen of every stage', function () {
         route('documents.index'), route('documents.show', $document),
         route('materials.index'), route('materials.show', $material),
         route('articles.index'), route('articles.show', $article),
+        route('editorial-policy'),
         route('dashboard'),
     ] as $url) {
         $this->get($url)->assertOk();
@@ -54,7 +55,8 @@ it('redirects guests to the login page', function () {
 });
 
 // The hand-entry forms create one record each, following the flow from source to article.
-// Documents are never added by hand: they are fetched in the background (FetchDocumentTest).
+// Documents and materials are never added by hand: they come from background jobs
+// (FetchDocumentTest, ExtractMaterialTest).
 it('lets the user add a record on each stage by hand', function () {
     Livewire::test('pages::sources.index')
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
@@ -70,10 +72,7 @@ it('lets the user add a record on each stage by hand', function () {
 
     $document = Document::factory()->for($update)->create(['title' => 'Press release', 'url' => $update->url, 'markdown' => '# Press release']);
 
-    Livewire::test('pages::materials.index')
-        ->set('document_id', (string) $document->id)->set('data', '{"summary": "ammonia burner", "topics": ["energy"]}')
-        ->call('add')->assertHasNoErrors();
-    $material = Material::query()->sole();
+    $material = Material::factory()->for($document)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
 
     Livewire::test('pages::articles.index')
         ->set('material_id', (string) $material->id)->set('title', 'Article')->set('body', 'Body text')
@@ -104,14 +103,4 @@ it('lets the user edit and delete a source from its detail screen', function () 
         ->assertRedirect(route('sources.index'));
     expect(Source::query()->count())->toBe(0)
         ->and(UpdateEntry::query()->whereKey($update->id)->exists())->toBeFalse();
-});
-
-it('rejects a material whose data is not JSON', function () {
-    $document = Document::factory()->create();
-
-    Livewire::test('pages::materials.index')
-        ->set('document_id', (string) $document->id)->set('data', 'not json')
-        ->call('add')->assertHasErrors(['data']);
-
-    expect(Material::query()->count())->toBe(0);
 });
