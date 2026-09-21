@@ -45,7 +45,7 @@ PENDING_APPROVAL ──approve──▶ ACTIVE ──(新 version が approve)�
 | `document_patterns[]` | `{include, exclude?, document_type, identity?}` | yes | `include`/`exclude` は URL の正規表現。`identity` は `{"from": "feed_guid" \| "canonical" \| "url"}` |
 | `content_types` | string[] | yes | |
 | `parser_bindings` | map media type → `<kind>.<name>@<version>` | yes | 例 `text/html` → `html.generic@1` |
-| `quality_expectations` | `{required_fields, minimum_text_characters, minimum_item_ratio_to_baseline}` | yes | |
+| `quality_expectations` | `{required_fields, minimum_text_characters, minimum_item_ratio_to_baseline}` | yes | `required_fields` は Normalize が出す field 名の enum（`canonical_url` / `title` / `published_at` / `updated_at` / `language` / `body`）。存在しない名前を要求すると全文書が不合格になるため検証で弾く（2026-09-21、NEDO 候補で発生） |
 | `crawl_policy` | `{max_depth, max_urls_per_run, requests_per_minute, timeout_seconds, max_body_bytes, strip_query_params?}` | yes | |
 | `evidence` | object | no | Discovery が候補を選んだ根拠（robots / sitemap の URL、サンプル URL、backtest の件数） |
 | `discovered_at`, `last_verified_at`, `approved_at`, `approved_by` | date-time / string / null | 一部 | |

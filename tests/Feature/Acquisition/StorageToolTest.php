@@ -157,6 +157,8 @@ it('rejects profile candidates that violate the schema or bind unknown parsers',
     $profile['parser_bindings']['application/pdf'] = 'pdf.ocr@9';
     $profile['crawl_policy']['max_depth'] = 99;
     $profile['unexpected'] = true;
+    // Not a field the normalizer produces: requiring it would fail every document (seen in the NEDO candidate).
+    $profile['quality_expectations']['required_fields'][] = 'source_url';
     unset($profile['allowed_hosts']);
 
     try {
@@ -168,6 +170,7 @@ it('rejects profile candidates that violate the schema or bind unknown parsers',
             ->toContain('unknown parser pdf.ocr@9')
             ->toContain('allowed_hosts')
             ->toContain('max_depth')
+            ->toContain('required_fields')
             ->toContain('unexpected');
     }
 

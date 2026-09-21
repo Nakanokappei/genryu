@@ -63,7 +63,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["required_fields", "minimum_text_characters", "minimum_item_ratio_to_baseline"],
       "properties": {
-        "required_fields": { "type": "array", "items": { "type": "string" } },
+        "required_fields": { "type": "array", "items": { "enum": ["canonical_url", "title", "published_at", "updated_at", "language", "body"] } },
         "minimum_text_characters": { "type": "integer", "minimum": 0 },
         "minimum_item_ratio_to_baseline": { "type": "number", "minimum": 0, "maximum": 1 }
       }
