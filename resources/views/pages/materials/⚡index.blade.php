@@ -61,7 +61,7 @@ new #[Title('素材情報')] class extends Component {
                 <td class="px-3 py-2"><a href="{{ route('documents.show', $material->document) }}" class="underline" wire:navigate>{{ $material->document->title }}</a></td>
                 <td class="max-w-xl truncate px-3 py-2"><a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ json_encode($material->data, JSON_UNESCAPED_UNICODE) }}</a></td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->format('Y-m-d H:i') }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>
         @endforeach
     </x-pages::table>

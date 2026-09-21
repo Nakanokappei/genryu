@@ -15,8 +15,8 @@ new #[Title('記事')] class extends Component {
     <x-pages::fields :fields="[
         __('Material') => $article->material?->document->title,
         __('Status') => __($article->status),
-        __('Published at') => $article->published_at?->format('Y-m-d H:i') ?? __('Not published.'),
-        __('Created') => $article->created_at->format('Y-m-d H:i'),
+        __('Published at') => $article->published_at?->display() ?? __('Not published.'),
+        __('Created') => $article->created_at->display(),
     ]" />
 
     <flux:heading size="lg">{{ __('Body') }}</flux:heading>

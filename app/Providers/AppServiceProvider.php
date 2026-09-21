@@ -38,6 +38,13 @@ class AppServiceProvider extends ServiceProvider
     {
         Date::use(CarbonImmutable::class);
 
+        // Timestamps are stored in UTC; the screens show them in the display
+        // timezone (config app.display_timezone) through this one macro.
+        CarbonImmutable::macro('display', function (): string {
+            /** @var CarbonImmutable $this */
+            return $this->setTimezone((string) config('app.display_timezone'))->format('Y-m-d H:i');
+        });
+
         // Verify TLS against the Mozilla CA bundle shipped with composer/ca-bundle:
         // the local PHP build has no CA store configured and rejected sites
         // (fraunhofer.de, cnrs.fr) whose chains the system's curl accepts.

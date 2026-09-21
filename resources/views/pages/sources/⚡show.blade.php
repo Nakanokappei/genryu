@@ -162,7 +162,7 @@ new #[Title('情報源')] class extends Component {
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" variant="danger" wire:click="delete" wire:confirm="{{ __('Delete this source and everything found under it?') }}">{{ __('Delete') }}</flux:button>
             <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-sm underline">{{ __('Open') }} ↗</a>
-            <flux:text class="ms-auto">{{ __('Created') }}: {{ $source->created_at->format('Y-m-d H:i') }}</flux:text>
+            <flux:text class="ms-auto">{{ __('Created') }}: {{ $source->created_at->display() }}</flux:text>
         </div>
     </form>
 
@@ -183,7 +183,7 @@ new #[Title('情報源')] class extends Component {
                 —
             @endif
         </flux:text>
-        <flux:text class="ms-auto">{{ __('Fetched at') }}: {{ $source->fetched_at?->format('Y-m-d H:i') ?? '—' }}</flux:text>
+        <flux:text class="ms-auto">{{ __('Fetched at') }}: {{ $source->fetched_at?->display() ?? '—' }}</flux:text>
     </div>
 
     <form wire:submit="saveList" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">

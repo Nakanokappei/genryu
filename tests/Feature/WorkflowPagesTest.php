@@ -39,6 +39,14 @@ it('renders the list and detail screen of every stage', function () {
     $this->get(route('articles.show', $article))->assertSee($article->title)->assertSee($document->title);
 });
 
+// Timestamps are stored in UTC and shown in the display timezone (JST by default).
+it('shows timestamps in the display timezone', function () {
+    $document = Document::factory()->create(['fetched_at' => '2026-09-21 14:37:00']);
+
+    expect($document->refresh()->fetched_at?->toIso8601String())->toBe('2026-09-21T14:37:00+00:00');
+    $this->get(route('documents.show', $document))->assertSee('2026-09-21 23:37');
+});
+
 it('redirects guests to the login page', function () {
     auth()->logout();
 

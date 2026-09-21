@@ -33,7 +33,7 @@ new #[Title('更新情報')] class extends Component {
         __('Source') => $updateEntry->source->name,
         __('URL') => $updateEntry->url,
         __('Published at') => $updateEntry->published_at?->format('Y-m-d'),
-        __('Created') => $updateEntry->created_at->format('Y-m-d H:i'),
+        __('Created') => $updateEntry->created_at->display(),
     ]" />
 
     <flux:heading size="lg">{{ __('Document') }}</flux:heading>

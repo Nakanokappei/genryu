@@ -67,7 +67,7 @@ new #[Title('記事')] class extends Component {
                 <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->title }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->material?->document->title }}</td>
                 <td class="px-3 py-2">{{ __($article->status) }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->format('Y-m-d H:i') ?? __('Not published.') }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>
             </tr>
         @endforeach
     </x-pages::table>

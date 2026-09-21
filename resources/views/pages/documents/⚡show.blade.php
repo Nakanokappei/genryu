@@ -34,7 +34,7 @@ new #[Title('文書')] class extends Component {
         __('Update') => $document->updateEntry->title,
         __('URL') => $document->url,
         __('Format') => strtoupper((string) $document->format),
-        __('Fetched at') => $document->fetched_at?->format('Y-m-d H:i'),
+        __('Fetched at') => $document->fetched_at?->display(),
     ]" />
 
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
@@ -54,7 +54,7 @@ new #[Title('文書')] class extends Component {
         @foreach ($document->materials as $material)
             <tr>
                 <td class="max-w-xl truncate px-3 py-2"><a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ json_encode($material->data, JSON_UNESCAPED_UNICODE) }}</a></td>
-                <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->format('Y-m-d H:i') }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>
         @endforeach
     </x-pages::table>

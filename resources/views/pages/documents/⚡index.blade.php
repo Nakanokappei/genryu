@@ -25,7 +25,7 @@ new #[Title('文書')] class extends Component {
                 <td class="px-3 py-2">{{ $document->updateEntry->source->name }}</td>
                 <td class="px-3 py-2"><x-pages::status :status="$document->status" /></td>
                 <td class="px-3 py-2 uppercase">{{ $document->format }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $document->fetched_at?->format('Y-m-d H:i') ?? '—' }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
                 <td class="px-3 py-2">{{ $document->materials_count }}</td>
             </tr>
         @endforeach
