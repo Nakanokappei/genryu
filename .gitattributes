@@ -1,8 +1,5 @@
 * text=auto eol=lf
 
-# Captured responses must keep their exact bytes (CRLF included).
-tests/Fixtures/Acquisition/** -text
-
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html

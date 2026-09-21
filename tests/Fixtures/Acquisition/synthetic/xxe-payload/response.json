@@ -1,1 +1,0 @@
-{"url":"https://www.example.org/feed.xml","final_url":"https://www.example.org/feed.xml","status":200,"headers":{"content-type":"application/rss+xml"},"media_type":"application/rss+xml","retrieved_at":"2026-09-21T00:00:00Z","body_file":"body.xml","note":"AT-10: external entity declaration must be rejected without resolution."}

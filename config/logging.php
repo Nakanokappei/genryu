@@ -1,6 +1,5 @@
 <?php
 
-use Monolog\Formatter\JsonFormatter;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -71,17 +70,6 @@ return [
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
             'max_files' => env('LOG_DAILY_DAYS', 14),
-            'replace_placeholders' => true,
-        ],
-
-        // Structured (JSON) log for acquisition runs, tool calls and health
-        // events, separate from the framework log so operators can tail it.
-        'acquisition' => [
-            'driver' => 'daily',
-            'path' => storage_path('logs/acquisition.log'),
-            'level' => env('LOG_LEVEL', 'debug'),
-            'max_files' => env('LOG_DAILY_DAYS', 14),
-            'formatter' => JsonFormatter::class,
             'replace_placeholders' => true,
         ],
 

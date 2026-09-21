@@ -3,119 +3,64 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 # Technology Watch
-**Primary Source Acquisition Platform — Phase 0**
 
-Continuously discovers and fetches primary sources (official sites such as
-DARPA, NEDO), stores the RAW response immutably, normalizes it to Markdown,
-and can re-process RAW with newer parsers without touching the network.
+Builds articles from primary sources: fetch update lists from official
+sites, store each document as original + Markdown, extract structured
+material (JSON) per the editorial policy, generate articles per the
+editorial policy, publish. `docs/HANDOVER.md` is the one-page definition of
+the product (purpose, the five stages, stack); read it first.
 
 > The parent directory's CLAUDE.md (`../CLAUDE.md`) also applies here:
 > behavioral guidelines, external-SSD cautions (`._` files, `dot_clean`),
 > literate-programming comment style, file-based debug logging.
 
-## The implementation contract
+## How we work (decided 2026-09-21)
 
-`docs/TECHNOLOGY_WATCH_PHASE0_IMPLEMENTATION_PLAN.md` is the Phase 0 contract.
-Read it before any feature work. Non-negotiables it sets:
+- **Skeleton first, then one feature at a time, each checked in the browser
+  by the user before the next.** Do not build ahead of what has been seen.
+- The five stages are screens in the sidebar: 情報源 (Sources), 更新リスト
+  (Updates), 文書 (Documents), 素材情報 (Materials), 記事 (Articles).
+  Identifiers follow the English UI label (see `../CLAUDE.md`): tables
+  `sources`, `updates`, `documents`, `materials`, `articles`.
+- Editorial policy is defined per layer (selection, structuring, article
+  generation); where it lives in the app is still open.
+- Workers are Python, jobs go through a queue, Docker comes when the screens
+  are settled (AWS later). Models are not limited to Anthropic.
 
-- **Out of scope for Phase 0:** article generation, technology evaluation,
-  public UI, admin UI, search, notifications, billing, user management.
-  Do not build them; do not add abstractions for them.
-- **Agent judges, Tools execute.** The Agent never touches the DB or blob
-  store directly; everything goes through the Storage Tool.
-- **RAW is append-only.** Never overwrite stored bytes. Same identity + same
-  content hash = no new revision, only a fetch observation.
-- **No source-specific branches.** Source knowledge lives in a versioned
-  Source Profile (JSON), not in `if ($source === 'darpa')`.
-- **Silent failure is failure.** HTTP 200 with empty body, missing required
-  fields, or a collapsed entry count is `DEGRADED` / `PARSER_DRIFT`, never
-  success.
-- **Agent = Claude Agent SDK (Python) in `worker/`, launched by Laravel via
-  the `Process` facade** (decided 2026-09-21, see `docs/adr/0001`). Tools are
-  PHP; the worker's MCP handlers only proxy to `php artisan acquisition:tool`.
-  `AcquisitionOrchestrator` is a port with a deterministic `FakeOrchestrator`
-  used by all default tests.
-- Milestones run in order (0 → 8). NEDO is the final architecture gate.
+## History
 
-## Status (2026-09-21)
+The Phase 0 acquisition platform (DARPA / NEDO vertical slices, Claude
+Agent SDK sidecar) was set aside on 2026-09-21 to restart from a skeleton
+the user can see. It is preserved at git tag `phase0-milestone7`; its plan,
+ADRs and evidence stay under `docs/` as history and are not the current
+guide. Reuse its ideas or code only when a screen calls for them.
 
-Milestones 0–7 of the Phase 0 plan are done and committed; Milestone 8
-(hardening) is next. Evidence: `docs/acquisition/darpa-vertical-slice.md`
-(Milestone 6) and `docs/acquisition/nedo-architecture-test.md` (Milestone 7);
-§7 of each lists the limitations carried into Milestone 8. Dev database
-state: sources `example` (scaffold smoke), `darpa` (profile v2 ACTIVE, 58
-documents, runs #2–#10) and `nedo` (profile v2 ACTIVE, approved by the
-operator after correcting the Agent's v1; about 600 documents including 175
-PDFs; runs #11–#22). `worker/.env` holds the API key (not committed). The
-scheduler is not running locally; monitoring is triggered by hand with
-`php artisan acquisition:monitor <source>` (a NEDO run takes about 14
-minutes at `max_urls_per_run` 200).
-
-Milestone 8 starting points: quality-failed listing pages and permanent
-404s that count on every run (Profile `exclude` and a "known permanent
-failure" mechanism), per-document process isolation (one run is one PHP
-process; `acquisition.memory_limit` is the stopgap), `HostThrottle` lock
-timeouts surfacing as `INTERNAL`, the revision policy for quality-failed
-content, and the runbook / rollback documentation the plan requires.
-
-## Architecture decisions
-
-`docs/adr/` holds the Milestone 0 decisions. Read the relevant one before
-touching its area:
-
-| ADR | Decides |
-|---|---|
-| 0001 | Agent boundary, Claude Agent SDK sidecar, CLI tool bridge, Fake orchestrator |
-| 0002 | `acquisition` disk, content-addressed immutable `BlobStore` (no delete API) |
-| 0003 | `stable_key` derivation order, URL normalization, revision rules |
-| 0004 | `ErrorCode` enum, retry layers, circuit breaker, partial-failure statuses |
-| 0005 | Source Profile JSON Schema v1, status transitions, `ACTIVE` uniqueness |
-
-`docs/acquisition/setup.md` lists local/CI prerequisites and the open items.
-
-## Stack (created 2026-09-21)
+## Stack
 
 | Layer | Choice |
 |---|---|
-| Framework | Laravel 13 (PHP 8.5 via Herd), Livewire 4 + Flux starter kit, Fortify auth |
-| Database | PostgreSQL 5432, database `technologywatch`, local user (Homebrew) |
-| Tests | Pest 5 (`php artisan test`), Pint, PHPStan (`composer test` runs all three) |
-| Frontend | Vite + Tailwind; `npm run build` already produces `public/build` |
-| Local URL | http://technologywatch.test (Herd link) — `.claude/launch.json` also has `artisan serve` on 8036 |
-| UI locale | `APP_LOCALE=ja`, fallback `en`. Identifiers follow the English UI label (see `../CLAUDE.md`). |
+| Framework | Laravel 13 (PHP 8.5 via Herd), Livewire 4 single-file pages under `resources/views/pages`, Flux UI, Fortify auth |
+| Database | PostgreSQL 5432, database `technologywatch` (tests use `technologywatch_test`) |
+| Tests | Pest 5, Pint, PHPStan (`composer test` runs all three) |
+| Frontend | Vite + Tailwind (`npm run build`) |
+| Local URL | http://technologywatch.test (Herd); `.claude/launch.json` has `artisan serve` on 8036 |
+| UI locale | `APP_LOCALE=ja`; Japanese strings via `lang/ja.json`, keys are the English UI labels |
 
 The starter kit's auth screens (login, register, settings, 2FA, passkeys)
-came with the scaffold. They are not a Phase 0 deliverable; leave them
-dormant rather than extending them.
-
-## Worker (`worker/`)
-
-Python sidecar running the Claude Agent SDK. `uv sync` once, then
-`uv run ruff check acquisition_agent tests && uv run pytest`. It has no
-built-in tools; every action is one of the seven names in
-`config/acquisition.php` `agent_tools`, executed by
-`php artisan acquisition:tool`. Host scope and budgets are enforced on the
-PHP side (`AgentToolBridge`), never trusted from the Agent. To exercise the
-whole chain without an LLM: `acquisition:discover <source> --script=calls.json`.
-
-## Gotchas
-
-- **`Http::fake()` keeps the first registered callback.** Registering a
-  second callable does not override the first. Tests that change what a
-  fake site serves between runs must read mutable state inside one callback
-  (see `MonitoringRunnerTest`), not call `Http::fake()` again.
-- **Pest prints nothing and exits 1** when a PHP fatal error (not a test
-  failure) happens while loading a class. The agent-mode JSON reporter
-  swallows it. Run `php -d error_log=/tmp/php-err.log vendor/bin/pest <file>`
-  and read the log, or `php -l` the suspect file. Pint and PHPStan do not
-  catch every compile error (e.g. unparenthesized nested ternaries).
+came with the scaffold; leave them as they are.
 
 ## Conventions
 
-- Tests never hit the network. Fixture-based tests live under
-  `tests/Fixtures/Acquisition/`; live smoke tests are tagged and excluded
-  from the default run.
+- Tests never hit the network.
 - Store timestamps in UTC; apply timezone only for display.
 - Do not log response bodies, secrets, or personal data.
 - Commit `CLAUDE.md` and `.claude/launch.json`; `.claude/settings.local.json`
   is per-user and ignored.
+
+## Gotchas
+
+- **`Http::fake()` keeps the first registered callback.** Registering a
+  second callable does not override the first.
+- **Pest prints nothing and exits 1** when a PHP fatal error happens while
+  loading a class. Run `php -d error_log=/tmp/php-err.log vendor/bin/pest
+  <file>` and read the log, or `php -l` the suspect file.

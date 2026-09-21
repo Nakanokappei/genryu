@@ -1,1 +1,0 @@
-{"url":"https://www.example.org/atom.xml","final_url":"https://www.example.org/atom.xml","status":200,"headers":{"content-type":"application/atom+xml"},"media_type":"application/atom+xml","retrieved_at":"2026-09-21T00:00:00Z","body_file":"body.xml","note":"Atom feed with two entries and a rel=next pagination link."}

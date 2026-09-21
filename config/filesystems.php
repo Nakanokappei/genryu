@@ -47,22 +47,6 @@ return [
             'report' => false,
         ],
 
-        // Content-addressed artifact store for the acquisition platform
-        // (ADR-0002). Local for development; switch the driver to "s3" in
-        // production. Never served publicly, and never accessed via ->path().
-        'acquisition' => [
-            'driver' => env('FILESYSTEM_ACQUISITION_DRIVER', 'local'),
-            'root' => storage_path('app/acquisition'),
-            'key' => env('AWS_ACCESS_KEY_ID'),
-            'secret' => env('AWS_SECRET_ACCESS_KEY'),
-            'region' => env('AWS_DEFAULT_REGION'),
-            'bucket' => env('AWS_ACQUISITION_BUCKET'),
-            'endpoint' => env('AWS_ENDPOINT'),
-            'use_path_style_endpoint' => env('AWS_USE_PATH_STYLE_ENDPOINT', false),
-            'throw' => true,
-            'report' => false,
-        ],
-
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

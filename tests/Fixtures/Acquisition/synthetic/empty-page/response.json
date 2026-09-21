@@ -1,1 +1,0 @@
-{"url":"https://www.example.org/news/simple-article","final_url":"https://www.example.org/news/simple-article","status":200,"headers":{"content-type":"text/html; charset=utf-8"},"media_type":"text/html","retrieved_at":"2026-09-21T00:00:00Z","body_file":"body.html","note":"AT-08: HTTP 200 with a shell page and no article content; must fail quality, not succeed."}

@@ -1,1 +1,0 @@
-{"url":"https://www.example.org/feed.xml","final_url":"https://www.example.org/feed.xml","status":200,"headers":{"content-type":"application/rss+xml; charset=utf-8"},"media_type":"application/rss+xml","retrieved_at":"2026-09-21T00:00:00Z","body_file":"body.xml","note":"RSS 2.0 with two items: one with a GUID, one relying on link; dc:date fallback on the second."}
