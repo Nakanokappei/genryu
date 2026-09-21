@@ -40,6 +40,12 @@ the product (purpose, the five stages, stack); read it first.
   settings (content / remove CSS selectors). When those are missing or no
   longer match, `App\Actions\ProposeDocumentSettings` (OpenAI) proposes new
   ones, which are verified on the page before being saved to the source.
+- **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
+  one body per layer: selection / structuring / article; defaults in the
+  model). The structuring layer is the prompt of `App\Jobs\ExtractMaterial`
+  (agent `App\Actions\ProposeMaterial`, OpenAI); its "- item: …" lines are
+  the keys every material must have, checked before the JSON is saved.
+  Extraction is queued from the 素材情報を抽出 buttons, not automatically.
 - **robots.txt is a global HTTP middleware** (`AppServiceProvider`): every
   outgoing request is checked, a forbidden URL throws
   `App\Exceptions\RobotsForbidden` before anything is sent, and a
