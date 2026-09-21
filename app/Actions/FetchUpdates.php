@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Exceptions\RobotsForbidden;
+use App\Jobs\FetchDocument;
 use App\Models\Source;
 use App\Models\UpdateEntry;
 use Carbon\CarbonImmutable;
@@ -161,6 +162,9 @@ class FetchUpdates
     }
 
     /**
+     * Keep the entries; each new one has its document fetched in the
+     * background (stage 2.2) without anyone asking.
+     *
      * @param  list<array{title: string, url: string, published_at: ?string}>  $entries
      * @return array{added: int, existing: int}
      */
@@ -174,7 +178,13 @@ class FetchUpdates
                 ['source_id' => $source->id, 'url' => $entry['url']],
                 ['title' => $entry['title'], 'published_at' => $entry['published_at']],
             );
-            $created->wasRecentlyCreated ? $added++ : $existing++;
+
+            if ($created->wasRecentlyCreated) {
+                $added++;
+                FetchDocument::queueFor($created);
+            } else {
+                $existing++;
+            }
         }
 
         return ['added' => $added, 'existing' => $existing];
@@ -361,9 +371,10 @@ class FetchUpdates
     /**
      * Resolve a link against the page it was found on: absolute, protocol-
      * relative, root-relative, query-only (?page=2, as Drupal pagers emit)
-     * or relative to the page's directory.
+     * or relative to the page's directory. Shared with ReadDocument, which
+     * resolves the links and images inside a document the same way.
      */
-    private static function absolute(string $href, string $baseUrl): string
+    public static function absolute(string $href, string $baseUrl): string
     {
         if (preg_match('#^https?://#i', $href) === 1) {
             return $href;
@@ -376,9 +387,29 @@ class FetchUpdates
 
         return match (true) {
             str_starts_with($href, '//') => $scheme.':'.$href,
-            str_starts_with($href, '/') => $origin.$href,
+            str_starts_with($href, '/') => $origin.self::withoutDotSegments($href),
             str_starts_with($href, '?') => $origin.$path.$href,
-            default => $origin.rtrim(dirname($path), '/').'/'.$href,
+            default => $origin.self::withoutDotSegments(rtrim(dirname($path), '/').'/'.$href),
         };
+    }
+
+    /**
+     * Resolve "." and ".." in a path (../img/burner.png from /news/1 is
+     * /img/burner.png), leaving any query string as it is.
+     */
+    private static function withoutDotSegments(string $path): string
+    {
+        [$path, $query] = array_pad(explode('?', $path, 2), 2, null);
+        $segments = [];
+
+        foreach (explode('/', $path) as $segment) {
+            if ($segment === '..') {
+                array_pop($segments);
+            } elseif ($segment !== '.') {
+                $segments[] = $segment;
+            }
+        }
+
+        return '/'.ltrim(implode('/', $segments), '/').($query !== null ? '?'.$query : '');
     }
 }

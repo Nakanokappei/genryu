@@ -19,6 +19,7 @@ class DocumentFactory extends Factory
             'original_path' => null,
             'markdown' => '# '.fake()->sentence()."\n\n".fake()->paragraph(),
             'fetched_at' => now(),
+            'status' => 'fetched',
         ];
     }
 }

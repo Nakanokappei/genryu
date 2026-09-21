@@ -2,7 +2,9 @@
 
 use App\Actions\FetchUpdates;
 use App\Jobs\ConfigureSource;
+use App\Jobs\FetchDocument;
 use App\Models\Source;
+use App\Models\UpdateEntry;
 use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -23,6 +25,9 @@ new #[Title('情報源')] class extends Component {
     /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
     public array $list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
 
+    /** @var array<string, string> Document settings: CSS selectors of the body and of what to drop inside it */
+    public array $documentSettings = ['content' => '', 'remove' => ''];
+
     public function mount(): void
     {
         $this->name = $this->source->name;
@@ -35,6 +40,36 @@ new #[Title('情報源')] class extends Component {
                 $this->list[$key] = (string) $value;
             }
         }
+
+        foreach ($this->source->document_config ?? [] as $key => $value) {
+            if (array_key_exists($key, $this->documentSettings)) {
+                $this->documentSettings[$key] = (string) $value;
+            }
+        }
+    }
+
+    // The document settings are saved on their own; an empty content selector means "let the agent propose at the next fetch".
+    public function saveDocumentSettings(): void
+    {
+        $validated = $this->validate([
+            'documentSettings.content' => ['nullable', 'string', 'max:255'],
+            'documentSettings.remove' => ['nullable', 'string', 'max:1000'],
+        ])['documentSettings'];
+
+        $this->source->update(['document_config' => ($validated['content'] ?? '') !== ''
+            ? ['content' => $validated['content'], 'remove' => (string) ($validated['remove'] ?? '')]
+            : null]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
+
+    // Stage 2.2: queue the fetch for every update entry whose document is missing or failed.
+    public function fetchDocuments(): void
+    {
+        $entries = $this->source->updateEntries()->whereDoesntHave('document', fn ($query) => $query->whereIn('status', ['fetching', 'fetched']))->get();
+        $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
+
+        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
     }
 
     // The HTML list settings are saved separately from the name / URL form; an empty item means "read a feed".
@@ -164,12 +199,32 @@ new #[Title('情報源')] class extends Component {
         <flux:button type="submit">{{ __('Save') }}</flux:button>
     </form>
 
+    <form wire:submit="saveDocumentSettings" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Document settings') }}</flux:heading>
+        <flux:text>{{ __('CSS selectors. The content element holds the body of one document; the remove selectors drop elements inside it (share buttons, related links). Left empty, the agent proposes them at the next fetch.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-2">
+            <flux:input wire:model="documentSettings.content" :label="__('Content')" placeholder="article" />
+            <flux:input wire:model="documentSettings.remove" :label="__('Remove')" placeholder=".share, .related" />
+        </div>
+        <div class="flex items-center gap-3">
+            <flux:button type="submit">{{ __('Save') }}</flux:button>
+            <flux:button type="button" wire:click="fetchDocuments" icon="document-arrow-down">{{ __('Fetch documents') }}</flux:button>
+        </div>
+    </form>
+
     <flux:heading size="lg">{{ __('Updates') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at')]" :empty="$source->updateEntries->isEmpty()">
-        @foreach ($source->updateEntries()->latest('published_at')->latest('id')->get() as $update)
+    <x-pages::table :columns="[__('Title'), __('Published at'), __('Document')]" :empty="$source->updateEntries->isEmpty()">
+        @foreach ($source->updateEntries()->with('document')->latest('published_at')->latest('id')->get() as $update)
             <tr>
                 <td class="px-3 py-2"><a href="{{ route('updates.show', $update) }}" class="underline" wire:navigate>{{ $update->title }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $update->published_at?->format('Y-m-d') }}</td>
+                <td class="px-3 py-2">
+                    @if ($update->document)
+                        <a href="{{ route('documents.show', $update->document) }}" wire:navigate><x-pages::status :status="$update->document->status" /></a>
+                    @else
+                        —
+                    @endif
+                </td>
             </tr>
         @endforeach
     </x-pages::table>

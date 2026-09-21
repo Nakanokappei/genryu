@@ -32,6 +32,14 @@ the product (purpose, the five stages, stack); read it first.
   `OPENAI_MODEL` in `.env`). Deterministic steps (feed discovery, list
   reading) never call a model; an agent proposal is verified on the page
   before it is saved.
+- **From 文書 (Documents) onwards nothing is entered by hand** (decided
+  2026-09-21): documents are fetched by `App\Jobs\FetchDocument`, queued
+  for every new update entry and from the 文書を取得 buttons. The original
+  is kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;
+  Markdown comes from `App\Actions\ReadDocument` with the source's document
+  settings (content / remove CSS selectors). When those are missing or no
+  longer match, `App\Actions\ProposeDocumentSettings` (OpenAI) proposes new
+  ones, which are verified on the page before being saved to the source.
 - **robots.txt is a global HTTP middleware** (`AppServiceProvider`): every
   outgoing request is checked, a forbidden URL throws
   `App\Exceptions\RobotsForbidden` before anything is sent. API hosts we call

@@ -1,15 +1,32 @@
 <?php
 
+use App\Jobs\FetchDocument;
 use App\Models\UpdateEntry;
+use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 更新情報 (Update) detail: the list item and the documents fetched for it.
+// 更新情報 (Update) detail: the list item and the document fetched for it.
 new #[Title('更新情報')] class extends Component {
     public UpdateEntry $updateEntry;
+
+    // Stage 2.2: queue the fetch of the page behind this entry (again, if it already ran).
+    public function fetchDocument(): void
+    {
+        FetchDocument::queueFor($this->updateEntry);
+        $this->updateEntry->refresh();
+
+        Flux::toast(variant: 'success', text: __('Document queued.'));
+    }
+
+    // Polled while fetching so the screen follows the background job.
+    public function refreshStatus(): void
+    {
+        $this->updateEntry->refresh();
+    }
 }; ?>
 
-<section class="w-full space-y-6">
+<section class="w-full space-y-6" @if ($updateEntry->document?->status === 'fetching') wire:poll.5s="refreshStatus" @endif>
     <x-pages::detail-header :back="route('updates.index')" :back-label="__('Updates')" :title="$updateEntry->title" />
 
     <x-pages::fields :fields="[
@@ -19,14 +36,19 @@ new #[Title('更新情報')] class extends Component {
         __('Created') => $updateEntry->created_at->format('Y-m-d H:i'),
     ]" />
 
-    <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Format'), __('Fetched at')]" :empty="$updateEntry->documents->isEmpty()">
-        @foreach ($updateEntry->documents as $document)
-            <tr>
-                <td class="px-3 py-2"><a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
-                <td class="px-3 py-2 uppercase">{{ $document->format }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $document->fetched_at?->format('Y-m-d H:i') ?? __('Not fetched yet.') }}</td>
-            </tr>
-        @endforeach
-    </x-pages::table>
+    <flux:heading size="lg">{{ __('Document') }}</flux:heading>
+    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        @if ($updateEntry->document)
+            <x-pages::status :status="$updateEntry->document->status" />
+            <flux:text class="flex-1">
+                <a href="{{ route('documents.show', $updateEntry->document) }}" class="underline" wire:navigate>{{ $updateEntry->document->title }}</a>
+                @if ($updateEntry->document->status_message)
+                    — {{ $updateEntry->document->status_message }}
+                @endif
+            </flux:text>
+        @else
+            <flux:text class="flex-1">{{ __('Not fetched yet.') }}</flux:text>
+        @endif
+        <flux:button wire:click="fetchDocument" size="sm" icon="arrow-path">{{ __('Fetch document') }}</flux:button>
+    </div>
 </section>

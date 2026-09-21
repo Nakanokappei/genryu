@@ -46,6 +46,7 @@ it('redirects guests to the login page', function () {
 });
 
 // The hand-entry forms create one record each, following the flow from source to article.
+// Documents are never added by hand: they are fetched in the background (FetchDocumentTest).
 it('lets the user add a record on each stage by hand', function () {
     Livewire::test('pages::sources.index')
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
@@ -59,10 +60,7 @@ it('lets the user add a record on each stage by hand', function () {
         ->call('add')->assertHasNoErrors();
     $update = UpdateEntry::query()->sole();
 
-    Livewire::test('pages::documents.index')
-        ->set('update_entry_id', (string) $update->id)->set('title', 'Press release')->set('url', $update->url)->set('format', 'html')->set('markdown', '# Press release')
-        ->call('add')->assertHasNoErrors();
-    $document = Document::query()->sole();
+    $document = Document::factory()->for($update)->create(['title' => 'Press release', 'url' => $update->url, 'markdown' => '# Press release']);
 
     Livewire::test('pages::materials.index')
         ->set('document_id', (string) $document->id)->set('data', '{"summary": "ammonia burner", "topics": ["energy"]}')

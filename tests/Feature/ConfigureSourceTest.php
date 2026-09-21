@@ -31,6 +31,8 @@ beforeEach(function () {
     Http::preventStrayRequests();
     Http::fake(['*/robots.txt' => Http::response('', 404)]);
     config(['services.openai.key' => 'test-key', 'services.openai.model' => 'gpt-4o-mini']);
+    // The first update-list read queues a document fetch per entry (stage 2.2); faked so nothing runs here.
+    Queue::fake();
     $this->actingAs(User::factory()->create());
 });
 

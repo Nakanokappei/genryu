@@ -6,6 +6,7 @@ use App\Models\UpdateEntry;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
 const RSS = <<<'XML'
@@ -28,6 +29,8 @@ beforeEach(function () {
     Http::preventStrayRequests();
     // No robots.txt anywhere unless a test says otherwise (registered first, so it wins for that path).
     Http::fake(['*/robots.txt' => Http::response('', 404)]);
+    // Each new entry queues its document fetch (stage 2.2); the queue is faked so the fetch does not run here.
+    Queue::fake();
     $this->actingAs(User::factory()->create());
 });
 

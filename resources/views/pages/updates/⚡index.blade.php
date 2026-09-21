@@ -25,7 +25,7 @@ new #[Title('更新リスト')] class extends Component {
     #[Computed]
     public function updates()
     {
-        return UpdateEntry::query()->with('source')->withCount('documents')->latest()->get();
+        return UpdateEntry::query()->with('source', 'document')->latest()->get();
     }
 
     /** @return \Illuminate\Database\Eloquent\Collection<int, Source> */
@@ -61,13 +61,19 @@ new #[Title('更新リスト')] class extends Component {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Title'), __('Source'), __('Published at'), __('Documents')]" :empty="$this->updates->isEmpty()">
+    <x-pages::table :columns="[__('Title'), __('Source'), __('Published at'), __('Document')]" :empty="$this->updates->isEmpty()">
         @foreach ($this->updates as $update)
             <tr>
                 <td class="px-3 py-2"><a href="{{ route('updates.show', $update) }}" class="underline" wire:navigate>{{ $update->title }}</a></td>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $update->source) }}" class="underline" wire:navigate>{{ $update->source->name }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $update->published_at?->format('Y-m-d') }}</td>
-                <td class="px-3 py-2">{{ $update->documents_count }}</td>
+                <td class="px-3 py-2">
+                    @if ($update->document)
+                        <a href="{{ route('documents.show', $update->document) }}" wire:navigate><x-pages::status :status="$update->document->status" /></a>
+                    @else
+                        —
+                    @endif
+                </td>
             </tr>
         @endforeach
     </x-pages::table>

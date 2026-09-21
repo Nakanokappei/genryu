@@ -6,11 +6,11 @@ use Database\Factories\UpdateEntryFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
- * 更新リスト (UI: "Updates"): one item on a source's update list, before
- * the document behind it is fetched.
+ * 更新リスト (UI: "Updates"): one item on a source's update list; the
+ * document behind it is fetched in the background.
  */
 class UpdateEntry extends Model
 {
@@ -30,9 +30,9 @@ class UpdateEntry extends Model
         return $this->belongsTo(Source::class);
     }
 
-    /** @return HasMany<Document, $this> */
-    public function documents(): HasMany
+    /** @return HasOne<Document, $this> */
+    public function document(): HasOne
     {
-        return $this->hasMany(Document::class);
+        return $this->hasOne(Document::class);
     }
 }
