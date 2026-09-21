@@ -46,6 +46,16 @@ the product (purpose, the five stages, stack); read it first.
   (agent `App\Actions\ProposeMaterial`, OpenAI); its "- item: …" lines are
   the keys every material must have, checked before the JSON is saved.
   Extraction is queued from the 素材情報を抽出 buttons, not automatically.
+- **Articles are generated the same way** (stage 2.4): the article layer
+  of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
+  (agent `App\Actions\ProposeArticle`, OpenAI), which asks for a title and
+  a Markdown body and saves them only when both came back. One article
+  per material for now (the output languages of `docs/HANDOVER.md` §3 are
+  not built yet); queued from the 記事を生成 buttons. The body is shown
+  rendered from Markdown on the article screen.
+- **Restart the worker after changing code or `lang/ja.json`**: a running
+  `queue:work` keeps the old classes and translations, so a status message
+  saved by the job would stay in English.
 - **robots.txt is a global HTTP middleware** (`AppServiceProvider`): every
   outgoing request is checked, a forbidden URL throws
   `App\Exceptions\RobotsForbidden` before anything is sent, and a

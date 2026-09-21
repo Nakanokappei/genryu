@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
  * of text per layer (docs/HANDOVER.md §1). The structuring layer is the
- * prompt that turns a document into a material (stage 2.3); the other
- * two wait for their stages.
+ * prompt that turns a document into a material (stage 2.3), the article
+ * layer the one that turns a material into an article (stage 2.4); the
+ * selection layer waits for its stage.
  */
 class EditorialPolicy extends Model
 {

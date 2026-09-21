@@ -1,73 +1,48 @@
 <?php
 
+use App\Jobs\GenerateArticle;
 use App\Models\Article;
 use App\Models\Material;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
-use Livewire\Attributes\Validate;
 use Livewire\Component;
 
-// 記事 (Articles): drafts written from materials, by hand for now; publishing comes later.
+// 記事 (Articles): generated from each material in the background; nothing is written by hand here. Publishing comes later.
 new #[Title('記事')] class extends Component {
-    #[Validate('nullable|exists:materials,id')]
-    public string $material_id = '';
-
-    #[Validate('required|string|max:255')]
-    public string $title = '';
-
-    #[Validate('required|string')]
-    public string $body = '';
-
     /** @return \Illuminate\Database\Eloquent\Collection<int, Article> */
     #[Computed]
     public function articles()
     {
-        return Article::query()->with('material.document')->latest()->get();
+        return Article::query()->with('material.document.updateEntry.source')->latest()->get();
     }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Material> */
-    #[Computed]
-    public function materials()
+    // Stage 2.4: queue the generation for every extracted material whose article is missing or failed.
+    public function generate(): void
     {
-        return Material::query()->with('document')->latest()->get();
-    }
-
-    public function add(): void
-    {
-        $validated = $this->validate();
-        Article::create([...$validated, 'material_id' => $this->material_id !== '' ? $this->material_id : null]);
-        $this->reset('title', 'body');
+        $materials = Material::query()->where('status', 'extracted')->whereDoesntHave('articles', fn ($query) => $query->whereIn('status', ['generating', 'draft', 'published']))->get();
+        $materials->each(fn (Material $material) => GenerateArticle::queueFor($material));
         unset($this->articles);
+
+        Flux::toast(variant: 'success', text: __(':count articles queued.', ['count' => $materials->count()]));
     }
 }; ?>
 
-<section class="w-full space-y-6">
-    <flux:heading size="xl">{{ __('Articles') }}</flux:heading>
+<section class="w-full space-y-6" @if ($this->articles->contains('status', 'generating')) wire:poll.5s @endif>
+    <div class="flex flex-wrap items-center gap-3">
+        <flux:heading size="xl">{{ __('Articles') }}</flux:heading>
+        <flux:button wire:click="generate" class="ms-auto" icon="pencil-square">{{ __('Generate articles') }}</flux:button>
+    </div>
 
-    <form wire:submit="add" class="grid gap-3 rounded-xl border border-neutral-200 p-4 md:grid-cols-4 dark:border-neutral-700">
-        <flux:select wire:model="material_id" :label="__('Material')" :placeholder="__('Select')">
-            @foreach ($this->materials as $material)
-                <flux:select.option value="{{ $material->id }}">#{{ $material->id }} {{ $material->document->title }}</flux:select.option>
-            @endforeach
-        </flux:select>
-        <div class="md:col-span-3">
-            <flux:input wire:model="title" :label="__('Title')" />
-        </div>
-        <div class="md:col-span-4">
-            <flux:textarea wire:model="body" :label="__('Body')" rows="8" />
-        </div>
-        <div class="flex items-end">
-            <flux:button type="submit" variant="primary">{{ __('Add') }}</flux:button>
-        </div>
-    </form>
-
-    <x-pages::table :columns="[__('Title'), __('Material'), __('Status'), __('Published at')]" :empty="$this->articles->isEmpty()">
+    <x-pages::table :columns="[__('Title'), __('Source'), __('Status'), __('Body'), __('Published at'), __('Created')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->title }}</a></td>
-                <td class="px-3 py-2 text-neutral-500">{{ $article->material?->document->title }}</td>
-                <td class="px-3 py-2">{{ __($article->status) }}</td>
+                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2">{{ $article->material?->document->updateEntry->source->name }}</td>
+                <td class="px-3 py-2"><x-pages::status :status="$article->status" /></td>
+                <td class="max-w-xl truncate px-3 py-2 text-neutral-500">{{ $article->body ?? $article->status_message ?? '—' }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $article->created_at->display() }}</td>
             </tr>
         @endforeach
     </x-pages::table>

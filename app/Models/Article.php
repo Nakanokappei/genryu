@@ -9,20 +9,31 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * 記事 (UI: "Articles"): generated from a material per the editorial
- * policy; a draft until it is published.
+ * policy by App\Jobs\GenerateArticle; a draft until it is published.
+ * Status generating / draft / failed / published (UI: 生成中 / 下書き /
+ * 失敗 / 公開済み).
  */
 class Article extends Model
 {
     /** @use HasFactory<ArticleFactory> */
     use HasFactory;
 
-    public const STATUSES = ['draft', 'published'];
+    public const STATUSES = ['generating', 'draft', 'failed', 'published'];
 
-    protected $fillable = ['material_id', 'title', 'body', 'status', 'published_at'];
+    protected $fillable = ['material_id', 'title', 'body', 'status', 'status_message', 'published_at'];
 
     protected function casts(): array
     {
         return ['published_at' => 'datetime'];
+    }
+
+    /**
+     * What the screens call the article: its title once generated, the
+     * document's title until then.
+     */
+    public function displayTitle(): string
+    {
+        return $this->title ?? (string) $this->material?->document->title;
     }
 
     /** @return BelongsTo<Material, $this> */

@@ -55,8 +55,8 @@ it('redirects guests to the login page', function () {
 });
 
 // The hand-entry forms create one record each, following the flow from source to article.
-// Documents and materials are never added by hand: they come from background jobs
-// (FetchDocumentTest, ExtractMaterialTest).
+// Documents, materials and articles are never added by hand: they come from background jobs
+// (FetchDocumentTest, ExtractMaterialTest, GenerateArticleTest).
 it('lets the user add a record on each stage by hand', function () {
     Livewire::test('pages::sources.index')
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
@@ -74,9 +74,7 @@ it('lets the user add a record on each stage by hand', function () {
 
     $material = Material::factory()->for($document)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
 
-    Livewire::test('pages::articles.index')
-        ->set('material_id', (string) $material->id)->set('title', 'Article')->set('body', 'Body text')
-        ->call('add')->assertHasNoErrors();
+    Article::factory()->for($material)->create(['title' => 'Article', 'body' => 'Body text']);
 
     expect($update->source->is($source))->toBeTrue()
         ->and($document->fetched_at)->not->toBeNull()

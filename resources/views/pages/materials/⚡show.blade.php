@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ExtractMaterial;
+use App\Jobs\GenerateArticle;
 use App\Models\Material;
 use Flux\Flux;
 use Livewire\Attributes\Title;
@@ -19,14 +20,23 @@ new #[Title('素材情報')] class extends Component {
         Flux::toast(variant: 'success', text: __('Material queued.'));
     }
 
-    // Polled while extracting so the screen follows the background job.
+    // Stage 2.4: queue the generation of the article (again, if it already ran).
+    public function generate(): void
+    {
+        GenerateArticle::queueFor($this->material);
+        $this->material->refresh();
+
+        Flux::toast(variant: 'success', text: __('Article queued.'));
+    }
+
+    // Polled while a background job runs so the screen follows it.
     public function refreshStatus(): void
     {
         $this->material->refresh();
     }
 }; ?>
 
-<section class="w-full space-y-6" @if ($material->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
+<section class="w-full space-y-6" @if ($material->status === 'extracting' || $material->articles->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
     <x-pages::detail-header :back="route('materials.index')" :back-label="__('Materials')" :title="$material->document->title" />
 
     <x-pages::fields :fields="[
@@ -46,12 +56,15 @@ new #[Title('素材情報')] class extends Component {
     <flux:heading size="lg">{{ __('Data') }}</flux:heading>
     <pre class="max-h-[32rem] overflow-auto rounded-xl border border-neutral-200 p-4 text-sm whitespace-pre-wrap dark:border-neutral-700">{{ $material->data !== null ? json_encode($material->dataInPolicyOrder(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : __('Not extracted yet.') }}</pre>
 
-    <flux:heading size="lg">{{ __('Articles') }}</flux:heading>
+    <div class="flex flex-wrap items-center gap-3">
+        <flux:heading size="lg">{{ __('Articles') }}</flux:heading>
+        <flux:button wire:click="generate" class="ms-auto" size="sm" icon="pencil-square">{{ __('Generate article') }}</flux:button>
+    </div>
     <x-pages::table :columns="[__('Title'), __('Status'), __('Published at')]" :empty="$material->articles->isEmpty()">
         @foreach ($material->articles as $article)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->title }}</a></td>
-                <td class="px-3 py-2">{{ __($article->status) }}</td>
+                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><x-pages::status :status="$article->status" /> <span class="text-neutral-500">{{ $article->status_message }}</span></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>
             </tr>
         @endforeach
