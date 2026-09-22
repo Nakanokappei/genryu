@@ -112,13 +112,18 @@ new #[Title('記事')] class extends Component {
         </flux:text>
     @endif
 
-    <flux:heading size="lg">{{ __('Body') }}</flux:heading>
+    <flux:heading size="lg">{{ __('Article') }}</flux:heading>
     @if ($this->reading->body !== null)
-        {{-- The body is Markdown; rendered here with any HTML in it stripped. --}}
-        <div class="rounded-xl border border-neutral-200 p-4 text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5 dark:border-neutral-700">{!! Str::markdown($this->reading->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+        {{-- The title belongs with the text it heads: switching language shows that language's title above its body. The body is Markdown, rendered with any HTML in it stripped. --}}
+        <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+            <flux:heading size="lg">{{ $this->reading->title }}</flux:heading>
+            <div class="text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! Str::markdown($this->reading->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+        </div>
         <details class="text-sm">
             <summary class="cursor-pointer text-neutral-500">{{ __('Markdown') }}</summary>
-            <pre class="mt-2 rounded-xl border border-neutral-200 p-4 whitespace-pre-wrap dark:border-neutral-700">{{ $this->reading->body }}</pre>
+            <pre class="mt-2 rounded-xl border border-neutral-200 p-4 whitespace-pre-wrap dark:border-neutral-700"># {{ $this->reading->title }}
+
+{{ $this->reading->body }}</pre>
         </details>
     @else
         <flux:text>{{ __('Not generated yet.') }}</flux:text>
