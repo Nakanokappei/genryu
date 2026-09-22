@@ -70,7 +70,8 @@ the product (purpose, the five stages, stack); read it first.
   **content filtering** (コンテンツフィルタリング) is on the 文書 screen
   above the list: one body, the developer prompt (OpenAI's name for the
   system prompt) of an LLM that reads the fetched document, not built
-  yet. `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
+  yet, and the model it runs on (`EditorialPolicy::MODELS`, column
+  `model`; the other agents use `OPENAI_MODEL`). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
   content_filtering, structuring, article.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body

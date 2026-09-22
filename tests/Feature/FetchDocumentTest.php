@@ -183,13 +183,16 @@ it('saves the title filter from the sources screen and the content filtering fro
         ->and($kept->refresh()->excluded_by)->toBeNull()
         ->and($formerly->refresh()->excluded_by)->toBeNull();
     Livewire::test('pages::documents.index')
-        ->set('contentFiltering', '技術的な発表を採用し、人事は採用しない')
+        ->assertSet('contentFilteringModel', 'gpt-5.6-terra')
+        ->set('contentFiltering', '技術的な発表を採用し、人事は採用しない')->set('contentFilteringModel', 'gpt-6-astra')
         ->call('saveContentFiltering')->assertHasNoErrors();
+    Livewire::test('pages::documents.index')->set('contentFilteringModel', 'gpt-2')->call('saveContentFiltering')->assertHasErrors(['contentFilteringModel']);
 
     expect(EditorialPolicy::excludeKeywords())->toBe([['採用情報'], ['寄稿', '掲載']])
         ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました'))->toBe('寄稿; 掲載')
         ->and(EditorialPolicy::excludedBy('新技術が学会誌に掲載'))->toBeNull()
-        ->and(EditorialPolicy::bodyFor('content_filtering'))->toBe('技術的な発表を採用し、人事は採用しない');
+        ->and(EditorialPolicy::bodyFor('content_filtering'))->toBe('技術的な発表を採用し、人事は採用しない')
+        ->and(EditorialPolicy::modelFor('content_filtering'))->toBe('gpt-6-astra');
     $this->get(route('editorial-policy'))->assertSee('タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。');
 });
 

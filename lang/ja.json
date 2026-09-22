@@ -156,5 +156,10 @@
     "The title filter is set on the Sources screen, the content filtering on the Documents screen.": "タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。",
     "Source / Title": "情報源／タイトル",
     "Saved. :excluded documents newly excluded, :restored no longer excluded.": "保存しました。:excluded 件を新たに対象外にし、:restored 件の対象外を解除しました。",
-    "Developer prompt": "デベロッパープロンプト"
+    "Developer prompt": "デベロッパープロンプト",
+    "Model": "モデル",
+    "For bulk work where cost matters most": "コストを重視した大量処理向け",
+    "A balance of judgement and cost": "判定能力とコストのバランス重視",
+    "For complex specialist work; gpt-5.6 is an alias of this model": "複雑な専門業務向け。gpt-5.6 はこのモデルの別名",
+    "For work that needs especially hard reasoning": "特に難しい推論を要する処理向け"
 }

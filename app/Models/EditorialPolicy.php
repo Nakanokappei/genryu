@@ -31,7 +31,29 @@ class EditorialPolicy extends Model
         'article' => '',
     ];
 
-    protected $fillable = ['layer', 'body'];
+    /**
+     * The models the content filtering can run on (UI: モデル), by the id
+     * the API takes: the name shown, and what each one is for.
+     */
+    public const MODELS = [
+        'gpt-5.6-luna' => ['name' => 'GPT-5.6 Luna', 'description' => 'For bulk work where cost matters most'],
+        'gpt-5.6-terra' => ['name' => 'GPT-5.6 Terra', 'description' => 'A balance of judgement and cost'],
+        'gpt-5.6-sol' => ['name' => 'GPT-5.6 Sol', 'description' => 'For complex specialist work; gpt-5.6 is an alias of this model'],
+        'gpt-6-astra' => ['name' => 'GPT-6 Astra', 'description' => 'For work that needs especially hard reasoning'],
+    ];
+
+    /** The model the content filtering runs on until one is chosen. */
+    public const DEFAULT_MODEL = 'gpt-5.6-terra';
+
+    protected $fillable = ['layer', 'body', 'model'];
+
+    /**
+     * The model a layer runs on: what was chosen, or the default.
+     */
+    public static function modelFor(string $layer): string
+    {
+        return (string) (static::query()->where('layer', $layer)->value('model') ?? self::DEFAULT_MODEL);
+    }
 
     /**
      * The body of a layer: what was saved, or the default until then.

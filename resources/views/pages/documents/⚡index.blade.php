@@ -15,14 +15,19 @@ new #[Title('文書')] class extends PagedList {
     // Content filtering: the developer prompt (OpenAI's name for the system prompt) kept for the LLM judge, which is not built yet.
     public string $contentFiltering = '';
 
+    /** The model the judge runs on (UI: モデル), one of EditorialPolicy::MODELS. */
+    public string $contentFilteringModel = EditorialPolicy::DEFAULT_MODEL;
+
     public function mount(): void
     {
         $this->contentFiltering = EditorialPolicy::bodyFor('content_filtering');
+        $this->contentFilteringModel = EditorialPolicy::modelFor('content_filtering');
     }
 
     public function saveContentFiltering(): void
     {
-        EditorialPolicy::query()->updateOrCreate(['layer' => 'content_filtering'], ['body' => $this->contentFiltering]);
+        $this->validate(['contentFilteringModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'content_filtering'], ['body' => $this->contentFiltering, 'model' => $this->contentFilteringModel]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -118,6 +123,11 @@ new #[Title('文書')] class extends PagedList {
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('Used as the developer prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
         <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt')" rows="8" />
+        <flux:select wire:model="contentFilteringModel" :label="__('Model')" class="max-w-xl">
+            @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
+                <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+            @endforeach
+        </flux:select>
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 
