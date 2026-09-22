@@ -36,7 +36,7 @@ class ProposeMaterial
                 'temperature' => 0,
                 'response_format' => ['type' => 'json_object'],
                 'messages' => [
-                    ['role' => 'system', 'content' => self::instructions($policy)],
+                    ['role' => 'developer', 'content' => self::instructions($policy)],
                     ['role' => 'user', 'content' => "URL: {$url}\n\nDocument (Markdown):\n".mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS)],
                 ],
             ])

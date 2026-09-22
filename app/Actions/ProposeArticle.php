@@ -34,7 +34,7 @@ class ProposeArticle
                 'model' => (string) config('services.openai.model'),
                 'response_format' => ['type' => 'json_object'],
                 'messages' => [
-                    ['role' => 'system', 'content' => self::instructions($policy)],
+                    ['role' => 'developer', 'content' => self::instructions($policy)],
                     ['role' => 'user', 'content' => "Source document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
                 ],
             ])

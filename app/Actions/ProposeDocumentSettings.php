@@ -37,7 +37,7 @@ class ProposeDocumentSettings
                 'temperature' => 0,
                 'response_format' => ['type' => 'json_object'],
                 'messages' => [
-                    ['role' => 'system', 'content' => self::instructions()],
+                    ['role' => 'developer', 'content' => self::instructions()],
                     ['role' => 'user', 'content' => "URL: {$url}\n\nHTML:\n".self::trim($html)],
                 ],
             ])
