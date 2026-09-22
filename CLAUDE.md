@@ -71,7 +71,10 @@ the product (purpose, the five stages, stack); read it first.
   have four selectors: content / date / remove / fixed_text (UI 本文 /
   日付 / 除外 / 固定テキスト); the date falls back to `<time>`, a short
   date-looking line, then meta tags; copyright-like paragraphs move to
-  the end without settings.
+  the end without settings. A PDF is read as text by `App\Pdf\PdfParser`
+  (smalot/pdfparser with secured PDFs decrypted: RC4 / AES-128 / AES-256
+  with an empty user password, `App\Pdf\StandardSecurityHandler`); a PDF
+  that needs a password fails with a message saying so.
 - **Re-reading documents per source** (情報源 detail): 原本から Markdown を
   作り直す (`App\Actions\RebuildMarkdown`, from the originals on disk, no
   network, synchronous) and 文書をすべて取り直す (queues `FetchDocument`

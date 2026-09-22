@@ -281,6 +281,19 @@ it('reads a PDF as text and keeps the original', function () {
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
+// A secured PDF with an empty user password (RC4, AES-128 or AES-256) is decrypted and read like any other; one that needs a password is reported as such.
+it('reads secured PDFs', function () {
+    $read = app(ReadDocument::class);
+
+    foreach (['rc4', 'aes128', 'aes256'] as $cipher) {
+        expect($read->pdf((string) file_get_contents(base_path("tests/Fixtures/press-release-{$cipher}.pdf"))))
+            ->toBe("Hello from a PDF press release.\nSecond line of the release.", $cipher);
+    }
+
+    expect(fn () => $read->pdf((string) file_get_contents(base_path('tests/Fixtures/press-release-password.pdf'))))
+        ->toThrow(RuntimeException::class, 'この PDF は開くのにパスワードが必要です。');
+});
+
 it('records a failure instead of throwing when the page cannot be fetched', function () {
     Http::fake(['www.example.org/*' => Http::response('gone', 500)]);
 

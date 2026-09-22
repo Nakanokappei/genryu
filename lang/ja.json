@@ -146,5 +146,9 @@
     "Failed fetches": "取得失敗数",
     "Documents not fetched": "取得しなかった文書",
     "Reason": "理由",
-    "All": "すべて"
+    "All": "すべて",
+    "This PDF needs a password to open.": "この PDF は開くのにパスワードが必要です。",
+    "This PDF is protected by a security handler (:filter) that cannot be opened here.": "この PDF はここでは開けないセキュリティハンドラ（:filter）で保護されています。",
+    "This PDF uses an encryption method (:method) that cannot be opened here.": "この PDF はここでは開けない暗号化方式（:method）を使っています。",
+    "The encryption dictionary of this PDF could not be read.": "この PDF の暗号化情報を読み取れませんでした。"
 }

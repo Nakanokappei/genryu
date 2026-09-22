@@ -76,7 +76,8 @@ class FetchDocument implements ShouldQueue
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
         } catch (Throwable $exception) {
-            $document->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            // A database error quotes the bindings, bytes that are not UTF-8 included: the message is made storable or the document would stay 取得中.
+            $document->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000)]);
         }
     }
 

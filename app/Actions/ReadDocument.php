@@ -2,12 +2,12 @@
 
 namespace App\Actions;
 
+use App\Pdf\PdfParser;
 use Dom\Element;
 use Dom\HTMLDocument;
 use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\HtmlConverter;
 use RuntimeException;
-use Smalot\PdfParser\Parser;
 
 /**
  * Turn a fetched document into Markdown (stage 2.2 of docs/HANDOVER.md).
@@ -19,7 +19,9 @@ use Smalot\PdfParser\Parser;
  * links, navigation), the fixed text selectors pick the notices and
  * copyright lines that are kept but moved after the body. The Markdown
  * reads heading, date, body, fixed text; headings keep their relative
- * levels with "##" as the top level. A PDF is read as its text.
+ * levels with "##" as the top level. A PDF is read as its text, a secured
+ * one (press releases are often saved with an empty user password) after
+ * decryption by App\Pdf\PdfParser.
  */
 class ReadDocument
 {
@@ -138,7 +140,9 @@ class ReadDocument
      */
     public function pdf(string $bytes): string
     {
-        $text = (new Parser)->parseContent($bytes)->getText();
+        $text = (new PdfParser)->parseContent($bytes)->getText();
+        // A font whose encoding the parser does not know leaves stray bytes: they cannot be stored as UTF-8, nor can control characters.
+        $text = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', mb_scrub($text, 'UTF-8'));
         $text = (string) preg_replace("/[ \t]+\n/", "\n", $text);
         $text = trim((string) preg_replace("/\n{3,}/", "\n\n", $text));
 
