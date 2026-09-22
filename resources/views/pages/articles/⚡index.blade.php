@@ -21,6 +21,9 @@ new #[Title('記事')] class extends PagedList {
 
     public string $translationModel = EditorialPolicy::DEFAULT_MODEL;
 
+    /** Which of the two prompts is open (UI: the tabs); both are saved together whichever is showing. */
+    public string $layer = 'article';
+
     public function mount(): void
     {
         foreach (['article', 'translation'] as $layer) {
@@ -63,29 +66,33 @@ new #[Title('記事')] class extends PagedList {
 <section class="w-full space-y-6" @if ($this->articles->contains(fn ($article) => $article->status === 'generating' || $article->translations->contains('status', 'generating'))) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Articles') }}</flux:heading>
 
-    {{-- The two prompts sit with the articles because they are what make them: the writer's and the translator's. --}}
-    <form wire:submit="savePolicy" class="space-y-6">
-        <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Article generation') }}</flux:heading>
-            <flux:text>{{ __('The developer prompt and the model of the writer: an LLM turns a material into one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
-            <flux:textarea wire:model="article" :label="__('Developer prompt')" rows="10" class="font-mono text-xs" />
-            <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+    {{-- The two prompts sit with the articles because they are what make them: the writer's and the translator's. They are one setting read two ways, so they share a section and a save. --}}
+    <form wire:submit="savePolicy" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:heading size="lg">{{ __('Editorial policy') }}</flux:heading>
+            <flux:radio.group wire:model.live="layer" variant="segmented" size="sm" class="ms-auto">
+                <flux:radio value="article" :label="__('Article generation')" />
+                <flux:radio value="translation" :label="__('Translation')" />
+            </flux:radio.group>
         </div>
 
-        <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Translation') }}</flux:heading>
+        @if ($layer === 'translation')
             <flux:text>{{ __('The developer prompt and the model of the translator: the article is translated into the languages we publish in, never written again from the material, so the nuance of the primary source survives. The source and the material go along as context, because a translator without them mistranslates the terms.') }} {{ implode(' / ', array_map(fn ($code) => \App\Models\Article::LANGUAGE_NAMES[$code], \App\Models\Article::LANGUAGES)) }}</flux:text>
-            <flux:textarea wire:model="translation" :label="__('Developer prompt')" rows="8" class="font-mono text-xs" />
+            <flux:textarea wire:model="translation" :label="__('Developer prompt')" rows="12" class="font-mono text-xs" />
             <flux:select wire:model="translationModel" :label="__('Model of the translation')" class="max-w-xl">
                 @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                     <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
                 @endforeach
             </flux:select>
-        </div>
+        @else
+            <flux:text>{{ __('The developer prompt and the model of the writer: an LLM turns a material into one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
+            <flux:textarea wire:model="article" :label="__('Developer prompt')" rows="12" class="font-mono text-xs" />
+            <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
+                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
+                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        @endif
 
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>

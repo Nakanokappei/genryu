@@ -15,6 +15,9 @@ new #[Title('記事')] class extends Component {
     /** The language being read (UI: the tabs); the original's until another is chosen. */
     public string $language = '';
 
+    /** Which way the article is read (UI: 記事 / Markdown); the same text either way. */
+    public string $view = 'article';
+
     public function mount(): void
     {
         $this->language = (string) $this->original()->language;
@@ -112,19 +115,26 @@ new #[Title('記事')] class extends Component {
         </flux:text>
     @endif
 
-    <flux:heading size="lg">{{ __('Article') }}</flux:heading>
+    <div class="flex flex-wrap items-center gap-3">
+        <flux:heading size="lg">{{ __('Article') }}</flux:heading>
+        <flux:radio.group wire:model.live="view" variant="segmented" size="sm" class="ms-auto">
+            <flux:radio value="article" :label="__('Article')" />
+            <flux:radio value="markdown" :label="__('Markdown')" />
+        </flux:radio.group>
+    </div>
+
     @if ($this->reading->body !== null)
-        {{-- The title belongs with the text it heads: switching language shows that language's title above its body. The body is Markdown, rendered with any HTML in it stripped. --}}
+        {{-- The title belongs with the text it heads: switching language shows that language's title above its body. The two tabs are the same text, read two ways. --}}
         <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            <flux:heading size="lg">{{ $this->reading->title }}</flux:heading>
-            <div class="text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! Str::markdown($this->reading->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
-        </div>
-        <details class="text-sm">
-            <summary class="cursor-pointer text-neutral-500">{{ __('Markdown') }}</summary>
-            <pre class="mt-2 rounded-xl border border-neutral-200 p-4 whitespace-pre-wrap dark:border-neutral-700"># {{ $this->reading->title }}
+            @if ($view === 'markdown')
+                <pre class="overflow-auto text-sm whitespace-pre-wrap"># {{ $this->reading->title }}
 
 {{ $this->reading->body }}</pre>
-        </details>
+            @else
+                <flux:heading size="lg">{{ $this->reading->title }}</flux:heading>
+                <div class="text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! Str::markdown($this->reading->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+            @endif
+        </div>
     @else
         <flux:text>{{ __('Not generated yet.') }}</flux:text>
     @endif
