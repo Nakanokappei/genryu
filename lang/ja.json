@@ -207,6 +207,11 @@
     "The content selector may catch a teaser or a header instead of the body. Check one, then fix the selectors above and rebuild the Markdown, or have the agent propose settings again from the original of a short document:": "本文セレクタが、本文ではなくリード文や見出し部分を拾っている可能性があります。1 件確認して上のセレクタを直し Markdown を作り直すか、短い文書の原本からエージェントに設定を提案し直させてください:",
     "Propose settings again from a short document": "短い文書から設定を提案し直す",
     "No short HTML document with its original on disk to propose from.": "提案の元にできる、原本が残っている短い HTML 文書がありません。",
-    "The agent's proposal (content: :content) gives :count characters for \":title\", no more than now. Enter the content selector by hand.": "エージェントの提案（本文: :content）でも「:title」は :count 字で、いまより増えません。本文セレクタを手で入力してください。",
-    "Document settings proposed by the agent and verified on \":title\" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed.": "エージェントが提案した文書の設定を「:title」で検証しました（本文: :content、:count 字）。:rebuilt 件の Markdown を作り直し、:failed 件は失敗しました。"
+    "first pass": "初回判定",
+    "second pass": "再判定",
+    "No original on disk to propose from.": "提案の元にする原本がディスクにありません。",
+    "The agent's proposal (content: :content) gives :count characters for \":title\", still short. Enter the content selector by hand.": "エージェントの提案（本文: :content）でも「:title」は :count 字で、まだ短いままです。本文セレクタを手で入力してください。",
+    "Document settings proposed by the agent and verified on \":title\" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed; :grown no longer short, screened again.": "エージェントが提案した文書の設定を「:title」で検証しました（本文: :content、:count 字）。:rebuilt 件の Markdown を作り直し、:failed 件は失敗。本文が短くなくなった :grown 件をスクリーニングし直します。",
+    "Short body; the document settings could not be revised: :reason": "本文が短いため文書の設定の改訂を試みましたが、できませんでした: :reason",
+    "Short body; the document settings were revised (content: :content) and :grown documents screened again.": "本文が短いため文書の設定を改訂し（本文: :content）、:grown 件をスクリーニングし直します。"
 }

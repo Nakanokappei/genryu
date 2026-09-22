@@ -12,7 +12,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * on a document, by App\Jobs\ScreenDocument. Status screening / screened /
  * failed (UI: 判定中 / 判定済み / 失敗); once screened, the decision adopt /
  * reject / review (UI: 採用 / 不採用 / 要確認) with the reason class the
- * model named, the fact it pointed at and its short reason. The tokens
+ * model named, the fact it pointed at and its short reason. A first
+ * pass (pass 1) may answer review, and then the job runs a second pass
+ * (pass 2) by the next model up, which decides adopt or reject: nobody
+ * reviews by hand, and a reject is final. The tokens
  * (cached and cache-written ones apart), the latency and the estimated
  * cost are kept for the cache and cost figures on the 文書 screen.
  */
@@ -31,7 +34,7 @@ class Screening extends Model
     ];
 
     protected $fillable = [
-        'document_id', 'screening_prompt_id', 'model', 'status', 'status_message',
+        'document_id', 'screening_prompt_id', 'model', 'pass', 'status', 'status_message',
         'decision', 'primary_reason', 'evidence', 'reason',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms',
         'estimated_input_cost', 'estimated_output_cost', 'estimated_total_cost',

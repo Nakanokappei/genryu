@@ -24,10 +24,14 @@ class ProposeDecision
 
     private const MAX_MARKDOWN_CHARS = 120000;
 
+    /** What the second pass is told, after the cached prompt: the document was sent to review once, and this time it must be decided. */
+    public const SECOND_PASS = 'This is the second pass on a document the first pass sent to REVIEW. REVIEW is not available this time: weigh the evidence in the document and decide ADOPT or REJECT.';
+
     /**
+     * @param  int  $pass  1 for the first pass, 2 for the second, which may only adopt or reject
      * @return array{decision: string, primary_reason: string, evidence: string, reason: string, input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}
      */
-    public function __invoke(string $prompt, string $model, string $markdown): array
+    public function __invoke(string $prompt, string $model, string $markdown, int $pass = 1): array
     {
         $key = (string) config('services.openai.key');
 
@@ -39,7 +43,7 @@ class ProposeDecision
 
         $response = Http::withToken($key)
             ->timeout(180)
-            ->post(self::ENDPOINT, self::request($prompt, $model, $markdown))
+            ->post(self::ENDPOINT, self::request($prompt, $model, $markdown, $pass))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -64,12 +68,15 @@ class ProposeDecision
 
     /**
      * The request: the fixed prompt first, as the developer message, with
-     * the explicit cache breakpoint on it; the document after it, as the
-     * user message; the answer constrained to the decision's JSON.
+     * the explicit cache breakpoint on it; for the second pass, its
+     * instruction as another developer message after the breakpoint, so
+     * the cached prefix is the same; the document after them, as the user
+     * message; the answer constrained to the decision's JSON, without
+     * REVIEW on the second pass.
      *
      * @return array<string, mixed>
      */
-    public static function request(string $prompt, string $model, string $markdown): array
+    public static function request(string $prompt, string $model, string $markdown, int $pass = 1): array
     {
         return [
             'model' => $model,
@@ -81,6 +88,7 @@ class ProposeDecision
                         ['type' => 'input_text', 'text' => $prompt, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
+                ...($pass >= 2 ? [['role' => 'developer', 'content' => self::SECOND_PASS]] : []),
                 [
                     'role' => 'user',
                     'content' => mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS),
@@ -94,7 +102,7 @@ class ProposeDecision
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
-                            'decision' => ['type' => 'string', 'enum' => ['ADOPT', 'REJECT', 'REVIEW']],
+                            'decision' => ['type' => 'string', 'enum' => $pass >= 2 ? ['ADOPT', 'REJECT'] : ['ADOPT', 'REJECT', 'REVIEW']],
                             'primary_reason' => ['type' => 'string', 'enum' => Screening::PRIMARY_REASONS],
                             'evidence' => ['type' => 'string'],
                             'reason' => ['type' => 'string'],

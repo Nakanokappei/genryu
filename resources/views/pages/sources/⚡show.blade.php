@@ -1,11 +1,11 @@
 <?php
 
 use App\Actions\FetchUpdates;
-use App\Actions\ProposeDocumentSettings;
-use App\Actions\ReadDocument;
 use App\Actions\RebuildMarkdown;
+use App\Actions\ReviseDocumentSettings;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
+use App\Jobs\ScreenDocument;
 use App\Models\Source;
 use App\Models\Document;
 use Flux\Flux;
@@ -128,12 +128,12 @@ new #[Title('情報源')] class extends Component {
     }
 
     /**
-     * Have the agent look at the original of a short document and propose
-     * document settings again; they are verified on that page, kept only
-     * when they yield a longer body than the current settings did, and
-     * then every document of the source is read again from its original.
+     * Have the agent propose document settings again from a short
+     * document's original (App\Actions\ReviseDocumentSettings): kept only
+     * when the body is no longer short, then the Markdown of every
+     * document is rebuilt and the cured ones are screened again.
      */
-    public function proposeDocumentSettings(ProposeDocumentSettings $propose, ReadDocument $read, RebuildMarkdown $rebuild): void
+    public function proposeDocumentSettings(ReviseDocumentSettings $revise): void
     {
         $document = $this->shortDocuments->first(fn (Document $document) => $document->format === 'html' && $document->original_path !== null && Storage::disk('local')->exists((string) $document->original_path));
 
@@ -144,26 +144,18 @@ new #[Title('情報源')] class extends Component {
         }
 
         try {
-            $html = Storage::disk('local')->get((string) $document->original_path);
-            [$settings, $markdown] = FetchDocument::verify($html, $propose($html, $document->url), $document, $read);
+            $result = $revise($this->source, $document);
         } catch (\Throwable $exception) {
             Flux::toast(variant: 'danger', duration: 8000, text: $exception->getMessage());
 
             return;
         }
 
-        if (mb_strlen($markdown) <= mb_strlen((string) $document->markdown)) {
-            Flux::toast(variant: 'warning', duration: 8000, text: __('The agent\'s proposal (content: :content) gives :count characters for ":title", no more than now. Enter the content selector by hand.', ['content' => $settings['content'], 'count' => mb_strlen($markdown), 'title' => $document->title]));
-
-            return;
-        }
-
-        $this->source->update(['document_config' => $settings]);
-        $result = $rebuild($this->source);
+        Document::query()->whereIn('id', $result['grown'])->get()->each(fn (Document $grown) => ScreenDocument::queueFor($grown));
         $this->mount();
         unset($this->shortDocuments);
 
-        Flux::toast(variant: 'success', duration: 8000, text: __('Document settings proposed by the agent and verified on ":title" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed.', ['title' => $document->title, 'content' => $settings['content'], 'count' => mb_strlen($markdown), ...$result]));
+        Flux::toast(variant: 'success', duration: 8000, text: __('Document settings proposed by the agent and verified on ":title" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed; :grown no longer short, screened again.', ['title' => $document->title, 'content' => $result['settings']['content'], 'count' => $result['chars'], 'rebuilt' => $result['rebuilt'], 'failed' => $result['failed'], 'grown' => count($result['grown'])]));
     }
 
     // Read every document of the source again from the original on disk, with the current settings and Markdown rules; no request to the site.

@@ -33,7 +33,8 @@ it('renders the list and detail screen of every stage', function () {
         $this->get($url)->assertOk();
     }
 
-    // The source's detail lists only the documents not fetched (excluded, or failed with the reason), the title cut at 31 characters (the whole title is the tooltip); the fetched ones are on 文書.
+    // The source's detail lists only the documents not fetched (excluded, or failed with the reason), the title cut at 31 characters (the whole title is the tooltip); the fetched ones are on 文書 (a fetched one with a full body is not named on the source).
+    $update->update(['markdown' => str_repeat('本文。', 400)]);
     Document::factory()->for($source)->create(['title' => str_repeat('あ', 40), 'status' => 'failed', 'status_message' => 'HTTP request returned status code 404']);
     $this->get(route('sources.show', $source))->assertSee($source->name)->assertDontSee($update->title)
         ->assertSee(str_repeat('あ', 31).'…')->assertSee('HTTP request returned status code 404');

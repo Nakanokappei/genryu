@@ -114,8 +114,11 @@ new #[Title('文書')] class extends Component {
         </div>
         @if ($document->screening?->status === 'screened')
             <flux:text size="sm"><span class="text-neutral-500">{{ __('Evidence') }}:</span> {{ $document->screening->evidence }}</flux:text>
+            @if ($document->screening->status_message)
+                <flux:text size="sm">{{ $document->screening->status_message }}</flux:text>
+            @endif
             <flux:text size="sm" class="text-neutral-500">
-                {{ $document->screening->model }} / {{ __('Prompt version') }} v{{ $document->screening->prompt->version }} /
+                {{ $document->screening->model }}（{{ $document->screening->pass === 2 ? __('second pass') : __('first pass') }}）/ {{ __('Prompt version') }} v{{ $document->screening->prompt->version }} /
                 {{ __('Tokens') }}: {{ __('input') }} {{ number_format((int) $document->screening->input_tokens) }}（{{ __('cached') }} {{ number_format((int) $document->screening->cached_tokens) }}, {{ __('cache write') }} {{ number_format((int) $document->screening->cache_write_tokens) }}）, {{ __('output') }} {{ number_format((int) $document->screening->output_tokens) }} /
                 {{ number_format((int) $document->screening->latency_ms) }} ms /
                 {{ $document->screening->estimated_total_cost !== null ? '$'.number_format($document->screening->estimated_total_cost, 5) : __('cost unknown') }} /

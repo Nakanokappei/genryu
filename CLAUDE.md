@@ -86,10 +86,19 @@ the product (purpose, the five stages, stack); read it first.
   in `screening_prompts` (`ScreeningPrompt::current`, a new version when
   the hash changes). Queued from 未判定の文書をスクリーニング on 文書 and
   スクリーニング on the document (with a model choice, to review with a
-  higher model). The gate: `ExtractMaterial` refuses a rejected document
-  and the bulk extraction takes adopted ones only. Figures per prompt
-  version (rates, cache hit / write rate, cost) are on 文書. The seven
-  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
+  higher model). **Nobody reviews by hand** (decided 2026-09-22): a
+  fetched document is screened on its own (`FetchDocument` queues it); a
+  要確認 from the first pass gets one second pass (`pass` 2) by the next
+  model up (`EditorialPolicy::nextModelUp`), told so after the cached
+  prompt and allowed only ADOPT / REJECT; a reject is final. A reject of
+  a document with a short body is suspect: the job runs
+  `App\Actions\ReviseDocumentSettings` (agent proposal on the original,
+  kept only when the body is no longer short, Markdown rebuilt) and
+  screens the cured documents again. The gate: `ExtractMaterial` refuses
+  a rejected document and the bulk extraction takes adopted ones only.
+  Figures per prompt version (rates, cache hit / write rate, cost) are
+  on 文書. The seven acceptance cases run only with
+  `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
   content_filtering, structuring, article.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body

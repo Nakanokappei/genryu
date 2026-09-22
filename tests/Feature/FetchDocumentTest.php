@@ -5,6 +5,7 @@ use App\Actions\FetchUpdates;
 use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
 use App\Jobs\FetchDocument;
+use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Source;
@@ -38,6 +39,8 @@ beforeEach(function () {
     Http::preventStrayRequests();
     // Sites without an icon: the favicon fetch that comes with the first page of a source finds nothing.
     Http::fake(['*/robots.txt' => Http::response('', 404), '*/favicon.ico' => Http::response('', 404)]);
+    // A fetched document goes on to the screening on its own; here the queue is faked so that job is only counted (ScreenDocumentTest runs it).
+    Queue::fake();
     Storage::fake('local');
     config(['services.openai.key' => 'test-key', 'services.openai.model' => 'gpt-4o-mini']);
     $this->actingAs(User::factory()->create());
@@ -71,6 +74,8 @@ it('reads an HTML page into Markdown with the document settings of the source an
     Storage::disk('local')->assertExists("documents/{$source->id}/{$entry->id}.html");
     expect(Storage::disk('local')->get("documents/{$source->id}/{$entry->id}.html"))->toBe(DOCUMENT_PAGE);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
+    // The gate follows the fetch on its own.
+    Queue::assertPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($entry) && $job->screening->pass === 1);
 });
 
 // DARPA: the <h1> sits in the page header outside the article, the date is a short <h5>, prizes are a table, contact is a mailto link.

@@ -22,7 +22,8 @@ use Throwable;
  * When the source has no settings yet, or they no longer match (the site
  * changed its layout), the agent proposes new ones, which are verified on
  * this page before they are saved to the source. The outcome lands on the
- * document (status 取得中 / 取得済み / 失敗) so the screens can show it.
+ * document (status 取得中 / 取得済み / 失敗) so the screens can show it, and a
+ * fetched document goes straight on to the スクリーニング (ScreenDocument).
  */
 class FetchDocument implements ShouldQueue
 {
@@ -75,6 +76,11 @@ class FetchDocument implements ShouldQueue
                 : $this->markdown($body, $source, $document, $read, $propose);
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
+
+            // The gate follows the fetch on its own; an excluded document fetched by hand is left out of it.
+            if ($document->excluded_by === null) {
+                ScreenDocument::queueFor($document);
+            }
         } catch (Throwable $exception) {
             // A database error quotes the bindings, bytes that are not UTF-8 included: the message is made storable or the document would stay 取得中.
             $document->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000)]);

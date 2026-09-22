@@ -2,16 +2,19 @@
 
 use App\Actions\ProposeDecision;
 use App\Actions\ProposeMaterial;
+use App\Actions\ReviseDocumentSettings;
 use App\Jobs\ExtractMaterial;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Screening;
 use App\Models\ScreeningPrompt;
+use App\Models\Source;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 const SCREENING_PROMPT = 'あなたは Editorial Screening Gate です。ADOPT / REJECT / REVIEW で判定してください。';
@@ -43,11 +46,11 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create());
 });
 
-function screenDocument(Document $document, ?string $model = null): Screening
+function screenDocument(Document $document, ?string $model = null, int $pass = 1): Screening
 {
     Queue::fake();
-    $screening = ScreenDocument::queueFor($document, $model);
-    (new ScreenDocument($screening))->handle(app(ProposeDecision::class));
+    $screening = ScreenDocument::queueFor($document, $model, $pass);
+    (new ScreenDocument($screening))->handle(app(ProposeDecision::class), app(ReviseDocumentSettings::class));
 
     return $screening->refresh();
 }
@@ -122,6 +125,76 @@ it('records a failed screening instead of throwing', function () {
     expect(screenDocument(Document::factory()->fetched()->create(['excluded_by' => '寄稿; 掲載']))->status_message)->toBe('タイトルフィルタで対象外になった文書です。')
         ->and(screenDocument(Document::factory()->create())->status_message)->toBe('文書がまだ取得されていません。')
         ->and(screenDocument(Document::factory()->fetched()->create()))->toMatchArray(['status' => 'failed', 'status_message' => 'エージェントの回答に判定がありません。']);
+});
+
+// Nobody reviews by hand: a 要確認 from the first pass gets one second pass by the next model up, told so after the cached prompt and allowed only ADOPT or REJECT.
+it('runs a second pass by the next model up when the first pass says review', function () {
+    Http::fake(['api.openai.com/v1/responses' => Http::sequence()
+        ->push(screeningAnswer(['decision' => 'REVIEW', 'primary_reason' => 'INSUFFICIENT_EVIDENCE', 'evidence' => '', 'reason' => '本文だけでは判断できない。']))
+        ->push(screeningAnswer(['decision' => 'ADOPT', 'primary_reason' => 'ENGINEERING_ATTACK', 'evidence' => '試作機の性能要件が示されている。', 'reason' => '具体的なEngineeringが始まった。']))]);
+    $document = Document::factory()->fetched()->create(['markdown' => str_repeat('本文。', 400)]);
+
+    $first = screenDocument($document, 'gpt-5.6-luna');
+    expect($first->decision)->toBe('review')->and($first->pass)->toBe(1);
+    Queue::assertPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->pass === 2 && $job->screening->model === 'gpt-5.6-terra' && $job->screening->document->is($document));
+
+    // (The queued second pass is faked above; here it is run by hand, as a third row in the document's history.)
+    $second = screenDocument($document, 'gpt-5.6-terra', 2);
+    expect($second)->toMatchArray(['decision' => 'adopt', 'pass' => 2, 'model' => 'gpt-5.6-terra'])
+        ->and($document->refresh()->screening?->is($second))->toBeTrue()
+        ->and($document->screenings()->count())->toBe(3);
+    // The second pass never asks for a third.
+    Queue::assertNotPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->pass > 2);
+
+    Http::assertSent(function (Request $request): bool {
+        $body = $request->data();
+
+        // The second pass: the cached prompt untouched, the instruction after it, REVIEW gone from the schema.
+        return count($body['input']) === 3
+            && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
+            && $body['input'][1] === ['role' => 'developer', 'content' => ProposeDecision::SECOND_PASS]
+            && $body['input'][2]['role'] === 'user'
+            && $body['text']['format']['schema']['properties']['decision']['enum'] === ['ADOPT', 'REJECT'];
+    });
+});
+
+// A reject of a document with a short body is suspect: the source's document settings are revised from its original, and the cured documents screened again.
+it('revises the document settings and screens again when a short body is rejected', function () {
+    Storage::fake('local');
+    $page = '<html><body><header><h1>Ammonia burner programme</h1><p>'.str_repeat('A short teaser. ', 10).'</p></header>'
+        .'<section class="body">'.str_repeat('<p>'.str_repeat('The long body of the release. ', 8).'</p>', 6).'</section></body></html>';
+    $source = Source::factory()->create(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $short = Document::factory()->fetched()->for($source)->create(['title' => 'Ammonia burner programme', 'original_path' => "documents/{$source->id}/1.html", 'markdown' => '# Ammonia burner programme'.str_repeat("\n\nA short teaser.", 10)]);
+    $other = Document::factory()->fetched()->for($source)->create(['title' => 'Another release', 'original_path' => "documents/{$source->id}/2.html", 'markdown' => '# Another release'.str_repeat("\n\nA short teaser.", 10)]);
+    Storage::disk('local')->put($short->original_path, $page);
+    Storage::disk('local')->put($other->original_path, str_replace('Ammonia burner programme', 'Another release', $page));
+    Http::fake([
+        'api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => 'REJECT', 'primary_reason' => 'OPINION_ONLY', 'evidence' => '', 'reason' => '具体的な内容がない。'])),
+        'api.openai.com/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['content' => 'section.body', 'date' => '', 'remove' => '', 'fixed_text' => ''])]]]]),
+    ]);
+
+    $screening = screenDocument($short);
+
+    expect($screening->decision)->toBe('reject')
+        ->and($screening->status_message)->toContain('文書の設定を改訂し（本文: section.body）、2 件をスクリーニングし直します')
+        ->and($source->refresh()->document_config['content'])->toBe('section.body')
+        ->and($short->refresh()->hasShortBody())->toBeFalse()->and($short->markdown)->toContain('The long body of the release.')
+        ->and($other->refresh()->hasShortBody())->toBeFalse();
+    // The run itself (faked) and the two cured documents.
+    Queue::assertPushed(ScreenDocument::class, 3);
+    Queue::assertPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($other) && $job->screening->pass === 1);
+
+    // When the agent's proposal does not cure it, the reject stands with a note and nothing is queued.
+    Http::fake([
+        'api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => 'REJECT', 'primary_reason' => 'OPINION_ONLY', 'evidence' => '', 'reason' => ''])),
+        'api.openai.com/v1/chat/completions' => Http::response(['choices' => [['message' => ['content' => json_encode(['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => ''])]]]]),
+    ]);
+    $stubborn = Document::factory()->fetched()->for($source)->create(['original_path' => "documents/{$source->id}/3.html", 'markdown' => '# Short'.str_repeat("\n\nA short teaser.", 5)]);
+    Storage::disk('local')->put($stubborn->original_path, '<html><body><header><h1>Short</h1><p>'.str_repeat('A short teaser. ', 10).'</p></header></body></html>');
+
+    $screening = screenDocument($stubborn);
+    expect($screening->status_message)->toContain('改訂を試みましたが、できませんでした')->and($source->refresh()->document_config['content'])->toBe('section.body');
+    Queue::assertNotPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($stubborn) && ! $job->screening->is($screening));
 });
 
 // A rejected document is stopped at the gate: the material job refuses it; an adopted or reviewed one goes on.
