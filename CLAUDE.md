@@ -68,9 +68,10 @@ the product (purpose, the five stages, stack); read it first.
   listed as 対象外 with `excluded_by` = the rule and not fetched; the
   first set of rules was drawn from the 227 titles listed that day. The
   **content filtering** (コンテンツフィルタリング) is on the 文書 screen
-  above the list: one body, the system prompt of an LLM that reads the
-  fetched document, not built yet. `EditorialPolicy::LAYERS` has four
-  layers: exclude_keywords, content_filtering, structuring, article.
+  above the list: one body, the developer prompt (OpenAI's name for the
+  system prompt) of an LLM that reads the fetched document, not built
+  yet. `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
+  content_filtering, structuring, article.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings

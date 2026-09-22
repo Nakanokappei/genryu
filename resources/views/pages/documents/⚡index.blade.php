@@ -10,9 +10,9 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the content filtering of the editorial policy (the system prompt of an LLM judge that reads the fetched documents; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time, each with its state (fetched / fetching / failed / excluded by the title filter).
+// 文書 (Documents): the content filtering of the editorial policy (the developer prompt of an LLM judge that reads the fetched documents; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time, each with its state (fetched / fetching / failed / excluded by the title filter).
 new #[Title('文書')] class extends PagedList {
-    // Content filtering: the system prompt kept for the LLM judge, which is not built yet.
+    // Content filtering: the developer prompt (OpenAI's name for the system prompt) kept for the LLM judge, which is not built yet.
     public string $contentFiltering = '';
 
     public function mount(): void
@@ -116,8 +116,8 @@ new #[Title('文書')] class extends PagedList {
     {{-- Content filtering sits with the documents because it judges what was fetched: the criteria an LLM reads a document by. --}}
     <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
-        <flux:text>{{ __('Used as the system prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
-        <flux:textarea wire:model="contentFiltering" :label="__('System prompt')" rows="8" />
+        <flux:text>{{ __('Used as the developer prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
+        <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt')" rows="8" />
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 

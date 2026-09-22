@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Model;
  * of text per layer (docs/HANDOVER.md §1). The selection layer (UI:
  * 取捨選択) is two bodies: the title filter (exclude rules that keep a
  * document from being fetched, set on the 情報源 screen) and the content
- * filtering (the system prompt of an LLM that reads a fetched document,
+ * filtering (the developer prompt of an LLM that reads a fetched document,
  * set on the 文書 screen; the judge is not built yet).
  * The structuring layer is the prompt that turns a document into a
  * material (stage 2.3), the article layer the one that turns a material
