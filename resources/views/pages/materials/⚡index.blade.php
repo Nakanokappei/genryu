@@ -17,10 +17,11 @@ new #[Title('素材情報')] class extends Component {
         return Material::query()->with('document.source')->withCount('articles')->latest()->get();
     }
 
-    // Stage 2.3: queue the extraction for every fetched document whose material is missing or failed.
+    // Stage 2.3: queue the extraction for every adopted document whose material is missing or failed.
     public function extract(): void
     {
-        $documents = Document::query()->where('status', 'fetched')->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
+        // Only the documents the screening adopted go on to the detailed analysis in bulk; a single document can still be extracted from its own screen unless rejected.
+        $documents = Document::query()->where('status', 'fetched')->whereRelation('screening', 'decision', 'adopt')->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
         $documents->each(fn (Document $document) => ExtractMaterial::queueFor($document));
         unset($this->materials);
 
@@ -31,7 +32,7 @@ new #[Title('素材情報')] class extends Component {
 <section class="w-full space-y-6" @if ($this->materials->contains('status', 'extracting')) wire:poll.5s @endif>
     <div class="flex flex-wrap items-center gap-3">
         <flux:heading size="xl">{{ __('Materials') }}</flux:heading>
-        <flux:button wire:click="extract" class="ms-auto" icon="cube">{{ __('Extract materials') }}</flux:button>
+        <flux:button wire:click="extract" class="ms-auto" icon="cube">{{ __('Extract materials from adopted documents') }}</flux:button>
     </div>
 
     <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Data'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">

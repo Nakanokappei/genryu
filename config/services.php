@@ -32,6 +32,13 @@ return [
     'openai' => [
         'key' => env('OPENAI_API_KEY'),
         'model' => env('OPENAI_MODEL', 'gpt-4.1'),
+        // USD per million tokens, per model, for the estimated cost of a screening (input / cached input / output); a model not listed, or listed with nulls, has no estimate.
+        'prices' => [
+            'gpt-5.6-luna' => ['input' => env('OPENAI_PRICE_LUNA_INPUT'), 'cached' => env('OPENAI_PRICE_LUNA_CACHED'), 'output' => env('OPENAI_PRICE_LUNA_OUTPUT')],
+            'gpt-5.6-terra' => ['input' => env('OPENAI_PRICE_TERRA_INPUT'), 'cached' => env('OPENAI_PRICE_TERRA_CACHED'), 'output' => env('OPENAI_PRICE_TERRA_OUTPUT')],
+            'gpt-5.6-sol' => ['input' => env('OPENAI_PRICE_SOL_INPUT'), 'cached' => env('OPENAI_PRICE_SOL_CACHED'), 'output' => env('OPENAI_PRICE_SOL_OUTPUT')],
+            'gpt-6-astra' => ['input' => env('OPENAI_PRICE_ASTRA_INPUT'), 'cached' => env('OPENAI_PRICE_ASTRA_CACHED'), 'output' => env('OPENAI_PRICE_ASTRA_OUTPUT')],
+        ],
     ],
 
     'slack' => [

@@ -16,7 +16,7 @@ use Throwable;
  * in the background, have the agent structure the fetched document of an
  * document per the structuring layer of the editorial policy, check
  * that every item the policy lists is there, and keep the JSON as the
- * entry's material. The outcome lands on the material (status 抽出中 /
+ * entry's material. A document the screening rejected is refused. The outcome lands on the material (status 抽出中 /
  * 抽出済み / 失敗) so the screens can show it.
  */
 class ExtractMaterial implements ShouldQueue
@@ -53,6 +53,11 @@ class ExtractMaterial implements ShouldQueue
         try {
             if ($document->status !== 'fetched' || (string) $document->markdown === '') {
                 throw new RuntimeException(__('The document has not been fetched yet.'));
+            }
+
+            // The gate: a document the screening rejected does not reach the detailed analysis.
+            if ($document->isRejected()) {
+                throw new RuntimeException(__('The screening rejected this document.'));
             }
 
             $policy = EditorialPolicy::bodyFor('structuring');

@@ -69,9 +69,27 @@ the product (purpose, the five stages, stack); read it first.
   first set of rules was drawn from the 227 titles listed that day. The
   **content filtering** (コンテンツフィルタリング) is on the 文書 screen
   above the list: one body, the developer prompt (OpenAI's name for the
-  system prompt) of an LLM that reads the fetched document, not built
-  yet, and the model it runs on (`EditorialPolicy::MODELS`, column
-  `model`; the other agents use `OPENAI_MODEL`). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
+  system prompt) of the スクリーニング, and the model it runs on
+  (`EditorialPolicy::MODELS`, column `model`; the other agents use
+  `OPENAI_MODEL`).
+- **スクリーニング (Screening) is the Editorial Screening Gate** (built
+  2026-09-22 from ChatGPT's spec, kept at
+  `~/.codex/.chatgpt-projects/…/technology-watch-editorial-screening-gate.md`):
+  `App\Jobs\ScreenDocument` (agent `App\Actions\ProposeDecision`, OpenAI
+  **Responses API**, the prompt as the developer message with an explicit
+  `prompt_cache_breakpoint`, the document after it, structured output)
+  decides 採用 / 不採用 / 要確認 (adopt / reject / review) with a reason
+  class (`Screening::PRIMARY_REASONS`). Every run is a `screenings` row
+  (model, prompt version, tokens with cached / cache-written apart,
+  latency, estimated cost from `services.openai.prices`); the document
+  points at its latest one (`screening_id`). The prompt text is versioned
+  in `screening_prompts` (`ScreeningPrompt::current`, a new version when
+  the hash changes). Queued from 未判定の文書をスクリーニング on 文書 and
+  スクリーニング on the document (with a model choice, to review with a
+  higher model). The gate: `ExtractMaterial` refuses a rejected document
+  and the bulk extraction takes adopted ones only. Figures per prompt
+  version (rates, cache hit / write rate, cost) are on 文書. The seven
+  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
   content_filtering, structuring, article.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body

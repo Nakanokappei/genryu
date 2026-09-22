@@ -5,6 +5,7 @@ use App\Jobs\ExtractMaterial;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
+use App\Models\Screening;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -105,18 +106,27 @@ it('shows the items in the order the policy lists them', function () {
     $this->get(route('materials.show', $material))->assertSeeInOrder(['"要約"', '"発表主体"', '"重要な事実"', '"メモ"']);
 });
 
-it('queues the missing and failed materials of fetched documents, and one material again, from the screens', function () {
+// The gate: in bulk, only the documents the screening adopted go on; a rejected one is never extracted, not even from its own screen.
+it('queues the missing and failed materials of adopted documents, and one material again, from the screens', function () {
     Queue::fake();
     $missing = Document::factory()->fetched()->create();
+    Screening::factory()->for($missing)->create();
     $failed = Document::factory()->fetched()->create();
+    Screening::factory()->for($failed)->create();
     Material::factory()->for($failed)->create(['status' => 'failed', 'data' => null]);
     $extracted = Document::factory()->fetched()->create();
+    Screening::factory()->for($extracted)->create();
     Material::factory()->for($extracted)->create();
     Document::factory()->create(['status' => 'fetching']);
+    $unscreened = Document::factory()->fetched()->create();
+    $rejected = Document::factory()->fetched()->create();
+    Screening::factory()->for($rejected)->rejected()->create();
 
     Livewire::test('pages::materials.index')->call('extract');
 
     Queue::assertPushed(ExtractMaterial::class, 2);
+    expect($unscreened->refresh()->material)->toBeNull()->and($rejected->refresh()->material)->toBeNull();
+    $this->get(route('documents.show', $rejected))->assertSee('スクリーニングで不採用になった文書です。');
     expect($missing->material?->status)->toBe('extracting')
         ->and($failed->material()->sole()->status)->toBe('extracting')
         ->and($extracted->material()->sole()->status)->toBe('extracted')

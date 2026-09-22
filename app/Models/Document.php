@@ -6,6 +6,7 @@ use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
@@ -15,7 +16,9 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * App\Jobs\FetchDocument in the background. Status null until a fetch is
  * queued, then fetching / fetched / failed (UI: 取得中 / 取得済み / 失敗).
  * A document whose title has an exclude keyword of the editorial policy is
- * listed as 対象外 (excluded_by) and not fetched.
+ * listed as 対象外 (excluded_by) and not fetched. A fetched document is
+ * screened by App\Jobs\ScreenDocument (UI: スクリーニング); the latest
+ * screening (screening_id) carries the decision 採用 / 不採用 / 要確認.
  */
 class Document extends Model
 {
@@ -24,7 +27,7 @@ class Document extends Model
 
     public const FORMATS = ['html', 'pdf'];
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id'];
 
     protected function casts(): array
     {
@@ -41,5 +44,27 @@ class Document extends Model
     public function material(): HasOne
     {
         return $this->hasOne(Material::class);
+    }
+
+    /** @return BelongsTo<Screening, $this> the latest screening of the document */
+    public function screening(): BelongsTo
+    {
+        return $this->belongsTo(Screening::class);
+    }
+
+    /** @return HasMany<Screening, $this> every screening of the document, latest first */
+    public function screenings(): HasMany
+    {
+        return $this->hasMany(Screening::class)->latest('id');
+    }
+
+    /**
+     * Whether the gate lets the document on to the detailed analysis: a
+     * rejected document does not go; one not screened yet, or to be
+     * reviewed, is not stopped here.
+     */
+    public function isRejected(): bool
+    {
+        return $this->screening?->decision === 'reject';
     }
 }

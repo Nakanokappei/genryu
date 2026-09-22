@@ -1,0 +1,14 @@
+{{-- The latest screening of a document as a badge: its decision (採用 / 不採用 / 要確認, the reason class and the model's reason as tooltip), or where the run stands (判定中 / 失敗 with its message); a dash when never screened. --}}
+@props(['screening'])
+
+@if ($screening === null)
+    —
+@elseif ($screening->status === 'screened')
+    <flux:tooltip :content="$screening->primary_reason.' — '.$screening->reason">
+        <flux:badge size="sm" :color="match ($screening->decision) { 'adopt' => 'green', 'reject' => 'red', default => 'amber' }">{{ __($screening->decision) }}</flux:badge>
+    </flux:tooltip>
+@elseif ($screening->status === 'failed')
+    <flux:tooltip :content="$screening->status_message ?? ''"><x-pages::status status="failed" /></flux:tooltip>
+@else
+    <x-pages::status :status="$screening->status" />
+@endif
