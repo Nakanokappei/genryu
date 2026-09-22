@@ -142,7 +142,8 @@ it('reads title, date and body in that order, moves fixed text to the end, drops
 // The selection layer: an entry whose title has an exclude keyword is listed as 対象外 and nothing is fetched for it.
 it('does not fetch the document of an update entry whose title has an exclude keyword', function () {
     Queue::fake();
-    EditorialPolicy::query()->create(['layer' => 'exclude_keywords', 'body' => '採用情報; セミナー ;']);
+    // One rule per line; the second needs both words, so 水素セミナー開催のお知らせ is excluded by 開催; セミナー and not by 採用情報.
+    EditorialPolicy::query()->create(['layer' => 'exclude_keywords', 'body' => "採用情報\n開催; セミナー ;\n\n掲載"]);
     $rss = '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
         .'<item><title>アンモニア燃焼器の開発を開始</title><link>https://www.example.org/news/1</link></item>'
         .'<item><title>水素セミナー開催のお知らせ</title><link>https://www.example.org/news/2</link></item></channel></rss>';
@@ -153,12 +154,12 @@ it('does not fetch the document of an update entry whose title has an exclude ke
 
     Queue::assertPushed(FetchDocument::class, 1);
     $excluded = Document::query()->where('url', 'https://www.example.org/news/2')->sole();
-    expect($excluded->excluded_by)->toBe('セミナー')->and($excluded->status)->toBeNull()
+    expect($excluded->excluded_by)->toBe('開催; セミナー')->and($excluded->status)->toBeNull()
         ->and(Document::query()->where('url', 'https://www.example.org/news/1')->sole()->excluded_by)->toBeNull();
     // The excluded entry is not on 文書 (fetched documents only) but on its source, next to the failed ones; its own screen says why it was excluded.
     $this->get(route('documents.index'))->assertDontSee($excluded->title);
-    $this->get(route('sources.show', $source))->assertSee($excluded->title)->assertSee('除外キーワード「セミナー」に一致');
-    $this->get(route('documents.show', $excluded))->assertSee('除外キーワード「セミナー」に一致');
+    $this->get(route('sources.show', $source))->assertSee($excluded->title)->assertSee('除外キーワード「開催; セミナー」に一致');
+    $this->get(route('documents.show', $excluded))->assertSee('除外キーワード「開催; セミナー」に一致');
 
     // The source's "fetch documents" leaves excluded entries alone; the entry's own button still fetches it.
     Livewire::test('pages::sources.show', ['source' => $source])->call('fetchDocuments');
@@ -171,10 +172,12 @@ it('does not fetch the document of an update entry whose title has an exclude ke
 it('saves the selection layer from the sources screen', function () {
     Livewire::test('pages::sources.index')
         ->assertSet('excludeKeywords', '')
-        ->set('excludeKeywords', '採用情報; セミナー')->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
+        ->set('excludeKeywords', "採用情報\n寄稿; 掲載")->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
         ->call('saveSelection')->assertHasNoErrors();
 
-    expect(EditorialPolicy::excludeKeywords())->toBe(['採用情報', 'セミナー'])
+    expect(EditorialPolicy::excludeKeywords())->toBe([['採用情報'], ['寄稿', '掲載']])
+        ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました'))->toBe('寄稿; 掲載')
+        ->and(EditorialPolicy::excludedBy('新技術が学会誌に掲載'))->toBeNull()
         ->and(EditorialPolicy::bodyFor('fetch_criteria'))->toBe('技術的な発表')
         ->and(EditorialPolicy::bodyFor('skip_criteria'))->toBe('人事');
     $this->get(route('editorial-policy'))->assertSee('取捨選択は「情報源」の画面で設定します。');

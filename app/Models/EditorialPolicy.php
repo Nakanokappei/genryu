@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
  * of text per layer (docs/HANDOVER.md §1). The selection layer (UI:
- * 取捨選択, set on the 文書 screen) is three bodies: the exclude
+ * 取捨選択, set on the 情報源 screen) is three bodies: the exclude
  * keywords that keep a document from being fetched, and the criteria
  * for / against fetching, meant for an LLM judge that is not built yet.
  * The structuring layer is the prompt that turns a document into a
@@ -42,27 +42,38 @@ class EditorialPolicy extends Model
     }
 
     /**
-     * The exclude keywords (UI: "Exclude keywords"), written one after
-     * another separated by semicolons.
+     * The exclude keywords (UI: "Exclude keywords"): one rule per line; a
+     * line of several words separated by semicolons is one rule that
+     * needs all of them in the title (掲載 alone would take real news
+     * with it, 寄稿; 掲載 does not).
      *
-     * @return list<string>
+     * @return list<list<string>> each rule's words
      */
     public static function excludeKeywords(): array
     {
-        $keywords = array_map(trim(...), preg_split('/[;；]/u', self::bodyFor('exclude_keywords')) ?: []);
+        $rules = [];
 
-        return array_values(array_filter($keywords, fn (string $keyword): bool => $keyword !== ''));
+        foreach (preg_split('/\R/u', self::bodyFor('exclude_keywords')) ?: [] as $line) {
+            $words = array_values(array_filter(array_map(trim(...), preg_split('/[;；]/u', $line) ?: []), fn (string $word): bool => $word !== ''));
+
+            if ($words !== []) {
+                $rules[] = $words;
+            }
+        }
+
+        return $rules;
     }
 
     /**
-     * The first exclude keyword a document's title contains (case does
-     * not matter), or null when the document is to be fetched.
+     * The first exclude rule whose words a document's title all contains
+     * (case does not matter), written as "word; word", or null when the
+     * document is to be fetched.
      */
     public static function excludedBy(string $title): ?string
     {
-        foreach (self::excludeKeywords() as $keyword) {
-            if (mb_stripos($title, $keyword) !== false) {
-                return $keyword;
+        foreach (self::excludeKeywords() as $words) {
+            if (array_all($words, fn (string $word): bool => mb_stripos($title, $word) !== false)) {
+                return implode('; ', $words);
             }
         }
 

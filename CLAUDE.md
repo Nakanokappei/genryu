@@ -62,9 +62,12 @@ the product (purpose, the five stages, stack); read it first.
 - **The selection layer (取捨選択) is set on the 情報源 list screen**
   (moved from 文書 on 2026-09-22: it acts when update lists are read,
   before any document exists, and is one setting over every source),
-  not on 編集方針: exclude keywords (semicolon separated, applied
-  deterministically when the update list is read: a matching title is
-  listed as 対象外 with `excluded_by` and not fetched),
+  not on 編集方針: exclude keywords (one rule per line; several words on
+  a line separated by semicolons must all be in the title, so 掲載 alone
+  does not take real news with it; applied deterministically when the
+  update list is read: a matching title is listed as 対象外 with
+  `excluded_by` = the rule and not fetched; the first set of rules was
+  drawn from the 227 titles listed on 2026-09-22),
   and the criteria for / against fetching, stored for an LLM judge that
   is not built yet. `EditorialPolicy::LAYERS` has five layers.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
