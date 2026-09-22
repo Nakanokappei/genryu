@@ -86,7 +86,6 @@ it('reads the structuring layer from the editorial policy screen, with a default
         ->and(EditorialPolicy::items(EditorialPolicy::bodyFor('structuring')))->toBe(['要約', '発表主体', '発表の種類', '技術領域', '重要な事実', '関係者', '意義', '背景']);
 
     Livewire::test('pages::editorial-policy.index')
-        ->assertSet('selection', '')
         ->set('structuring', "- 要約: 短く\n- 技術領域: 分野")
         ->call('save')->assertHasNoErrors();
 

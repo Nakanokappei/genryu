@@ -1,15 +1,15 @@
 <?php
 
 use App\Jobs\ConfigureSource;
+use App\Livewire\PagedList;
 use App\Models\Source;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
-use Livewire\Component;
 
 // 情報源 (Sources): list the sites we watch, add one by hand.
-new #[Title('情報源')] class extends Component {
+new #[Title('情報源')] class extends PagedList {
     #[Validate('required|string|max:255')]
     public string $name = '';
 
@@ -18,11 +18,11 @@ new #[Title('情報源')] class extends Component {
 
     public string $notes = '';
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Source> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Source> */
     #[Computed]
     public function sources()
     {
-        return Source::query()->withCount('updateEntries')->latest()->get();
+        return Source::query()->withCount('updateEntries')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
     // A new source is configured in the background (feed or agent-proposed HTML list settings).
@@ -50,15 +50,26 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Name'), __('URL'), __('Status'), __('Updates'), __('Created')]" :empty="$this->sources->isEmpty()">
+    <x-pages::table :columns="[__('Name'), __('Status'), __('Updates'), __('Created')]" :empty="$this->sources->isEmpty()">
         @foreach ($this->sources as $source)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a></td>
-                <td class="max-w-md truncate px-3 py-2"><a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-500 underline">{{ $source->url }}</a></td>
+                <td class="px-3 py-2">
+                    <span class="inline-flex items-center gap-2">
+                        @if ($source->favicon_path)
+                            <img src="{{ route('sources.favicon', $source) }}" alt="" class="size-4 rounded-sm">
+                        @endif
+                        <a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
+                        {{-- The site itself: the address is the tooltip, not a column. --}}
+                        <flux:tooltip :content="$source->url">
+                            <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
+                        </flux:tooltip>
+                    </span>
+                </td>
                 <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
                 <td class="px-3 py-2">{{ $source->update_entries_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>
         @endforeach
     </x-pages::table>
+    <x-pages::pagination :paginator="$this->sources" />
 </section>

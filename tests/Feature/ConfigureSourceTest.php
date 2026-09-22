@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeListSettings;
 use App\Jobs\ConfigureSource;
@@ -9,6 +10,7 @@ use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 const CONFIGURE_RSS = '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title><item><title>One</title><link>https://www.example.org/news/1</link></item></channel></rss>';
@@ -38,10 +40,34 @@ beforeEach(function () {
 
 function configure(Source $source): Source
 {
-    (new ConfigureSource($source))->handle(app(FetchUpdates::class), app(ProposeListSettings::class));
+    (new ConfigureSource($source))->handle(app(FetchUpdates::class), app(ProposeListSettings::class), app(FetchFavicon::class));
 
     return $source->refresh();
 }
+
+it('keeps the favicon the page advertises, or /favicon.ico, and serves it next to the name', function () {
+    Storage::fake('local');
+    Http::fake([
+        'www.example.org/news' => Http::response('<html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"><link rel="shortcut icon" href="/img/icon.png"></head></html>', 200, ['Content-Type' => 'text/html']),
+        'www.example.org/rss.xml' => Http::response(CONFIGURE_RSS, 200, ['Content-Type' => 'application/rss+xml']),
+        'www.example.org/img/icon.png' => Http::response('PNGBYTES', 200, ['Content-Type' => 'image/png']),
+        'www.example.org/favicon.ico' => Http::response('ICOBYTES', 200, ['Content-Type' => 'image/x-icon']),
+    ]);
+    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/news']));
+
+    expect($source->favicon_path)->toBe("favicons/{$source->id}.png");
+    Storage::disk('local')->assertExists("favicons/{$source->id}.png");
+    Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'favicon.ico'));
+    $this->get(route('sources.favicon', $source))->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get(route('sources.index'))->assertSee(route('sources.favicon', $source));
+
+    // A page that advertises no icon falls back to /favicon.ico; a site without any leaves the source blank.
+    $plain = configure(Source::factory()->create(['url' => 'https://www.example.org/rss.xml']));
+    expect($plain->favicon_path)->toBe("favicons/{$plain->id}.ico");
+
+    Http::fake(['www.example.net/*' => Http::response('not found', 404)]);
+    expect(configure(Source::factory()->create(['url' => 'https://www.example.net/news']))->favicon_path)->toBeNull();
+});
 
 it('finds a feed deterministically, without asking the agent, and reads it', function () {
     Http::fake([

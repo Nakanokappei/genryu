@@ -1,17 +1,17 @@
 <?php
 
+use App\Livewire\PagedList;
 use App\Models\Document;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
-use Livewire\Component;
 
 // 文書 (Documents): the HTML / PDF fetched in the background for each update; nothing is added by hand here.
-new #[Title('文書')] class extends Component {
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Document> */
+new #[Title('文書')] class extends PagedList {
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Document> */
     #[Computed]
     public function documents()
     {
-        return Document::query()->with('updateEntry.source', 'material')->latest()->get();
+        return Document::query()->with('updateEntry.source', 'material')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 }; ?>
 
@@ -36,4 +36,5 @@ new #[Title('文書')] class extends Component {
             </tr>
         @endforeach
     </x-pages::table>
+    <x-pages::pagination :paginator="$this->documents" />
 </section>

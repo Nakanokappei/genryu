@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeListSettings;
 use App\Models\Source;
@@ -33,12 +34,14 @@ class ConfigureSource implements ShouldQueue
 
     public function __construct(public Source $source) {}
 
-    public function handle(FetchUpdates $fetch, ProposeListSettings $propose): void
+    public function handle(FetchUpdates $fetch, ProposeListSettings $propose, FetchFavicon $favicon): void
     {
         $source = $this->source;
 
         try {
             $html = $fetch->page($source->url);
+            // The site's icon, for the 情報源 screen; nothing depends on it.
+            $favicon($source, $html);
             $feed = $source->read_as_html ? null : $fetch->discoverFeed($source->url, $html);
 
             if ($feed !== null) {

@@ -28,8 +28,8 @@ new #[Title('情報源')] class extends Component {
     /** @var array<string, string> JSON list settings: the file's URL, the path to the items, the keys inside an item, max_items */
     public array $json = ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => '50'];
 
-    /** @var array<string, string> Document settings: CSS selectors of the body and of what to drop inside it */
-    public array $documentSettings = ['content' => '', 'remove' => ''];
+    /** @var array<string, string> Document settings: CSS selectors of the body, its date, what to drop inside it, and fixed text to move after it */
+    public array $documentSettings = ['content' => '', 'date' => '', 'remove' => '', 'fixed_text' => ''];
 
     public function mount(): void
     {
@@ -81,20 +81,22 @@ new #[Title('情報源')] class extends Component {
     {
         $validated = $this->validate([
             'documentSettings.content' => ['nullable', 'string', 'max:255'],
+            'documentSettings.date' => ['nullable', 'string', 'max:255'],
             'documentSettings.remove' => ['nullable', 'string', 'max:1000'],
+            'documentSettings.fixed_text' => ['nullable', 'string', 'max:1000'],
         ])['documentSettings'];
 
         $this->source->update(['document_config' => ($validated['content'] ?? '') !== ''
-            ? ['content' => $validated['content'], 'remove' => (string) ($validated['remove'] ?? '')]
+            ? array_map(fn (?string $value): string => (string) $value, $validated)
             : null]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Stage 2.2: queue the fetch for every update entry whose document is missing or failed.
+    // Stage 2.2: queue the fetch for every update entry whose document is missing or failed, leaving the excluded ones alone.
     public function fetchDocuments(): void
     {
-        $entries = $this->source->updateEntries()->whereDoesntHave('document', fn ($query) => $query->whereIn('status', ['fetching', 'fetched']))->get();
+        $entries = $this->source->updateEntries()->whereNull('excluded_by')->whereDoesntHave('document', fn ($query) => $query->whereIn('status', ['fetching', 'fetched']))->get();
         $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
 
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
@@ -245,10 +247,12 @@ new #[Title('情報源')] class extends Component {
 
     <form wire:submit="saveDocumentSettings" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Document settings') }}</flux:heading>
-        <flux:text>{{ __('CSS selectors. The content element holds the body of one document; the remove selectors drop elements inside it (share buttons, related links). Left empty, the agent proposes them at the next fetch.') }}</flux:text>
-        <div class="grid gap-3 md:grid-cols-2">
+        <flux:text>{{ __('CSS selectors. The content element holds the body of one document and the date element its date; the remove selectors drop elements inside the body (share buttons, related links, navigation); the fixed text selectors pick the notices and copyright lines that are moved after the body. Left empty, the agent proposes them at the next fetch.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-4">
             <flux:input wire:model="documentSettings.content" :label="__('Content')" placeholder="article" />
+            <flux:input wire:model="documentSettings.date" :label="__('Date')" placeholder="time" />
             <flux:input wire:model="documentSettings.remove" :label="__('Remove')" placeholder=".share, .related" />
+            <flux:input wire:model="documentSettings.fixed_text" :label="__('Fixed text')" placeholder=".notice, .copyright" />
         </div>
         <div class="flex items-center gap-3">
             <flux:button type="submit">{{ __('Save') }}</flux:button>
@@ -265,6 +269,8 @@ new #[Title('情報源')] class extends Component {
                 <td class="px-3 py-2">
                     @if ($update->document)
                         <a href="{{ route('documents.show', $update->document) }}" wire:navigate><x-pages::status :status="$update->document->status" /></a>
+                    @elseif ($update->excluded_by !== null)
+                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $update->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
                     @else
                         —
                     @endif

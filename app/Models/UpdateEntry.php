@@ -10,14 +10,15 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * 更新リスト (UI: "Updates"): one item on a source's update list; the
- * document behind it is fetched in the background.
+ * document behind it is fetched in the background, unless the title has
+ * an exclude keyword of the editorial policy (UI: 対象外, excluded_by).
  */
 class UpdateEntry extends Model
 {
     /** @use HasFactory<UpdateEntryFactory> */
     use HasFactory;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by'];
 
     protected function casts(): array
     {

@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Exceptions\RobotsForbidden;
 use App\Jobs\FetchDocument;
+use App\Models\EditorialPolicy;
 use App\Models\Source;
 use App\Models\UpdateEntry;
 use Carbon\CarbonImmutable;
@@ -331,7 +332,9 @@ class FetchUpdates
 
     /**
      * Keep the entries; each new one has its document fetched in the
-     * background (stage 2.2) without anyone asking.
+     * background (stage 2.2) without anyone asking, unless its title has
+     * an exclude keyword of the editorial policy: it is then listed as
+     * 対象外 with the keyword, and nothing is fetched for it.
      *
      * @param  list<array{title: string, url: string, published_at: ?string}>  $entries
      * @return array{added: int, existing: int}
@@ -344,12 +347,15 @@ class FetchUpdates
         foreach ($entries as $entry) {
             $created = UpdateEntry::query()->firstOrCreate(
                 ['source_id' => $source->id, 'url' => $entry['url']],
-                ['title' => $entry['title'], 'published_at' => $entry['published_at']],
+                ['title' => $entry['title'], 'published_at' => $entry['published_at'], 'excluded_by' => EditorialPolicy::excludedBy($entry['title'])],
             );
 
             if ($created->wasRecentlyCreated) {
                 $added++;
-                FetchDocument::queueFor($created);
+
+                if ($created->excluded_by === null) {
+                    FetchDocument::queueFor($created);
+                }
             } else {
                 $existing++;
             }
@@ -508,9 +514,10 @@ class FetchUpdates
     }
 
     /**
-     * A date as printed (RFC 2822, ISO 8601, or Japanese 2026年9月17日) to Y-m-d.
+     * A date as printed (RFC 2822, ISO 8601, or Japanese 2026年9月17日) to
+     * Y-m-d. Shared with ReadDocument, which dates a document the same way.
      */
-    private static function date(string $raw): ?string
+    public static function date(string $raw): ?string
     {
         $raw = trim((string) preg_replace('/\s+/u', '', $raw));
 

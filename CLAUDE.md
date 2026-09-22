@@ -53,6 +53,25 @@ the product (purpose, the five stages, stack); read it first.
   per material for now (the output languages of `docs/HANDOVER.md` §3 are
   not built yet); queued from the 記事を生成 buttons. The body is shown
   rendered from Markdown on the article screen.
+- **The selection layer (取捨選択) is set on the 更新リスト screen**, not
+  on 編集方針: exclude keywords (semicolon separated, applied
+  deterministically when the update list is read: a matching title is
+  listed as 対象外 with `excluded_by` and no document is queued for it),
+  and the criteria for / against fetching, stored for an LLM judge that
+  is not built yet. `EditorialPolicy::LAYERS` has five layers.
+- **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
+  body, then fixed text after a `---`; the document heading is `##` and
+  body headings keep their relative levels below it. Document settings
+  have four selectors: content / date / remove / fixed_text (UI 本文 /
+  日付 / 除外 / 固定テキスト); the date falls back to `<time>`, a short
+  date-looking line, then meta tags; copyright-like paragraphs move to
+  the end without settings.
+- **List screens page by rows per page** (`App\Livewire\PagedList`, the
+  base class of 情報源 / 更新リスト / 文書; `?rowsPerPage=` in the URL,
+  ordered by created_at then id so pages never overlap).
+- **Favicons** are fetched by `App\Actions\FetchFavicon` when a source is
+  configured (設定をやり直す on an existing source) and served from the
+  local disk by the `sources.favicon` route.
 - **Restart the worker after changing code or `lang/ja.json`**: a running
   `queue:work` keeps the old classes and translations, so a status message
   saved by the job would stay in English.

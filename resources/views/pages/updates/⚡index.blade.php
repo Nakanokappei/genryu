@@ -1,64 +1,67 @@
 <?php
 
-use App\Models\Source;
+use App\Livewire\PagedList;
+use App\Models\EditorialPolicy;
 use App\Models\UpdateEntry;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
-use Livewire\Attributes\Validate;
-use Livewire\Component;
 
-// 更新リスト (Updates): items found on the sources' update lists, added by hand for now.
-new #[Title('更新リスト')] class extends Component {
-    #[Validate('required|exists:sources,id')]
-    public string $source_id = '';
+// 更新リスト (Updates): items found on the sources' update lists, and the selection layer of the editorial policy that decides which of them get their document fetched.
+new #[Title('更新リスト')] class extends PagedList {
+    // The selection layer: exclude keywords applied deterministically, criteria kept for the LLM judge.
+    public string $excludeKeywords = '';
 
-    #[Validate('required|string|max:255')]
-    public string $title = '';
+    public string $fetchCriteria = '';
 
-    #[Validate('required|url|max:2048')]
-    public string $url = '';
+    public string $skipCriteria = '';
 
-    #[Validate('nullable|date')]
-    public string $published_at = '';
+    public function mount(): void
+    {
+        $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
+        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
+        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
+    }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, UpdateEntry> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, UpdateEntry> */
     #[Computed]
     public function updates()
     {
-        return UpdateEntry::query()->with('source', 'document')->latest()->get();
+        return UpdateEntry::query()->with('source', 'document')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Source> */
-    #[Computed]
-    public function sources()
+    public function saveSelection(): void
     {
-        return Source::query()->orderBy('name')->get();
-    }
+        foreach (['exclude_keywords' => $this->excludeKeywords, 'fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
+            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
+        }
 
-    public function add(): void
-    {
-        $validated = $this->validate();
-        UpdateEntry::create([...$validated, 'published_at' => $this->published_at !== '' ? $this->published_at : null]);
-        $this->reset('title', 'url', 'published_at');
-        unset($this->updates);
+        Flux::toast(variant: 'success', text: __('Saved.'));
     }
 }; ?>
 
 <section class="w-full space-y-6">
     <flux:heading size="xl">{{ __('Updates') }}</flux:heading>
 
-    <form wire:submit="add" class="grid gap-3 rounded-xl border border-neutral-200 p-4 md:grid-cols-5 dark:border-neutral-700">
-        <flux:select wire:model="source_id" :label="__('Source')" :placeholder="__('Select')">
-            @foreach ($this->sources as $source)
-                <flux:select.option value="{{ $source->id }}">{{ $source->name }}</flux:select.option>
-            @endforeach
-        </flux:select>
-        <flux:input wire:model="title" :label="__('Title')" />
-        <flux:input wire:model="url" :label="__('URL')" type="url" />
-        <flux:input wire:model="published_at" :label="__('Published at')" type="date" />
-        <div class="flex items-end">
-            <flux:button type="submit" variant="primary">{{ __('Add') }}</flux:button>
+    <form wire:submit="saveSelection" class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Selection') }}</flux:heading>
+
+        <div class="space-y-2">
+            <flux:subheading>{{ __('Deterministic screening') }}</flux:subheading>
+            <flux:input wire:model="excludeKeywords" :label="__('Exclude keywords')" placeholder="採用情報; セミナー; イベント" />
+            <flux:text size="sm">{{ __('Updates whose title contains one of these keywords are listed but their document is not fetched. Separate several with a semicolon.') }}</flux:text>
         </div>
+
+        <div class="space-y-2">
+            <flux:subheading>{{ __('For the LLM') }}</flux:subheading>
+            <div class="grid gap-3 md:grid-cols-2">
+                <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for fetching a document')" rows="5" />
+                <flux:textarea wire:model="skipCriteria" :label="__('Criteria for not fetching a document')" rows="5" />
+            </div>
+            <flux:text size="sm">{{ __('Used as the system prompt of the LLM that judges new updates. Not applied yet.') }}</flux:text>
+        </div>
+
+        <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 
     <x-pages::table :columns="[__('Title'), __('Source'), __('Published at'), __('Document')]" :empty="$this->updates->isEmpty()">
@@ -70,6 +73,8 @@ new #[Title('更新リスト')] class extends Component {
                 <td class="px-3 py-2">
                     @if ($update->document)
                         <a href="{{ route('documents.show', $update->document) }}" wire:navigate><x-pages::status :status="$update->document->status" /></a>
+                    @elseif ($update->excluded_by !== null)
+                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $update->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
                     @else
                         —
                     @endif
@@ -77,4 +82,5 @@ new #[Title('更新リスト')] class extends Component {
             </tr>
         @endforeach
     </x-pages::table>
+    <x-pages::pagination :paginator="$this->updates" />
 </section>

@@ -46,6 +46,9 @@ new #[Title('更新情報')] class extends Component {
                     — {{ $updateEntry->document->status_message }}
                 @endif
             </flux:text>
+        @elseif ($updateEntry->excluded_by !== null)
+            <x-pages::status status="excluded" />
+            <flux:text class="flex-1">{{ __('Excluded by keyword: :keyword', ['keyword' => $updateEntry->excluded_by]) }}</flux:text>
         @else
             <flux:text class="flex-1">{{ __('Not fetched yet.') }}</flux:text>
         @endif

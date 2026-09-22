@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\Document;
+use App\Models\Source;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
@@ -12,6 +13,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // The five stages of docs/HANDOVER.md: a list and a detail screen each.
     Route::livewire('sources', 'pages::sources.index')->name('sources.index');
     Route::livewire('sources/{source}', 'pages::sources.show')->name('sources.show');
+    // The site's icon, shown next to the source's name, from the local disk.
+    Route::get('sources/{source}/favicon', fn (Source $source) => Storage::disk('local')->response((string) $source->favicon_path))->name('sources.favicon');
     Route::livewire('updates', 'pages::updates.index')->name('updates.index');
     Route::livewire('updates/{updateEntry}', 'pages::updates.show')->name('updates.show');
     Route::livewire('documents', 'pages::documents.index')->name('documents.index');

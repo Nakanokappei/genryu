@@ -19,7 +19,7 @@ class Source extends Model
     /** @use HasFactory<SourceFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'url', 'feed_url', 'list_config', 'json_config', 'document_config', 'read_as_html', 'status', 'status_message', 'notes', 'fetched_at'];
+    protected $fillable = ['name', 'url', 'favicon_path', 'feed_url', 'list_config', 'json_config', 'document_config', 'read_as_html', 'status', 'status_message', 'notes', 'fetched_at'];
 
     protected function casts(): array
     {

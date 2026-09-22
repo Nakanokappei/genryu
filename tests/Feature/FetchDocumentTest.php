@@ -5,6 +5,7 @@ use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
 use App\Jobs\FetchDocument;
 use App\Models\Document;
+use App\Models\EditorialPolicy;
 use App\Models\Source;
 use App\Models\UpdateEntry;
 use App\Models\User;
@@ -58,8 +59,9 @@ it('reads an HTML page into Markdown with the document settings of the source an
 
     expect($document)->toMatchArray(['status' => 'fetched', 'format' => 'html', 'original_path' => "documents/{$source->id}/{$entry->id}.html", 'status_message' => null])
         ->and($document->fetched_at)->not->toBeNull()
-        ->and($document->markdown)->toStartWith('# Ammonia burner programme')
-        ->toContain('## Background')
+        // Heading, date, body; the body's headings sit one level under the document heading.
+        ->and($document->markdown)->toStartWith("## Ammonia burner programme\n\n2026-09-17\n\nThe agency announced")
+        ->toContain('### Background')
         ->toContain('- Budget: 2 billion yen')
         // Links and images resolve against the page; navigation, scripts and the share bar are gone.
         ->toContain('[plan](https://www.example.org/docs/plan.pdf)')
@@ -70,10 +72,10 @@ it('reads an HTML page into Markdown with the document settings of the source an
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
-// DARPA: the <h1> sits in the page header outside the article, prizes are a table, contact is a mailto link.
-it('puts the page heading first when the body has none, keeps tables and mailto links, and drops emptied headings', function () {
+// DARPA: the <h1> sits in the page header outside the article, the date is a short <h5>, prizes are a table, contact is a mailto link.
+it('puts the page heading first when the body has none, dates it from a short date line, keeps tables and mailto links, and drops emptied headings', function () {
     $page = '<html><body><header><h1> $1M to advance   AI tools </h1></header><article>'
-        .'<h2 class="share"><a href="/share">Share</a></h2>'
+        .'<h2 class="share"><a href="/share">Share</a></h2><h5 class="news-date">June 26, 2026</h5>'
         .'<p>DARPA is launching a prize competition designed to rapidly advance AI-driven medical tools for point-of-injury care.</p>'
         .'<table><tr><td>1st place</td><td>$300,000</td></tr><tr><td>2nd place</td><td>$150,000</td></tr></table>'
         .'<p>Media should contact <a href="mailto:outreach@darpa.mil">outreach@darpa.mil</a>.</p>'
@@ -84,21 +86,93 @@ it('puts the page heading first when the body has none, keeps tables and mailto 
     $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Entry title']));
 
     expect($document->status)->toBe('fetched')
-        ->and($document->markdown)->toStartWith("# \$1M to advance AI tools\n\nDARPA is launching")
+        ->and($document->markdown)->toStartWith("## \$1M to advance AI tools\n\n2026-06-26\n\nDARPA is launching")
         ->toContain("| 1st place | \$300,000 |\n|---|---|\n| 2nd place | \$150,000 |")
         ->toContain('<outreach@darpa.mil>')
-        ->not->toContain('##');
+        ->not->toContain('###');
 
     // Without any <h1> on the page, the update entry's title stands in.
     Http::fake(['www.example.org/news/2' => Http::response(str_replace('<header><h1> $1M to advance   AI tools </h1></header>', '', $page), 200, ['Content-Type' => 'text/html'])]);
     $untitled = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/2', 'title' => 'Entry title']));
-    expect($untitled->markdown)->toStartWith("# Entry title\n\n");
+    expect($untitled->markdown)->toStartWith("## Entry title\n\n2026-06-26\n\n");
+});
+
+// A Japanese press release: date line, breadcrumb, notes and a copyright line around the body.
+it('reads heading, date and body in that order, moves fixed text to the end, drops navigation and keeps heading levels relative under ##', function () {
+    $page = '<html><body><div class="breadcrumb"><a href="/">トップページ</a> &gt; <a href="/news">ニュース</a></div>'
+        .'<article><p class="date">更新日：2026年9月10日</p><h1>アンモニア燃焼器の開発を開始</h1>'
+        .'<p>NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。<br>'
+        .'  <br>予算は 20 億円を予定している。</p>'
+        .'<h3>背景</h3><p>アンモニアは液化の費用をかけずに水素を運べる。</p>'
+        .'<h4>事業の位置づけ</h4><p>本事業はグリーンイノベーション基金の一部である。</p>'
+        .'<p class="notice">掲載時の注意：本ページの情報は発表時点のものです。</p>'
+        .'<p>※ 詳細は担当部署までお問い合わせください。</p>'
+        .'<p>Copyright 2026 NEDO. All rights reserved.</p>'
+        .'<a class="back" href="/news">一覧へ戻る</a></article></body></html>';
+    Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
+    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'date' => '.date', 'remove' => '.back', 'fixed_text' => '.notice']]);
+
+    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
+
+    expect($document->status)->toBe('fetched')
+        ->and($document->markdown)->toBe(
+            "## アンモニア燃焼器の開発を開始\n\n"
+            ."2026-09-10\n\n"
+            ."NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。\n\n"
+            ."予算は 20 億円を予定している。\n\n"
+            ."### 背景\n\n"
+            ."アンモニアは液化の費用をかけずに水素を運べる。\n\n"
+            ."#### 事業の位置づけ\n\n"
+            ."本事業はグリーンイノベーション基金の一部である。\n\n"
+            ."---\n\n"
+            ."掲載時の注意：本ページの情報は発表時点のものです。\n\n"
+            ."※ 詳細は担当部署までお問い合わせください。\n\n"
+            .'Copyright 2026 NEDO. All rights reserved.'
+        );
+});
+
+// The selection layer: an entry whose title has an exclude keyword is listed as 対象外 and nothing is fetched for it.
+it('does not fetch the document of an update entry whose title has an exclude keyword', function () {
+    Queue::fake();
+    EditorialPolicy::query()->create(['layer' => 'exclude_keywords', 'body' => '採用情報; セミナー ;']);
+    $rss = '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
+        .'<item><title>アンモニア燃焼器の開発を開始</title><link>https://www.example.org/news/1</link></item>'
+        .'<item><title>水素セミナー開催のお知らせ</title><link>https://www.example.org/news/2</link></item></channel></rss>';
+    Http::fake(['www.example.org/rss.xml' => Http::response($rss, 200, ['Content-Type' => 'application/rss+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/rss.xml']);
+
+    app(FetchUpdates::class)($source);
+
+    Queue::assertPushed(FetchDocument::class, 1);
+    $excluded = UpdateEntry::query()->where('url', 'https://www.example.org/news/2')->sole();
+    expect($excluded->excluded_by)->toBe('セミナー')->and($excluded->document)->toBeNull()
+        ->and(UpdateEntry::query()->where('url', 'https://www.example.org/news/1')->sole()->excluded_by)->toBeNull();
+    $this->get(route('updates.index'))->assertSee('対象外');
+    $this->get(route('updates.show', $excluded))->assertSee('除外キーワード「セミナー」に一致');
+
+    // The source's "fetch documents" leaves excluded entries alone; the entry's own button still fetches it.
+    Livewire::test('pages::sources.show', ['source' => $source])->call('fetchDocuments');
+    Queue::assertPushed(FetchDocument::class, 1);
+    Livewire::test('pages::updates.show', ['updateEntry' => $excluded])->call('fetchDocument');
+    Queue::assertPushed(FetchDocument::class, 2);
+});
+
+it('saves the selection layer from the updates screen', function () {
+    Livewire::test('pages::updates.index')
+        ->assertSet('excludeKeywords', '')
+        ->set('excludeKeywords', '採用情報; セミナー')->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
+        ->call('saveSelection')->assertHasNoErrors();
+
+    expect(EditorialPolicy::excludeKeywords())->toBe(['採用情報', 'セミナー'])
+        ->and(EditorialPolicy::bodyFor('fetch_criteria'))->toBe('技術的な発表')
+        ->and(EditorialPolicy::bodyFor('skip_criteria'))->toBe('人事');
+    $this->get(route('editorial-policy'))->assertSee('取捨選択は「更新リスト」の画面で設定します。');
 });
 
 it('asks the agent for document settings when the source has none, verifies them on the page, and saves them for the next documents', function () {
     Http::fake([
         'www.example.org/news/*' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),
-        'api.openai.com/*' => Http::response(documentAgentAnswer(['content' => 'article', 'remove' => '.share'])),
+        'api.openai.com/*' => Http::response(documentAgentAnswer(['content' => 'article', 'date' => 'time', 'remove' => '.share', 'fixed_text' => ''])),
     ]);
     $source = Source::factory()->create();
     $first = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
@@ -106,7 +180,7 @@ it('asks the agent for document settings when the source has none, verifies them
     expect($first->status)->toBe('fetched')
         ->and($first->status_message)->toContain('エージェントが提案した文書の設定')
         ->and($first->markdown)->not->toContain('Share on X')
-        ->and($source->refresh()->document_config)->toEqual(['content' => 'article', 'remove' => '.share']);
+        ->and($source->refresh()->document_config)->toEqual(['content' => 'article', 'date' => 'time', 'remove' => '.share', 'fixed_text' => '']);
     // The agent receives the page, without scripts, and must answer JSON.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com')
         && $request['response_format']['type'] === 'json_object'
@@ -129,7 +203,7 @@ it('falls back to generic selectors when the proposed content selector finds not
     $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
 
     expect($document->status)->toBe('fetched')
-        ->and($source->refresh()->document_config)->toEqual(['content' => 'article', 'remove' => '']);
+        ->and($source->refresh()->document_config)->toMatchArray(['content' => 'article', 'remove' => '']);
 });
 
 // The site changed its layout: the saved settings match nothing, so the agent is asked again.
@@ -226,9 +300,9 @@ it('saves the document settings from the source detail screen', function () {
     $source = Source::factory()->create();
 
     Livewire::test('pages::sources.show', ['source' => $source])
-        ->set('documentSettings.content', 'article')->set('documentSettings.remove', '.share')
+        ->set('documentSettings.content', 'article')->set('documentSettings.remove', '.share')->set('documentSettings.fixed_text', '.notice')
         ->call('saveDocumentSettings')->assertHasNoErrors();
-    expect($source->refresh()->document_config)->toEqual(['content' => 'article', 'remove' => '.share']);
+    expect($source->refresh()->document_config)->toEqual(['content' => 'article', 'date' => '', 'remove' => '.share', 'fixed_text' => '.notice']);
 
     // Clearing the content selector hands the settings back to the agent.
     Livewire::test('pages::sources.show', ['source' => $source])

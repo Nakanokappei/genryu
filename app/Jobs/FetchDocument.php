@@ -103,13 +103,13 @@ class FetchDocument implements ShouldQueue
      * usable body, generic selectors are tried in a fixed order, and the
      * settings that actually worked are what gets saved.
      *
-     * @param  array{content: string, remove: string}  $proposal
-     * @return array{0: array{content: string, remove: string}, 1: string}
+     * @param  array{content: string, date: string, remove: string, fixed_text: string}  $proposal
+     * @return array{0: array{content: string, date: string, remove: string, fixed_text: string}, 1: string}
      */
     private static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
     {
         foreach (array_unique(array_filter([$proposal['content'], ...self::FALLBACK_CONTENT])) as $content) {
-            $settings = ['content' => $content, 'remove' => $proposal['remove']];
+            $settings = [...$proposal, 'content' => $content];
 
             try {
                 return [$settings, $read->html($html, $settings, $document->url, $document->title)];
