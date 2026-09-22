@@ -8,5 +8,6 @@
         @endforeach
     </flux:select>
     <flux:text size="sm">{{ __('rows per page') }}</flux:text>
-    <flux:pagination :paginator="$paginator" class="ms-auto border-t-0 pt-0" />
+    {{-- Flux's pagination is a size container, so it needs a width of its own: the rest of the row, or a row of its own when narrow. --}}
+    <flux:pagination :paginator="$paginator" class="grow basis-80 border-t-0 pt-0" />
 </div>
