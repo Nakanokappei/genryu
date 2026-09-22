@@ -7,17 +7,18 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
  * of text per layer (docs/HANDOVER.md §1). The selection layer (UI:
- * 取捨選択, set on the 情報源 screen) is three bodies: the exclude
- * keywords that keep a document from being fetched, and the criteria
- * for / against fetching, meant for an LLM judge that is not built yet.
+ * 取捨選択) is two bodies: the title filter (exclude rules that keep a
+ * document from being fetched, set on the 情報源 screen) and the content
+ * filtering (the system prompt of an LLM that reads a fetched document,
+ * set on the 文書 screen; the judge is not built yet).
  * The structuring layer is the prompt that turns a document into a
  * material (stage 2.3), the article layer the one that turns a material
  * into an article (stage 2.4).
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (three bodies) / 構造化 / 記事生成. */
-    public const LAYERS = ['exclude_keywords', 'fetch_criteria', 'skip_criteria', 'structuring', 'article'];
+    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 記事生成. */
+    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article'];
 
     /**
      * What a layer says until someone edits it on the screen. The items
@@ -25,8 +26,7 @@ class EditorialPolicy extends Model
      */
     public const DEFAULTS = [
         'exclude_keywords' => '',
-        'fetch_criteria' => '',
-        'skip_criteria' => '',
+        'content_filtering' => '',
         'structuring' => '',
         'article' => '',
     ];

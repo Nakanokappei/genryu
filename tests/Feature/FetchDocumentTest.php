@@ -183,14 +183,13 @@ it('saves the title filter from the sources screen and the content filtering fro
         ->and($kept->refresh()->excluded_by)->toBeNull()
         ->and($formerly->refresh()->excluded_by)->toBeNull();
     Livewire::test('pages::documents.index')
-        ->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
+        ->set('contentFiltering', '技術的な発表を採用し、人事は採用しない')
         ->call('saveContentFiltering')->assertHasNoErrors();
 
     expect(EditorialPolicy::excludeKeywords())->toBe([['採用情報'], ['寄稿', '掲載']])
         ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました'))->toBe('寄稿; 掲載')
         ->and(EditorialPolicy::excludedBy('新技術が学会誌に掲載'))->toBeNull()
-        ->and(EditorialPolicy::bodyFor('fetch_criteria'))->toBe('技術的な発表')
-        ->and(EditorialPolicy::bodyFor('skip_criteria'))->toBe('人事');
+        ->and(EditorialPolicy::bodyFor('content_filtering'))->toBe('技術的な発表を採用し、人事は採用しない');
     $this->get(route('editorial-policy'))->assertSee('タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。');
 });
 

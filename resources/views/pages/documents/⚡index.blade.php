@@ -10,24 +10,19 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the content filtering of the editorial policy (the criteria an LLM judge reads the fetched documents by; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time, each with its state (fetched / fetching / failed / excluded by the title filter).
+// 文書 (Documents): the content filtering of the editorial policy (the system prompt of an LLM judge that reads the fetched documents; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time, each with its state (fetched / fetching / failed / excluded by the title filter).
 new #[Title('文書')] class extends PagedList {
-    // Content filtering: criteria kept for the LLM judge, which is not built yet.
-    public string $fetchCriteria = '';
-
-    public string $skipCriteria = '';
+    // Content filtering: the system prompt kept for the LLM judge, which is not built yet.
+    public string $contentFiltering = '';
 
     public function mount(): void
     {
-        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
-        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
+        $this->contentFiltering = EditorialPolicy::bodyFor('content_filtering');
     }
 
     public function saveContentFiltering(): void
     {
-        foreach (['fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
-            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
-        }
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'content_filtering'], ['body' => $this->contentFiltering]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -122,10 +117,7 @@ new #[Title('文書')] class extends PagedList {
     <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('Used as the system prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
-        <div class="grid gap-3 md:grid-cols-2">
-            <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for keeping a document')" rows="5" />
-            <flux:textarea wire:model="skipCriteria" :label="__('Criteria for dropping a document')" rows="5" />
-        </div>
+        <flux:textarea wire:model="contentFiltering" :label="__('System prompt')" rows="8" />
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 
