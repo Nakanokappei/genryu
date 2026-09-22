@@ -35,7 +35,7 @@ class RebuildMarkdown
             try {
                 $body = Storage::disk('local')->get((string) $document->original_path);
                 $markdown = $document->format === 'pdf'
-                    ? $this->read->pdf($body)
+                    ? $this->read->pdf($body, $document->title)
                     : $this->read->html($body, $source->document_config ?? [], $document->url, $document->title);
 
                 $document->update(['markdown' => $markdown, 'status' => 'fetched', 'status_message' => __('Markdown rebuilt from the original.')]);

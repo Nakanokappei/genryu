@@ -71,7 +71,7 @@ class FetchDocument implements ShouldQueue
             Storage::disk('local')->put($path, $body);
 
             [$markdown, $message] = $format === 'pdf'
-                ? [$read->pdf($body), null]
+                ? [$read->pdf($body, $document->title), null]
                 : $this->markdown($body, $source, $document, $read, $propose);
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);

@@ -21,6 +21,8 @@ class PdfParser extends Parser
     {
         $config ??= new Config;
         $config->setIgnoreEncryption(true);
+        // Each positioned text (Page::getDataTm) comes with its font size: App\Pdf\PdfMarkdown reads headings and tables from it.
+        $config->setDataTmFontInfoHasToBeIncluded(true);
 
         parent::__construct($cfg, $config);
 

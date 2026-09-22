@@ -271,12 +271,13 @@ it('reads a PDF as text and keeps the original', function () {
     $pdf = (string) file_get_contents(base_path('tests/Fixtures/press-release.pdf'));
     Http::fake(['www.example.org/press/1.pdf' => Http::response($pdf, 200, ['Content-Type' => 'application/pdf'])]);
     $source = Source::factory()->create();
-    $entry = Document::factory()->for($source)->create(['url' => 'https://www.example.org/press/1.pdf']);
+    $entry = Document::factory()->for($source)->create(['url' => 'https://www.example.org/press/1.pdf', 'title' => 'A PDF press release']);
 
     $document = fetchDocument($entry);
 
+    // The title comes from the update list (the page prints none bigger than the body); the two lines of one paragraph run together.
     expect($document)->toMatchArray(['status' => 'fetched', 'format' => 'pdf', 'original_path' => "documents/{$source->id}/{$entry->id}.pdf"])
-        ->and($document->markdown)->toBe("Hello from a PDF press release.\nSecond line of the release.");
+        ->and($document->markdown)->toBe("# A PDF press release\n\nHello from a PDF press release. Second line of the release.");
     Storage::disk('local')->assertExists("documents/{$source->id}/{$entry->id}.pdf");
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
@@ -287,11 +288,29 @@ it('reads secured PDFs', function () {
 
     foreach (['rc4', 'aes128', 'aes256'] as $cipher) {
         expect($read->pdf((string) file_get_contents(base_path("tests/Fixtures/press-release-{$cipher}.pdf"))))
-            ->toBe("Hello from a PDF press release.\nSecond line of the release.", $cipher);
+            ->toBe('Hello from a PDF press release. Second line of the release.', $cipher);
     }
 
     expect(fn () => $read->pdf((string) file_get_contents(base_path('tests/Fixtures/press-release-password.pdf'))))
         ->toThrow(RuntimeException::class, 'この PDF は開くのにパスワードが必要です。');
+});
+
+// A PDF has no structure of its own: the Markdown is read from the layout (App\Pdf\PdfMarkdown), in the shape of an HTML page.
+it('reads title, date, headings, a table, a list and a footnote mark from the layout of a PDF', function () {
+    $pdf = (string) file_get_contents(base_path('tests/Fixtures/press-release-layout.pdf'));
+    $expected = "# Compact ammonia burners for industrial furnaces\n\n2026-09-17\n\n"
+        // Two lines of one paragraph, the footnote mark raised beside the text staying in its line; the page number at the foot is gone.
+        ."The agency announced a programme to develop compact ammonia burners for industrial furnaces, cutting CO2 from heat.1\n\n"
+        // Lines printed bigger than the body are headings.
+        ."## Background\n\nAmmonia carries hydrogen without the cost of liquefaction and can be burned directly.\n\n## Programme outline\n\n"
+        // Cells in columns make a table; the label centred beside two lines of value gets both.
+        ."| Budget | 2 billion yen |\n|---|---|\n| Period | From fiscal 2026 to fiscal 2029, with a review at the halfway point. |\n| Partners | Three universities |\n\n"
+        // Bullets make list items; the smaller footnote is a paragraph of its own.
+        ."Goals:\n\n- Halve the burner volume\n- Keep NOx under the current limit\n\n1 Measured against a gas burner of the same output.";
+
+    // The title printed on the page is what the update list said, spaces aside; without a listed title, the biggest lines at the top are it.
+    expect(app(ReadDocument::class)->pdf($pdf, 'Compact ammonia burners for industrial furnaces'))->toBe($expected)
+        ->and(app(ReadDocument::class)->pdf($pdf))->toBe($expected);
 });
 
 it('records a failure instead of throwing when the page cannot be fetched', function () {

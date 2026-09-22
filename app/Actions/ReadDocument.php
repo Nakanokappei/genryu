@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Pdf\PdfMarkdown;
 use App\Pdf\PdfParser;
 use Dom\Element;
 use Dom\HTMLDocument;
@@ -135,22 +136,28 @@ class ReadDocument
     }
 
     /**
-     * The text of a PDF, page after page. Layout is not reconstructed:
-     * lines stay as printed, blank lines separate blocks.
+     * A PDF as Markdown, in the same shape as an HTML page: the title (what
+     * the update list said, found on the page and taken out), the date,
+     * the body with its headings and tables read from the layout
+     * (App\Pdf\PdfMarkdown), then the fixed text after a rule.
      */
-    public function pdf(string $bytes): string
+    public function pdf(string $bytes, ?string $title = null): string
     {
-        $text = (new PdfParser)->parseContent($bytes)->getText();
-        // A font whose encoding the parser does not know leaves stray bytes: they cannot be stored as UTF-8, nor can control characters.
-        $text = (string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', mb_scrub($text, 'UTF-8'));
-        $text = (string) preg_replace("/[ \t]+\n/", "\n", $text);
-        $text = trim((string) preg_replace("/\n{3,}/", "\n\n", $text));
+        ['title' => $heading, 'date' => $date, 'body' => $body] = (new PdfMarkdown)((new PdfParser)->parseContent($bytes), $title);
 
-        if ($text === '') {
+        if ($body === '') {
             throw new RuntimeException(__('No text could be read from this PDF.'));
         }
 
-        return $text;
+        [$body, $notices] = self::splitFixedText($body);
+        $fixed = self::tidy(implode("\n\n", $notices));
+
+        return implode("\n\n", array_filter([
+            $heading !== '' ? str_repeat('#', self::TOP_LEVEL)." {$heading}" : '',
+            $date !== null ? self::dateText($date) : '',
+            self::tidy(self::shiftHeadings($body, self::TOP_LEVEL + 1)),
+            $fixed !== '' ? "---\n\n{$fixed}" : '',
+        ]));
     }
 
     /**
@@ -204,11 +211,15 @@ class ReadDocument
 
         $raw = trim((string) preg_replace('/\s+/u', ' ', $raw));
 
-        if ($raw === '') {
-            return null;
-        }
+        return $raw === '' ? null : self::dateText($raw);
+    }
 
-        // A date inside a longer line ("更新日: 2026年9月10日", "10.09.2026 | News") is taken out of it.
+    /**
+     * A printed date as Y-m-d; a date inside a longer line ("更新日:
+     * 2026年9月10日", "10.09.2026 | News") is taken out of it.
+     */
+    private static function dateText(string $raw): string
+    {
         if (preg_match('/(\d{4})[年.\/-](\d{1,2})[月.\/-](\d{1,2})/u', $raw, $ymd) === 1) {
             return sprintf('%04d-%02d-%02d', $ymd[1], $ymd[2], $ymd[3]);
         }
