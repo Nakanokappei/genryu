@@ -32,7 +32,7 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    /** The sortable columns (UI 情報源 / 公開日 / 形式 / 取得日時) and the SQL each one orders by. */
+    /** The sortable columns (UI 情報源／タイトル / 公開日 / 形式 / 取得日時) and the SQL each one orders by; the source's documents are ordered by title within it. */
     public const SORTS = ['source' => 'sources.name', 'published_at' => 'published_at', 'format' => 'format', 'fetched_at' => 'fetched_at'];
 
     #[Url]
@@ -78,7 +78,9 @@ new #[Title('文書')] class extends PagedList {
             ->when($this->fetchedFrom !== '', fn ($query) => $query->where('fetched_at', '>=', $this->displayDay($this->fetchedFrom)))
             ->when($this->fetchedTo !== '', fn ($query) => $query->where('fetched_at', '<', $this->displayDay($this->fetchedTo)->addDay()))
             // A document without a date goes last either way rather than heading the list (PostgreSQL puts nulls first in descending order).
-            ->orderByRaw(self::SORTS[$sort].' '.$direction.' NULLS LAST')->orderBy('documents.id', $direction)
+            ->orderByRaw(self::SORTS[$sort].' '.$direction.' NULLS LAST')
+            ->when($sort === 'source', fn ($query) => $query->orderBy('documents.title', $direction))
+            ->orderBy('documents.id', $direction)
             ->paginate($this->rowsPerPage());
     }
 
@@ -147,15 +149,18 @@ new #[Title('文書')] class extends PagedList {
         <flux:input wire:model.live="fetchedTo" label="〜" type="date" size="sm" />
     </div>
 
+    {{-- Two rows per document: the title on its own line (whole, it has the width now), the rest beneath it, so the table is not cramped. --}}
     <x-pages::table
-        :columns="[__('Title'), ['label' => __('Source'), 'sort' => 'source'], ['label' => __('Published at'), 'sort' => 'published_at'], __('Status'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
+        :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published at'), 'sort' => 'published_at'], __('Status'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
-            <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$document->source" /> <x-pages::short-title :title="$document->title" :href="route('documents.show', $document)" /></td>
-                <td class="px-3 py-2"><a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
-                <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
-                <td class="px-3 py-2">
+            <tr class="border-b-0" wire:key="title-{{ $document->id }}">
+                <td colspan="6" class="px-3 pt-2 pb-0"><x-pages::favicon :source="$document->source" /> <a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
+            </tr>
+            <tr wire:key="details-{{ $document->id }}">
+                <td class="px-3 pt-1 pb-2 text-neutral-500"><a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
+                <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
+                <td class="px-3 pt-1 pb-2">
                     @if ($document->excluded_by !== null)
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
                     @elseif ($document->status === 'failed')
@@ -166,9 +171,9 @@ new #[Title('文書')] class extends PagedList {
                         —
                     @endif
                 </td>
-                <td class="px-3 py-2 uppercase">{{ $document->format }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
-                <td class="px-3 py-2">
+                <td class="px-3 pt-1 pb-2 uppercase">{{ $document->format }}</td>
+                <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
+                <td class="px-3 pt-1 pb-2">
                     @if ($document->material)
                         <a href="{{ route('materials.show', $document->material) }}" wire:navigate><x-pages::status :status="$document->material->status" /></a>
                     @else

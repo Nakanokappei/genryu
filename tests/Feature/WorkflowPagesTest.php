@@ -111,8 +111,9 @@ it('lists documents with their state, sorted and filtered by the chosen column',
     $component = Livewire::test('pages::documents.index')->assertSee('Not fetched yet')->assertSee('失敗')->assertSee('HTTP 404')->assertSee('対象外')->assertSee('除外キーワード「寄稿; 掲載」に一致');
     expect($titles($component))->toBe(['New PDF', 'Old HTML', 'Excluded one', 'Failed one', 'Not fetched yet']);
     expect($titles($component->call('sortBy', 'fetched_at')))->toBe(['Old HTML', 'New PDF', 'Not fetched yet', 'Failed one', 'Excluded one']);
-    expect($titles($component->call('sortBy', 'source'))[0])->toBe('New PDF');
-    expect($titles($component->call('sortBy', 'source')))->toBe(['Old HTML', 'Not fetched yet', 'Failed one', 'Excluded one', 'New PDF']);
+    // By source, and by title within the source.
+    expect($titles($component->call('sortBy', 'source')))->toBe(['New PDF', 'Old HTML', 'Not fetched yet', 'Failed one', 'Excluded one']);
+    expect($titles($component->call('sortBy', 'source')))->toBe(['Excluded one', 'Failed one', 'Not fetched yet', 'Old HTML', 'New PDF']);
     expect(array_slice($titles($component->call('sortBy', 'published_at')), 0, 2))->toBe(['New PDF', 'Old HTML']);
     expect(array_slice($titles($component->call('sortBy', 'format')), 0, 2))->toBe(['New PDF', 'Old HTML']);
 

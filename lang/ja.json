@@ -155,5 +155,6 @@
     "Used as the system prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.": "取得した文書の中身を読んで先に進めるかを判定する LLM のシステムプロンプトに使います。判定はまだ動いていません。取得前に効くタイトルフィルタは「情報源」の画面にあります。",
     "Criteria for keeping a document": "採用する基準",
     "Criteria for dropping a document": "採用しない基準",
-    "The title filter is set on the Sources screen, the content filtering on the Documents screen.": "タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。"
+    "The title filter is set on the Sources screen, the content filtering on the Documents screen.": "タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。",
+    "Source / Title": "情報源／タイトル"
 }
