@@ -95,9 +95,11 @@ the product (purpose, the five stages, stack); read it first.
   keeps the usage; queued from the 素材情報を抽出 buttons. **The
   structuring prompt and its model are set on the 素材情報 screen**, above
   what they make, as the content filtering is on 文書; 編集方針 keeps the
-  article layer and points at the other two. The prompt writes Japanese
-  whatever the source's language, with proper nouns in the original,
-  because the articles are Japanese. Two shapes were tried first and are
+  article layer and points at the other two. The material is written in
+  the language of its primary source and is never translated here: the
+  articles go out in 16–24 languages (`docs/HANDOVER.md` §3), so pinning
+  the material to one of them would put a translation in front of all
+  the others. Two shapes were tried first and are
   not to be revived: the policy's items each quoted with line numbers
   (a summary in disguise, and the quote checking went with it), and
   ChatGPT's eight-lens dossier with claims, confidence, strength and
@@ -134,9 +136,8 @@ the product (purpose, the five stages, stack); read it first.
   read** (content filtering, 2026-09-23): the same reasoning in English
   costs about half the tokens of the Japanese it replaced (a screening's
   fixed prompt went from ~2,400 to ~1,000 tokens), and a reason about a
-  French document reads better in French. The 素材情報 prompt is the
-  exception — it writes Japanese whatever it reads, because the articles
-  are Japanese.
+  French document reads better in French. Every stage answers in the
+  language of what it read; the screens around them are Japanese.
 - **スクリーニング (Screening) is the Editorial Screening Gate** (built
   2026-09-22 from ChatGPT's spec, kept at
   `~/.codex/.chatgpt-projects/…/technology-watch-editorial-screening-gate.md`):
