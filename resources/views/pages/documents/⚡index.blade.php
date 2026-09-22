@@ -28,7 +28,7 @@ new #[Title('文書')] class extends PagedList {
 
     public function saveContentFiltering(): void
     {
-        $this->validate(['contentFilteringModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        $this->validate(['contentFilteringModel' => ['required', 'in:'.implode(',', EditorialPolicy::screeningModels())]]);
         EditorialPolicy::query()->updateOrCreate(['layer' => 'content_filtering'], ['body' => $this->contentFiltering, 'model' => $this->contentFilteringModel]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
@@ -176,9 +176,9 @@ new #[Title('文書')] class extends PagedList {
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the screening: an LLM reads a fetched document and decides whether it goes on to the material (adopt), stops here (reject) or needs a look (review). The prompt is the same for every document and is served from the cache; a changed prompt is a new version, and the figures below are kept per version. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
         <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt')" rows="8" />
-        <flux:select wire:model="contentFilteringModel" :label="__('Model')" class="max-w-xl">
+        <flux:select wire:model="contentFilteringModel" :label="__('Model')" :description="__('A document sent to review is judged again by the next model up, so the strongest model is kept for that and cannot be chosen here.')" class="max-w-xl">
             @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+                <flux:select.option value="{{ $id }}" :disabled="! in_array($id, \App\Models\EditorialPolicy::screeningModels(), true)">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
             @endforeach
         </flux:select>
         <div class="flex flex-wrap items-center gap-3">

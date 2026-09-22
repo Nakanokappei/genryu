@@ -33,7 +33,10 @@ class EditorialPolicy extends Model
 
     /**
      * The models the content filtering can run on (UI: モデル), by the id
-     * the API takes: the name shown, and what each one is for.
+     * the API takes, weakest first: the name shown, and what each one is
+     * for. A document the screening sends to review (要確認) is judged
+     * again by the next model up, so the strongest cannot be the model
+     * of the screening itself.
      */
     public const MODELS = [
         'gpt-5.6-luna' => ['name' => 'GPT-5.6 Luna', 'description' => 'For bulk work where cost matters most'],
@@ -44,6 +47,29 @@ class EditorialPolicy extends Model
 
     /** The model the content filtering runs on until one is chosen. */
     public const DEFAULT_MODEL = 'gpt-5.6-terra';
+
+    /**
+     * The models that can be chosen for the screening: all but the
+     * strongest, which is kept for reviewing.
+     *
+     * @return list<string>
+     */
+    public static function screeningModels(): array
+    {
+        return array_slice(array_keys(self::MODELS), 0, -1);
+    }
+
+    /**
+     * The model one up from a model, for judging again a document the
+     * screening sent to review; the strongest model is its own next.
+     */
+    public static function nextModelUp(string $model): string
+    {
+        $ids = array_keys(self::MODELS);
+        $index = array_search($model, $ids, true);
+
+        return $ids[min(count($ids) - 1, ($index === false ? 0 : $index) + 1)];
+    }
 
     protected $fillable = ['layer', 'body', 'model'];
 

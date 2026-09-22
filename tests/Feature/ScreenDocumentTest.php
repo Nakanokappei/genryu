@@ -159,8 +159,9 @@ it('queues screenings from the screens and shows the decisions', function () {
         ->and($titles($component->set('decision', 'review')))->toBe(['Reviewed doc'])
         ->and($titles($component->set('decision', 'none')))->toBe(['Excluded doc', 'Unfetched doc']);
 
-    // Review with a higher model from the document's screen.
-    Livewire::test('pages::documents.show', ['document' => $reviewed->refresh()])->assertSet('screeningModel', 'gpt-5.6-terra')->assertSee('INSUFFICIENT_EVIDENCE')
+    // Review with a higher model from the document's screen: the next model up is proposed for a 要確認 document.
+    Livewire::test('pages::documents.show', ['document' => $adopted->refresh()])->assertSet('screeningModel', 'gpt-5.6-terra');
+    Livewire::test('pages::documents.show', ['document' => $reviewed->refresh()])->assertSet('screeningModel', 'gpt-5.6-sol')->assertSee('INSUFFICIENT_EVIDENCE')
         ->set('screeningModel', 'gpt-6-astra')->call('screen')->assertHasNoErrors();
     Queue::assertPushed(ScreenDocument::class, 2);
     expect($reviewed->refresh()->screening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-6-astra'])

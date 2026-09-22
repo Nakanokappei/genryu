@@ -13,12 +13,13 @@ use Livewire\Component;
 new #[Title('文書')] class extends Component {
     public Document $document;
 
-    /** The model to screen with from here: the one chosen for the content filtering, or a higher one to review a 要確認. */
+    /** The model to screen with from here: the one chosen for the content filtering, or, for a document sent to review, the next model up. */
     public string $screeningModel = '';
 
     public function mount(): void
     {
-        $this->screeningModel = EditorialPolicy::modelFor('content_filtering');
+        $model = EditorialPolicy::modelFor('content_filtering');
+        $this->screeningModel = $this->document->screening?->decision === 'review' ? EditorialPolicy::nextModelUp($model) : $model;
     }
 
     // The gate: queue the screening of this document (again, if it already ran) with the model chosen here.
