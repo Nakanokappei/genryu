@@ -18,6 +18,13 @@ the product (purpose, the five stages, stack); read it first.
 
 - **Skeleton first, then one feature at a time, each checked in the browser
   by the user before the next.** Do not build ahead of what has been seen.
+- **Human on the loop, not in the loop** (decided 2026-09-22). The pipeline
+  never waits for a person: every stage decides on its own (title filter,
+  screening with its second pass, extraction, generation), and a person
+  supervises after the fact — a daily digest to look at (docs/TODO.md),
+  a verdict recorded on a document (人の判定) that overrides and later
+  teaches. Otherwise the hours a person puts in would have to grow with
+  what the AI processes. Never add a step that blocks on human input.
 - The stages are screens in the sidebar: 情報源 (Sources), 文書
   (Documents), 素材情報 (Materials), 記事 (Articles). There is no "update
   entry" entity (decided 2026-09-22): the rows of a source's update list

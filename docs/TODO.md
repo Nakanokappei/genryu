@@ -1,6 +1,8 @@
 # TODO
 
-Things decided but not built yet, with the condition they wait for.
+Things decided but not built yet, with the condition they wait for. The
+principle behind the human-facing ones: human on the loop, not in the
+loop — nothing waits for a person, a person looks after the fact.
 
 ## After the production deployment
 
