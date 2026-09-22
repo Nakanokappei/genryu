@@ -17,7 +17,7 @@ new #[Title('文書')] class extends PagedList {
     // Content filtering: the developer prompt (OpenAI's name for the system prompt) of the screening gate.
     public string $contentFiltering = '';
 
-    /** The model the judge runs on (UI: モデル), one of EditorialPolicy::MODELS. */
+    /** The model of the first pass (UI: 初回判定モデル), one of EditorialPolicy::screeningModels(). */
     public string $contentFilteringModel = EditorialPolicy::DEFAULT_MODEL;
 
     public function mount(): void
@@ -176,7 +176,7 @@ new #[Title('文書')] class extends PagedList {
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the screening: an LLM reads a fetched document and decides whether it goes on to the material (adopt), stops here (reject) or needs a look (review). The prompt is the same for every document and is served from the cache; a changed prompt is a new version, and the figures below are kept per version. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
         <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt')" rows="8" />
-        <flux:select wire:model="contentFilteringModel" :label="__('Model')" :description="__('A document sent to review is judged again by the next model up, so the strongest model is kept for that and cannot be chosen here.')" class="max-w-xl">
+        <flux:select wire:model="contentFilteringModel" :label="__('First-pass model (a document the first pass sends to review is judged again by the next model up)')" class="max-w-xl">
             @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                 <flux:select.option value="{{ $id }}" :disabled="! in_array($id, \App\Models\EditorialPolicy::screeningModels(), true)">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
             @endforeach

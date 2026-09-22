@@ -32,7 +32,7 @@ class EditorialPolicy extends Model
     ];
 
     /**
-     * The models the content filtering can run on (UI: モデル), by the id
+     * The models the content filtering can run on (UI: 初回判定モデル), by the id
      * the API takes, weakest first: the name shown, and what each one is
      * for. A document the screening sends to review (要確認) is judged
      * again by the next model up, so the strongest cannot be the model

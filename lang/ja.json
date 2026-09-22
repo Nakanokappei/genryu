@@ -197,5 +197,5 @@
     "The document is excluded by the title filter.": "タイトルフィルタで対象外になった文書です。",
     "The content filtering prompt is empty.": "コンテンツフィルタリングのデベロッパープロンプトが空です。",
     "The agent did not return a decision.": "エージェントの回答に判定がありません。",
-    "A document sent to review is judged again by the next model up, so the strongest model is kept for that and cannot be chosen here.": "要確認になった文書はひとつ上のモデルで再判定するため、最上位のモデルはその用途に取っておき、ここでは選べません。"
+    "First-pass model (a document the first pass sends to review is judged again by the next model up)": "初回判定モデル（初回判定がREVIEWの場合、ひとつ上位のモデルで再判定されます）"
 }
