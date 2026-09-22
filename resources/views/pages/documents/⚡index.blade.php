@@ -2,14 +2,36 @@
 
 use App\Livewire\PagedList;
 use App\Models\Document;
+use App\Models\EditorialPolicy;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
+use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time. A document whose fetch failed is listed on its source instead; the selection that decides which documents are fetched is set on 情報源.
+// 文書 (Documents): the content filtering of the editorial policy (the criteria an LLM judge reads the fetched documents by; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time. A document whose fetch failed is listed on its source instead.
 new #[Title('文書')] class extends PagedList {
+    // Content filtering: criteria kept for the LLM judge, which is not built yet.
+    public string $fetchCriteria = '';
+
+    public string $skipCriteria = '';
+
+    public function mount(): void
+    {
+        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
+        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
+    }
+
+    public function saveContentFiltering(): void
+    {
+        foreach (['fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
+            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
+        }
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
+
     /** The sortable columns (UI 情報源 / 公開日 / 形式 / 取得日時) and the SQL each one orders by. */
     public const SORTS = ['source' => 'sources.name', 'published_at' => 'published_at', 'format' => 'format', 'fetched_at' => 'fetched_at'];
 
@@ -93,6 +115,17 @@ new #[Title('文書')] class extends PagedList {
 
 <section class="w-full space-y-6">
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
+
+    {{-- Content filtering sits with the documents because it judges what was fetched: the criteria an LLM reads a document by. --}}
+    <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
+        <flux:text>{{ __('Used as the system prompt of the LLM that reads a fetched document and judges whether it goes on. Not applied yet. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-2">
+            <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for keeping a document')" rows="5" />
+            <flux:textarea wire:model="skipCriteria" :label="__('Criteria for dropping a document')" rows="5" />
+        </div>
+        <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+    </form>
 
     {{-- The filters: one per sortable column, applied as soon as they change. --}}
     <div class="flex flex-wrap items-end gap-3">

@@ -9,7 +9,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 
-// 情報源 (Sources): list the sites we watch, add one by hand; and the selection layer of the editorial policy, one setting over every source, applied when their update lists are read.
+// 情報源 (Sources): list the sites we watch, add one by hand; and the title filter of the editorial policy, one setting over every source, applied to the titles when their update lists are read (the documents are not read at that point, so keywords are the cheap test).
 new #[Title('情報源')] class extends PagedList {
     #[Validate('required|string|max:255')]
     public string $name = '';
@@ -19,25 +19,17 @@ new #[Title('情報源')] class extends PagedList {
 
     public string $notes = '';
 
-    // The selection layer: exclude keywords applied deterministically, criteria kept for the LLM judge.
+    // The title filter: exclude rules applied deterministically to the listed titles.
     public string $excludeKeywords = '';
-
-    public string $fetchCriteria = '';
-
-    public string $skipCriteria = '';
 
     public function mount(): void
     {
         $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
-        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
-        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
     }
 
-    public function saveSelection(): void
+    public function saveTitleFilter(): void
     {
-        foreach (['exclude_keywords' => $this->excludeKeywords, 'fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
-            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
-        }
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'exclude_keywords'], ['body' => $this->excludeKeywords]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -99,26 +91,12 @@ new #[Title('情報源')] class extends PagedList {
     </x-pages::table>
     <x-pages::pagination :paginator="$this->sources" />
 
-    {{-- The selection layer sits with the sources because it acts when their update lists are read: one setting for every source. --}}
-    <form wire:submit="saveSelection" class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Selection') }}</flux:heading>
-        <flux:text>{{ __('One setting for every source, applied when its update list is read: what is listed but not fetched.') }}</flux:text>
-
-        <div class="space-y-2">
-            <flux:subheading>{{ __('Deterministic screening') }}</flux:subheading>
-            <flux:textarea wire:model="excludeKeywords" :label="__('Exclude keywords')" rows="8" placeholder="採用情報&#10;寄稿; 掲載&#10;株式; 取得; 子会社化" class="font-mono" />
-            <flux:text size="sm">{{ __('One rule per line: a document whose title contains the word is listed but not fetched. Several words on one line, separated by semicolons, make one rule that needs all of them (掲載 alone would take real news with it; 寄稿; 掲載 does not).') }}</flux:text>
-        </div>
-
-        <div class="space-y-2">
-            <flux:subheading>{{ __('For the LLM') }}</flux:subheading>
-            <div class="grid gap-3 md:grid-cols-2">
-                <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for fetching a document')" rows="5" />
-                <flux:textarea wire:model="skipCriteria" :label="__('Criteria for not fetching a document')" rows="5" />
-            </div>
-            <flux:text size="sm">{{ __('Used as the system prompt of the LLM that judges new documents. Not applied yet.') }}</flux:text>
-        </div>
-
+    {{-- The title filter sits with the sources because it acts on the titles when their update lists are read: one setting for every source. --}}
+    <form wire:submit="saveTitleFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Title filter') }}</flux:heading>
+        <flux:text>{{ __('One setting for every source, applied to the titles when an update list is read, before any document is fetched: what is listed but not fetched. The content of the documents is judged on the Documents screen.') }}</flux:text>
+        <flux:textarea wire:model="excludeKeywords" :label="__('Exclude keywords')" rows="8" placeholder="採用情報&#10;寄稿; 掲載&#10;株式; 取得; 子会社化" class="font-mono" />
+        <flux:text size="sm">{{ __('One rule per line: a document whose title contains the word is listed but not fetched. Several words on one line, separated by semicolons, make one rule that needs all of them (掲載 alone would take real news with it; 寄稿; 掲載 does not).') }}</flux:text>
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 </section>

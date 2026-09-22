@@ -168,19 +168,22 @@ it('does not fetch the document of an update entry whose title has an exclude ke
     Queue::assertPushed(FetchDocument::class, 2);
 });
 
-// The selection layer is one setting over every source, so it lives on 情報源, where the update lists are read.
-it('saves the selection layer from the sources screen', function () {
+// The title filter is one setting over every source, applied before fetching, so it lives on 情報源; the content filtering (LLM criteria) judges what was fetched, so it lives on 文書.
+it('saves the title filter from the sources screen and the content filtering from the documents screen', function () {
     Livewire::test('pages::sources.index')
         ->assertSet('excludeKeywords', '')
-        ->set('excludeKeywords', "採用情報\n寄稿; 掲載")->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
-        ->call('saveSelection')->assertHasNoErrors();
+        ->set('excludeKeywords', "採用情報\n寄稿; 掲載")
+        ->call('saveTitleFilter')->assertHasNoErrors();
+    Livewire::test('pages::documents.index')
+        ->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
+        ->call('saveContentFiltering')->assertHasNoErrors();
 
     expect(EditorialPolicy::excludeKeywords())->toBe([['採用情報'], ['寄稿', '掲載']])
         ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました'))->toBe('寄稿; 掲載')
         ->and(EditorialPolicy::excludedBy('新技術が学会誌に掲載'))->toBeNull()
         ->and(EditorialPolicy::bodyFor('fetch_criteria'))->toBe('技術的な発表')
         ->and(EditorialPolicy::bodyFor('skip_criteria'))->toBe('人事');
-    $this->get(route('editorial-policy'))->assertSee('取捨選択は「情報源」の画面で設定します。');
+    $this->get(route('editorial-policy'))->assertSee('タイトルフィルタは「情報源」、コンテンツフィルタリングは「文書」の画面で設定します。');
 });
 
 it('asks the agent for document settings when the source has none, verifies them on the page, and saves them for the next documents', function () {
