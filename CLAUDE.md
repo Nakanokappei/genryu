@@ -66,6 +66,12 @@ the product (purpose, the five stages, stack); read it first.
   日付 / 除外 / 固定テキスト); the date falls back to `<time>`, a short
   date-looking line, then meta tags; copyright-like paragraphs move to
   the end without settings.
+- **Re-reading documents per source** (情報源 detail): 原本から Markdown を
+  作り直す (`App\Actions\RebuildMarkdown`, from the originals on disk, no
+  network, synchronous) and 文書をすべて取り直す (queues `FetchDocument`
+  for every non-excluded entry). A proposed selector that names a page
+  number (日立 `#content-17863846`) is generalised to `[id^="content-"]`
+  by `FetchDocument::generalise` before it is verified and saved.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
   base class of 情報源 / 更新リスト / 文書; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).

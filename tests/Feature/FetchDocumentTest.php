@@ -326,6 +326,47 @@ it('queues the missing and failed documents of a source, and one document again,
         ->and(Document::query()->count())->toBe(3);
 });
 
+// After the document settings or the Markdown rules changed, every document of a source can be taken again at once.
+it('queues every document of a source again from its screen, except the excluded and the ones being fetched', function () {
+    Queue::fake();
+    $source = Source::factory()->create();
+    $fetched = UpdateEntry::factory()->for($source)->create();
+    Document::factory()->for($fetched)->create();
+    $missing = UpdateEntry::factory()->for($source)->create();
+    $fetching = UpdateEntry::factory()->for($source)->create();
+    Document::factory()->for($fetching)->create(['status' => 'fetching']);
+    UpdateEntry::factory()->for($source)->create(['excluded_by' => 'セミナー']);
+    UpdateEntry::factory()->create();
+
+    Livewire::test('pages::sources.show', ['source' => $source])->call('fetchAllDocumentsAgain');
+
+    Queue::assertPushed(FetchDocument::class, 2);
+    expect($fetched->document()->sole()->status)->toBe('fetching')
+        ->and($missing->document?->status)->toBe('fetching')
+        ->and(Document::query()->count())->toBe(3);
+});
+
+// The Markdown of a source's documents can be made again from the originals on disk, without asking the site.
+it('rebuilds the Markdown of every document of a source from the originals, with the current settings', function () {
+    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share']]);
+    $entry = UpdateEntry::factory()->for($source)->create(['title' => 'Ammonia burner programme']);
+    Storage::disk('local')->put("documents/{$source->id}/{$entry->id}.html", DOCUMENT_PAGE);
+    $document = Document::factory()->for($entry)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/{$entry->id}.html", 'markdown' => 'old', 'status' => 'failed']);
+    $other = UpdateEntry::factory()->for($source)->create();
+    Storage::disk('local')->put("documents/{$source->id}/{$other->id}.html", '<html><body><div class="x"><p>No article element here.</p></div></body></html>');
+    $unreadable = Document::factory()->for($other)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/{$other->id}.html", 'markdown' => 'old']);
+    $elsewhere = Document::factory()->create(['markdown' => 'old']);
+
+    Livewire::test('pages::sources.show', ['source' => $source])->call('rebuildMarkdown');
+
+    expect($document->refresh()->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\n")
+        ->and($document->status)->toBe('fetched')
+        ->and($document->status_message)->toContain('原本から')
+        ->and($unreadable->refresh()->markdown)->toBe('old')
+        ->and($elsewhere->refresh()->markdown)->toBe('old');
+    Http::assertNothingSent();
+});
+
 it('saves the document settings from the source detail screen', function () {
     $source = Source::factory()->create();
 

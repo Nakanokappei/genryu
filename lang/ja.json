@@ -137,5 +137,10 @@
     "Showing": "表示:",
     "to": "–",
     "of": "／",
-    "results": "件"
+    "results": "件",
+    "Fetch all documents again": "文書をすべて取り直す",
+    "Fetch all :count documents of this source again? Each page is requested from the site once more.": "この情報源の文書 :count 件をすべて取り直します。各ページをサイトからもう一度取得します。よろしいですか？",
+    "Rebuild Markdown from the originals": "原本から Markdown を作り直す",
+    "Markdown rebuilt from the original.": "原本から Markdown を作り直しました。",
+    ":rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).": ":rebuilt 件の Markdown を作り直しました。:failed 件は現在の設定では読めません（取得をやり直してください）。"
 }

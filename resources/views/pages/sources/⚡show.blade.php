@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Actions\RebuildMarkdown;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
 use App\Models\Source;
@@ -97,6 +98,23 @@ new #[Title('情報源')] class extends Component {
     public function fetchDocuments(): void
     {
         $entries = $this->source->updateEntries()->whereNull('excluded_by')->whereDoesntHave('document', fn ($query) => $query->whereIn('status', ['fetching', 'fetched']))->get();
+        $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
+
+        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
+    }
+
+    // Read every document of the source again from the original on disk, with the current settings and Markdown rules; no request to the site.
+    public function rebuildMarkdown(RebuildMarkdown $rebuild): void
+    {
+        $result = $rebuild($this->source);
+
+        Flux::toast(variant: $result['failed'] === 0 ? 'success' : 'warning', duration: 8000, text: __(':rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).', $result));
+    }
+
+    // Queue every document of the source again (after the document settings or the Markdown rules changed), except the excluded entries and those already being fetched.
+    public function fetchAllDocumentsAgain(): void
+    {
+        $entries = $this->source->updateEntries()->whereNull('excluded_by')->whereDoesntHave('document', fn ($query) => $query->where('status', 'fetching'))->get();
         $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
 
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
@@ -257,6 +275,8 @@ new #[Title('情報源')] class extends Component {
         <div class="flex items-center gap-3">
             <flux:button type="submit">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="fetchDocuments" icon="document-arrow-down">{{ __('Fetch documents') }}</flux:button>
+            <flux:button type="button" wire:click="rebuildMarkdown" icon="document-text">{{ __('Rebuild Markdown from the originals') }}</flux:button>
+            <flux:button type="button" wire:click="fetchAllDocumentsAgain" icon="arrow-path" wire:confirm="{{ __('Fetch all :count documents of this source again? Each page is requested from the site once more.', ['count' => $source->updateEntries()->whereNull('excluded_by')->count()]) }}">{{ __('Fetch all documents again') }}</flux:button>
         </div>
     </form>
 
