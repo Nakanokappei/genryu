@@ -56,42 +56,36 @@ the product (purpose, the five stages, stack); read it first.
 - **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
   one body per layer: selection / structuring / article; defaults in the
   model).
-- **素材情報 is the change, seen through the editorial lenses** (stage 2.3,
-  rebuilt 2026-09-23 from ChatGPT's dossier developer prompt, kept at
-  `~/.codex/.chatgpt-projects/…/technology-watch-dossier-developer-prompt.md`).
-  The point of the stage is not to summarise a document but to find
-  **what the technology's state changed from and to** (BEFORE → CHANGE →
-  AFTER) and the **切り口** an article could take. `App\Jobs\ExtractMaterial`
-  has `App\Actions\ProposeMaterial` (OpenAI **Responses API**, the policy
-  cached with an explicit breakpoint, the document after it as material
-  to analyse, structured output) return only what it can support: the
-  editorial lenses that hold (frontier / money / factory / loser /
-  bottleneck / race / everyday / contrarian, each with before, change,
-  after, tension, angle, reason and its claims), the technology
-  transition, up to three recommended angles, what is missing and what
-  to watch next. **A lens it cannot support is simply absent from the
-  array** — the schema never offers eight slots to fill, which is the
-  one thing that keeps the model from inventing seven lenses to be
-  polite. Every claim says where it stands on: `primary_source`,
-  `general_knowledge` (the model's own, what this PoC is out to test,
-  like a reporter who does not look up what he already knows) or
-  `inference`, with a `basis` in words. `App\Actions\ValidateMaterial`
-  checks the dossier holds together — a lens has all five parts and at
-  least one primary-source claim, an angle points at a lens that is
-  there and is ranked from 1, a state is one of the lifecycle's — and a
-  miss is repaired once with the errors in hand, what is left kept in
-  `materials.validation`. Whether an inference is *sound* is a person's
-  call (人の判定), never the validator's. The material pins its document
-  revision, prompt version and model and keeps the usage. Queued from
-  the 素材情報を抽出 buttons, not automatically. **The structuring prompt
-  and its model are set on the 素材情報 screen**, above what they make, as
-  the content filtering is on 文書; 編集方針 keeps the article layer and
-  points at the other two. The quote checking of the previous shape
-  (exact text with line numbers, verified against the revision) was
-  dropped with it (decided 2026-09-23): `basis` is words now, so nothing
-  mechanical stands between a claim and the document. A dossier costs
-  several times an old material — ~14k input / ~5k output tokens and
-  around two minutes on the DARPA D2 document.
+- **素材情報 is the parts an article is made of** (stage 2.3, settled
+  2026-09-23 after two shapes were tried and rejected the same day).
+  `App\Jobs\ExtractMaterial` has `App\Actions\ProposeMaterial` (OpenAI
+  **Responses API**, the policy cached with an explicit breakpoint, the
+  document after it as material to analyse, structured output) write six
+  things and nothing else: `angle` (the 切り口 the article would be
+  written on), `before` / `change` / `after` (以前はこうだった → 今回ここが
+  変わった → この変化が続けばこうなりうる), `facts` (lines the primary
+  source gives) and `background` (lines the model fills in from its own
+  general knowledge — what this PoC is out to test). **Every value is a
+  sentence that could appear in the article**; where a line came from is
+  the key it is under, not an annotation. A part the model cannot write
+  plainly is left out and dropped (`ProposeMaterial::dossier`), because
+  "confidence: medium" means we did not want it written —
+  `App\Actions\ValidateMaterial` only checks that `angle`, `change` and
+  `facts` are there, and a miss is repaired once. Whether the angle is a
+  good one is a person's call (人の判定), never the validator's. The
+  material pins its document revision, prompt version and model and
+  keeps the usage; queued from the 素材情報を抽出 buttons. **The
+  structuring prompt and its model are set on the 素材情報 screen**, above
+  what they make, as the content filtering is on 文書; 編集方針 keeps the
+  article layer and points at the other two. The prompt writes Japanese
+  whatever the source's language, with proper nouns in the original,
+  because the articles are Japanese. Two shapes were tried first and are
+  not to be revived: the policy's items each quoted with line numbers
+  (a summary in disguise, and the quote checking went with it), and
+  ChatGPT's eight-lens dossier with claims, confidence, strength and
+  recommended angles (notes about the answer rather than material to
+  write with, and five times the cost: ~14k in / ~5k out and two minutes
+  against ~3k in / ~1k out and twenty seconds).
 - **Articles are generated the same way** (stage 2.4): the article layer
   of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
   (agent `App\Actions\ProposeArticle`, OpenAI **Responses API**, the

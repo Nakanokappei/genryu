@@ -12,18 +12,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * 素材情報 (UI: "Materials"): what a document yields for the articles,
  * built by App\Jobs\ExtractMaterial per the structuring layer of the
- * editorial policy and stored as JSON (data): the change the primary
- * source shows, seen through the editorial lenses that hold (each with
- * its before / change / after / tension / angle and the claims behind
- * them), the transition of the technology's state, the angles
- * recommended for an article, what is missing and what to watch next.
- * Every claim says where it comes from — the primary source, general
- * knowledge, or inference on both. Pinned to the
+ * editorial policy and stored as JSON (data): the parts an article is
+ * made of — the angle it would be written on, what was true before,
+ * what this document changes, what may follow, the facts the primary
+ * source gives and the background the model fills in from its own
+ * general knowledge. Nothing about itself: a part the model cannot
+ * write plainly is absent rather than hedged. Pinned to the
  * document revision it was made from, the prompt version and the model;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
  * with the report of the checks (validation) and the usage of the calls.
  *
- * @property array<string, mixed>|null $data the dossier: only what the model could support
+ * @property array<string, mixed>|null $data the parts of the article, only those the model could write
  * @property list<string>|null $validation the problems the last checks found, empty when they passed
  */
 class Material extends Model
@@ -42,60 +41,35 @@ class Material extends Model
     }
 
     /**
-     * The lenses that hold, in the order the policy presents them
-     * (jsonb stores keys sorted by length and letter), any other key
-     * after them.
+     * The material part by part, in the order the policy asks for them
+     * (jsonb stores keys sorted by length and letter).
      *
-     * @return array<string, array<string, mixed>>
+     * @return array<string, string|list<string>>
      */
-    public function lenses(): array
+    public function parts(): array
     {
-        $lenses = (array) ($this->data['editorial_lenses'] ?? []);
+        $data = (array) $this->data;
         $ordered = [];
 
-        foreach (ProposeMaterial::LENSES as $lens) {
-            if (array_key_exists($lens, $lenses)) {
-                $ordered[$lens] = (array) $lenses[$lens];
+        foreach (ProposeMaterial::PARTS as $part) {
+            if (array_key_exists($part, $data)) {
+                $ordered[$part] = $data[$part];
             }
         }
 
-        return [...$ordered, ...$lenses];
+        return $ordered;
     }
 
     /**
-     * How many statements come from the primary source, how many from
-     * the model's general knowledge and how many from inference on both:
-     * what this PoC is out to measure.
+     * How many lines come from the primary source (facts) and how many
+     * from the model's own general knowledge (background): what this PoC
+     * is out to measure.
      *
      * @return array<string, int>
      */
-    public function claimTypes(): array
+    public function counts(): array
     {
-        $counts = array_fill_keys(ProposeMaterial::CLAIM_TYPES, 0);
-
-        foreach ($this->claims() as $claim) {
-            $type = (string) ($claim['type'] ?? '');
-            $counts[$type] = ($counts[$type] ?? 0) + 1;
-        }
-
-        return $counts;
-    }
-
-    /**
-     * Every claim of the dossier, wherever it stands: under a lens,
-     * behind the transition, or behind a recommended angle.
-     *
-     * @return list<array<string, mixed>>
-     */
-    public function claims(): array
-    {
-        $lists = [
-            ...array_map(fn (array $lens): array => (array) ($lens['claims'] ?? []), array_values($this->lenses())),
-            (array) ($this->data['technology_transition']['evidence'] ?? []),
-            ...array_map(fn (mixed $angle): array => (array) (((array) $angle)['primary_evidence'] ?? []), (array) ($this->data['recommended_angles'] ?? [])),
-        ];
-
-        return array_values(array_filter(array_merge(...$lists), is_array(...)));
+        return array_map(fn (string $part): int => count((array) ($this->data[$part] ?? [])), array_flip(ProposeMaterial::LISTS));
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */
