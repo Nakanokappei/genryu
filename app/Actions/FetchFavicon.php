@@ -8,11 +8,13 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * The favicon of a source, shown next to its name on the 情報源 screen.
- * Fetched when the source is configured: the icons the page advertises
- * with <link rel="icon"> are tried in order, then /favicon.ico. Kept on
- * the local disk under favicons/{source}.{ext}. Decorative, so a site
- * without one (or one that cannot be fetched) is simply left blank.
+ * The favicon of a source, shown next to its name on every screen. Fetched
+ * the first time a page of the site is in hand and the source has none yet
+ * (configuring it, reading its update list, fetching a document): the icons
+ * the page advertises with <link rel="icon"> are tried in order, then
+ * /favicon.ico. Kept on the local disk under favicons/{source}.{ext}.
+ * Decorative, so a site without one (or one that cannot be fetched) is
+ * simply left blank and tried again next time.
  */
 class FetchFavicon
 {
@@ -27,8 +29,18 @@ class FetchFavicon
         'image/webp' => 'webp',
     ];
 
-    public function __invoke(Source $source, string $html): ?string
+    /**
+     * Fetch the icon unless the source already has one. Without a page of
+     * the site in hand, the source page is fetched for the icons it
+     * advertises.
+     */
+    public function __invoke(Source $source, ?string $html = null): ?string
     {
+        if ($source->favicon_path !== null) {
+            return $source->favicon_path;
+        }
+
+        $html ??= $this->pageOrNothing($source->url);
         $candidates = array_unique([...self::advertisedIcons($html, $source->url), FetchUpdates::absolute('/favicon.ico', $source->url)]);
 
         foreach ($candidates as $url) {
@@ -54,6 +66,15 @@ class FetchFavicon
         }
 
         return null;
+    }
+
+    private function pageOrNothing(string $url): string
+    {
+        try {
+            return Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(20)->get($url)->body();
+        } catch (Throwable) {
+            return '';
+        }
     }
 
     /**

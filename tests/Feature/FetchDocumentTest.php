@@ -1,10 +1,10 @@
 <?php
 
+use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
 use App\Jobs\FetchDocument;
-use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Source;
 use App\Models\UpdateEntry;
@@ -36,18 +36,19 @@ function documentAgentAnswer(array $selectors): array
 
 beforeEach(function () {
     Http::preventStrayRequests();
-    Http::fake(['*/robots.txt' => Http::response('', 404)]);
+    // Sites without an icon: the favicon fetch that comes with the first page of a source finds nothing.
+    Http::fake(['*/robots.txt' => Http::response('', 404), '*/favicon.ico' => Http::response('', 404)]);
     Storage::fake('local');
     config(['services.openai.key' => 'test-key', 'services.openai.model' => 'gpt-4o-mini']);
     $this->actingAs(User::factory()->create());
 });
 
-function fetchDocument(UpdateEntry $entry): Document
+function fetchDocument(UpdateEntry $entry): UpdateEntry
 {
-    $document = Document::query()->updateOrCreate(['update_entry_id' => $entry->id], ['title' => $entry->title, 'url' => $entry->url, 'status' => 'fetching']);
-    (new FetchDocument($document))->handle(app(ReadDocument::class), app(ProposeDocumentSettings::class));
+    $entry->update(['status' => 'fetching']);
+    (new FetchDocument($entry))->handle(app(ReadDocument::class), app(ProposeDocumentSettings::class), app(FetchFavicon::class));
 
-    return $document->refresh();
+    return $entry->refresh();
 }
 
 it('reads an HTML page into Markdown with the document settings of the source and keeps the original', function () {
@@ -152,7 +153,7 @@ it('does not fetch the document of an update entry whose title has an exclude ke
 
     Queue::assertPushed(FetchDocument::class, 1);
     $excluded = UpdateEntry::query()->where('url', 'https://www.example.org/news/2')->sole();
-    expect($excluded->excluded_by)->toBe('セミナー')->and($excluded->document)->toBeNull()
+    expect($excluded->excluded_by)->toBe('セミナー')->and($excluded->status)->toBeNull()
         ->and(UpdateEntry::query()->where('url', 'https://www.example.org/news/1')->sole()->excluded_by)->toBeNull();
     $this->get(route('updates.index'))->assertSee('対象外');
     $this->get(route('updates.show', $excluded))->assertSee('除外キーワード「セミナー」に一致');
@@ -197,7 +198,7 @@ it('asks the agent for document settings when the source has none, verifies them
     // The second document of the source is read with the saved settings: no second agent call.
     $second = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/2']));
     expect($second->status)->toBe('fetched')->and($second->status_message)->toBeNull();
-    Http::assertSentCount(4); // robots.txt, page 1, agent, page 2
+    Http::assertSentCount(7); // robots.txt (page host), page 1, robots.txt (source host), favicon.ico, agent, page 2, favicon.ico
 });
 
 it('falls back to generic selectors when the proposed content selector finds nothing, and saves what worked', function () {
@@ -233,7 +234,7 @@ it('generalises a proposed selector that names the page number, and takes the co
         ->and($first->markdown)->toStartWith("# Article 17863846\n\n2026-09-17\n\nHitachi developed")->not->toContain('[H]')
         ->and($second->status_message)->toBeNull()
         ->and($second->markdown)->toStartWith("# Article 17864379\n\n2026-09-17\n\n");
-    Http::assertSentCount(4); // robots.txt, page 1, agent, page 2
+    Http::assertSentCount(7); // robots.txt (page host), page 1, robots.txt (source host), favicon.ico, agent, page 2, favicon.ico
 });
 
 // The site changed its layout: the saved settings match nothing, so the agent is asked again.
@@ -298,70 +299,61 @@ it('queues a fetch for every new update entry, and only for new ones', function 
     app(FetchUpdates::class)($source);
 
     Queue::assertPushed(FetchDocument::class, 2);
-    expect(Document::query()->where('status', 'fetching')->count())->toBe(2)
-        ->and(Document::query()->where('url', 'https://www.example.org/news/1')->sole()->title)->toBe('One');
+    expect(UpdateEntry::query()->where('status', 'fetching')->count())->toBe(2)
+        ->and(UpdateEntry::query()->where('url', 'https://www.example.org/news/1')->sole()->title)->toBe('One');
 });
 
 it('queues the missing and failed documents of a source, and one document again, from the screens', function () {
     Queue::fake();
     $source = Source::factory()->create();
     $missing = UpdateEntry::factory()->for($source)->create();
-    $failed = UpdateEntry::factory()->for($source)->create();
-    Document::factory()->for($failed)->create(['status' => 'failed']);
-    $fetched = UpdateEntry::factory()->for($source)->create();
-    Document::factory()->for($fetched)->create();
+    $failed = UpdateEntry::factory()->for($source)->create(['status' => 'failed']);
+    $fetched = UpdateEntry::factory()->for($source)->fetched()->create();
 
     Livewire::test('pages::sources.show', ['source' => $source])->call('fetchDocuments');
 
     Queue::assertPushed(FetchDocument::class, 2);
-    expect($missing->document?->status)->toBe('fetching')
-        ->and($failed->document()->sole()->status)->toBe('fetching')
-        ->and($fetched->document()->sole()->status)->toBe('fetched');
+    expect($missing->refresh()->status)->toBe('fetching')
+        ->and($failed->refresh()->status)->toBe('fetching')
+        ->and($fetched->refresh()->status)->toBe('fetched');
 
     Livewire::test('pages::updates.show', ['updateEntry' => $fetched])->call('fetchDocument');
-    Livewire::test('pages::documents.show', ['document' => $fetched->document()->sole()])->call('fetch');
 
-    Queue::assertPushed(FetchDocument::class, 4);
-    expect($fetched->document()->sole()->status)->toBe('fetching')
-        ->and(Document::query()->count())->toBe(3);
+    Queue::assertPushed(FetchDocument::class, 3);
+    expect($fetched->refresh()->status)->toBe('fetching');
 });
 
 // After the document settings or the Markdown rules changed, every document of a source can be taken again at once.
 it('queues every document of a source again from its screen, except the excluded and the ones being fetched', function () {
     Queue::fake();
     $source = Source::factory()->create();
-    $fetched = UpdateEntry::factory()->for($source)->create();
-    Document::factory()->for($fetched)->create();
+    $fetched = UpdateEntry::factory()->for($source)->fetched()->create();
     $missing = UpdateEntry::factory()->for($source)->create();
-    $fetching = UpdateEntry::factory()->for($source)->create();
-    Document::factory()->for($fetching)->create(['status' => 'fetching']);
+    UpdateEntry::factory()->for($source)->create(['status' => 'fetching']);
     UpdateEntry::factory()->for($source)->create(['excluded_by' => 'セミナー']);
     UpdateEntry::factory()->create();
 
     Livewire::test('pages::sources.show', ['source' => $source])->call('fetchAllDocumentsAgain');
 
     Queue::assertPushed(FetchDocument::class, 2);
-    expect($fetched->document()->sole()->status)->toBe('fetching')
-        ->and($missing->document?->status)->toBe('fetching')
-        ->and(Document::query()->count())->toBe(3);
+    expect($fetched->refresh()->status)->toBe('fetching')
+        ->and($missing->refresh()->status)->toBe('fetching');
 });
 
 // The Markdown of a source's documents can be made again from the originals on disk, without asking the site.
 it('rebuilds the Markdown of every document of a source from the originals, with the current settings', function () {
     $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share']]);
-    $entry = UpdateEntry::factory()->for($source)->create(['title' => 'Ammonia burner programme']);
-    Storage::disk('local')->put("documents/{$source->id}/{$entry->id}.html", DOCUMENT_PAGE);
-    $document = Document::factory()->for($entry)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/{$entry->id}.html", 'markdown' => 'old', 'status' => 'failed']);
-    $other = UpdateEntry::factory()->for($source)->create();
-    Storage::disk('local')->put("documents/{$source->id}/{$other->id}.html", '<html><body><div class="x"><p>No article element here.</p></div></body></html>');
-    $unreadable = Document::factory()->for($other)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/{$other->id}.html", 'markdown' => 'old']);
-    $elsewhere = Document::factory()->create(['markdown' => 'old']);
+    $entry = UpdateEntry::factory()->for($source)->create(['title' => 'Ammonia burner programme', 'format' => 'html', 'original_path' => "documents/{$source->id}/1.html", 'markdown' => 'old', 'status' => 'failed']);
+    Storage::disk('local')->put("documents/{$source->id}/1.html", DOCUMENT_PAGE);
+    $unreadable = UpdateEntry::factory()->for($source)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/2.html", 'markdown' => 'old', 'status' => 'fetched']);
+    Storage::disk('local')->put("documents/{$source->id}/2.html", '<html><body><div class="x"><p>No article element here.</p></div></body></html>');
+    $elsewhere = UpdateEntry::factory()->fetched()->create(['markdown' => 'old']);
 
     Livewire::test('pages::sources.show', ['source' => $source])->call('rebuildMarkdown');
 
-    expect($document->refresh()->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\n")
-        ->and($document->status)->toBe('fetched')
-        ->and($document->status_message)->toContain('原本から')
+    expect($entry->refresh()->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\n")
+        ->and($entry->status)->toBe('fetched')
+        ->and($entry->status_message)->toContain('原本から')
         ->and($unreadable->refresh()->markdown)->toBe('old')
         ->and($elsewhere->refresh()->markdown)->toBe('old');
     Http::assertNothingSent();
@@ -385,7 +377,7 @@ it('saves the document settings from the source detail screen', function () {
 
 it('serves the original file', function () {
     Storage::disk('local')->put('documents/1/1.html', DOCUMENT_PAGE);
-    $document = Document::factory()->create(['original_path' => 'documents/1/1.html']);
+    $entry = UpdateEntry::factory()->fetched()->create(['original_path' => 'documents/1/1.html']);
 
-    $this->get(route('documents.original', $document))->assertOk()->assertDownload('1.html');
+    $this->get(route('updates.original', $entry))->assertOk()->assertDownload('1.html');
 });

@@ -2,9 +2,9 @@
 
 use App\Actions\ProposeMaterial;
 use App\Jobs\ExtractMaterial;
-use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
+use App\Models\UpdateEntry;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -30,9 +30,9 @@ beforeEach(function () {
     $this->actingAs(User::factory()->create());
 });
 
-function extractMaterial(Document $document): Material
+function extractMaterial(UpdateEntry $entry): Material
 {
-    $material = Material::query()->updateOrCreate(['document_id' => $document->id], ['status' => 'extracting']);
+    $material = Material::query()->updateOrCreate(['update_entry_id' => $entry->id], ['status' => 'extracting']);
     (new ExtractMaterial($material))->handle(app(ProposeMaterial::class));
 
     return $material->refresh();
@@ -40,9 +40,9 @@ function extractMaterial(Document $document): Material
 
 it('has the agent structure a fetched document per the structuring layer and keeps the JSON', function () {
     Http::fake(['api.openai.com/*' => Http::response(materialAgentAnswer(MATERIAL_ANSWER))]);
-    $document = Document::factory()->create(['markdown' => "# アンモニア燃焼器\n\nNEDO は…", 'url' => 'https://www.nedo.go.jp/news/press/1.html']);
+    $entry = UpdateEntry::factory()->fetched()->create(['markdown' => "# アンモニア燃焼器\n\nNEDO は…", 'url' => 'https://www.nedo.go.jp/news/press/1.html']);
 
-    $material = extractMaterial($document);
+    $material = extractMaterial($entry);
 
     expect($material->status)->toBe('extracted')
         ->and($material->data)->toEqual(MATERIAL_ANSWER)
@@ -58,7 +58,7 @@ it('has the agent structure a fetched document per the structuring layer and kee
 it('fails when the agent leaves out an item the policy lists', function () {
     Http::fake(['api.openai.com/*' => Http::response(materialAgentAnswer(['要約' => 'x']))]);
 
-    $material = extractMaterial(Document::factory()->create());
+    $material = extractMaterial(UpdateEntry::factory()->fetched()->create());
 
     expect($material->status)->toBe('failed')
         ->and($material->status_message)->toContain('発表主体, 重要な事実')
@@ -68,13 +68,13 @@ it('fails when the agent leaves out an item the policy lists', function () {
 it('fails when the agent does not answer JSON', function () {
     Http::fake(['api.openai.com/*' => Http::response(materialAgentAnswer('not json'))]);
 
-    $material = extractMaterial(Document::factory()->create());
+    $material = extractMaterial(UpdateEntry::factory()->fetched()->create());
 
     expect($material->status)->toBe('failed')->and($material->status_message)->toContain('JSON');
 });
 
 it('does not ask the agent about a document that has not been fetched', function () {
-    $material = extractMaterial(Document::factory()->create(['status' => 'failed', 'markdown' => null]));
+    $material = extractMaterial(UpdateEntry::factory()->create(['status' => 'failed']));
 
     expect($material->status)->toBe('failed')->and($material->status_message)->toContain('取得されていません');
     Http::assertNothingSent();
@@ -93,7 +93,7 @@ it('reads the structuring layer from the editorial policy screen, with a default
         ->and(EditorialPolicy::items(EditorialPolicy::bodyFor('structuring')))->toBe(['要約', '技術領域']);
 
     Http::fake(['api.openai.com/*' => Http::response(materialAgentAnswer(['要約' => 'x', '技術領域' => ['y']]))]);
-    expect(extractMaterial(Document::factory()->create())->status)->toBe('extracted');
+    expect(extractMaterial(UpdateEntry::factory()->fetched()->create())->status)->toBe('extracted');
 });
 
 // jsonb hands the keys back sorted by length and letter; the screens show them in the policy's order.
@@ -107,12 +107,12 @@ it('shows the items in the order the policy lists them', function () {
 
 it('queues the missing and failed materials of fetched documents, and one material again, from the screens', function () {
     Queue::fake();
-    $missing = Document::factory()->create();
-    $failed = Document::factory()->create();
+    $missing = UpdateEntry::factory()->fetched()->create();
+    $failed = UpdateEntry::factory()->fetched()->create();
     Material::factory()->for($failed)->create(['status' => 'failed', 'data' => null]);
-    $extracted = Document::factory()->create();
+    $extracted = UpdateEntry::factory()->fetched()->create();
     Material::factory()->for($extracted)->create();
-    Document::factory()->create(['status' => 'fetching', 'markdown' => null]);
+    UpdateEntry::factory()->create(['status' => 'fetching']);
 
     Livewire::test('pages::materials.index')->call('extract');
 
@@ -122,7 +122,7 @@ it('queues the missing and failed materials of fetched documents, and one materi
         ->and($extracted->material()->sole()->status)->toBe('extracted')
         ->and(Material::query()->count())->toBe(3);
 
-    Livewire::test('pages::documents.show', ['document' => $extracted])->call('extract');
+    Livewire::test('pages::updates.show', ['updateEntry' => $extracted])->call('extract');
     Livewire::test('pages::materials.show', ['material' => $extracted->material()->sole()])->call('extract');
 
     Queue::assertPushed(ExtractMaterial::class, 4);

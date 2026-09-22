@@ -18,10 +18,13 @@ the product (purpose, the five stages, stack); read it first.
 
 - **Skeleton first, then one feature at a time, each checked in the browser
   by the user before the next.** Do not build ahead of what has been seen.
-- The five stages are screens in the sidebar: 情報源 (Sources), 更新リスト
-  (Updates), 文書 (Documents), 素材情報 (Materials), 記事 (Articles).
-  Identifiers follow the English UI label (see `../CLAUDE.md`): tables
-  `sources`, `updates`, `documents`, `materials`, `articles`.
+- The stages are screens in the sidebar: 情報源 (Sources), 更新リスト
+  (Updates), 素材情報 (Materials), 記事 (Articles). 文書 (Documents, stage
+  2.2) has no screen of its own since 2026-09-22: the fetched document
+  (original, Markdown, format, status) lives on the update entry and is
+  shown on the 更新リスト screens. Identifiers follow the English UI label
+  (see `../CLAUDE.md`): tables `sources`, `update_entries`, `materials`,
+  `articles`.
 - Editorial policy is defined per layer (selection, structuring, article
   generation); where it lives in the app is still open.
 - Jobs go through the database queue (`QUEUE_CONNECTION=database`); run
@@ -33,9 +36,10 @@ the product (purpose, the five stages, stack); read it first.
   reading) never call a model; an agent proposal is verified on the page
   before it is saved.
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
-  2026-09-21): documents are fetched by `App\Jobs\FetchDocument`, queued
-  for every new update entry and from the 文書を取得 buttons. The original
-  is kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;
+  2026-09-21): documents are fetched by `App\Jobs\FetchDocument` onto the
+  update entry (`status` null → fetching → fetched | failed), queued for
+  every new update entry and from the 文書を取得 buttons. The original is
+  kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;
   Markdown comes from `App\Actions\ReadDocument` with the source's document
   settings (content / remove CSS selectors). When those are missing or no
   longer match, `App\Actions\ProposeDocumentSettings` (OpenAI) proposes new
@@ -60,8 +64,8 @@ the product (purpose, the five stages, stack); read it first.
   and the criteria for / against fetching, stored for an LLM judge that
   is not built yet. `EditorialPolicy::LAYERS` has five layers.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
-  body, then fixed text after a `---`; the document heading is `##` and
-  body headings keep their relative levels below it. Document settings
+  body, then fixed text after a `---`; the document title is `#` and body
+  headings keep their relative levels from `##` down. Document settings
   have four selectors: content / date / remove / fixed_text (UI 本文 /
   日付 / 除外 / 固定テキスト); the date falls back to `<time>`, a short
   date-looking line, then meta tags; copyright-like paragraphs move to
@@ -73,11 +77,13 @@ the product (purpose, the five stages, stack); read it first.
   number (日立 `#content-17863846`) is generalised to `[id^="content-"]`
   by `FetchDocument::generalise` before it is verified and saved.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
-  base class of 情報源 / 更新リスト / 文書; `?rowsPerPage=` in the URL,
+  base class of 情報源 / 更新リスト; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).
-- **Favicons** are fetched by `App\Actions\FetchFavicon` when a source is
-  configured (設定をやり直す on an existing source) and served from the
-  local disk by the `sources.favicon` route.
+- **Favicons** are fetched by `App\Actions\FetchFavicon` the first time a
+  page of the site is in hand and the source has none (configuring it,
+  reading its update list, fetching a document), served from the local
+  disk by the `sources.favicon` route, and shown by the
+  `pages::source-name` component wherever a source is named.
 - **Restart the worker after changing code or `lang/ja.json`**: a running
   `queue:work` keeps the old classes and translations, so a status message
   saved by the job would stay in English.

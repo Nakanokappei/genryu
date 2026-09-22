@@ -107,7 +107,6 @@
     "Not fetched yet.": "まだ取得していません。",
     "Not published.": "未公開",
     "Select": "選択してください",
-    "Sources → Updates → Documents → Materials → Articles": "情報源 → 更新リスト → 文書 → 素材情報 → 記事",
     "Data must be valid JSON.": "データは正しい JSON である必要があります。",
     "Each layer is the prompt of its stage. The structuring layer is used when materials are extracted from documents: list the items as \"- item: what to put there\", one per line; the agent must fill every item. The article generation layer is used when articles are generated from materials: format, style, length, structure and quality criteria.": "各レイヤーの本文が、その段階のプロンプトになります。「構造化」は文書から素材情報を抽出するときに使われます。観点は「- 項目名: そこに書くこと」の形で 1 行に 1 つ並べてください。エージェントはすべての項目を埋める必要があります。「記事生成」は素材情報から記事を生成するときに使われます。形式、文体、長さ、構成、品質基準を書いてください。",
     "generating": "生成中",
@@ -142,5 +141,6 @@
     "Fetch all :count documents of this source again? Each page is requested from the site once more.": "この情報源の文書 :count 件をすべて取り直します。各ページをサイトからもう一度取得します。よろしいですか？",
     "Rebuild Markdown from the originals": "原本から Markdown を作り直す",
     "Markdown rebuilt from the original.": "原本から Markdown を作り直しました。",
-    ":rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).": ":rebuilt 件の Markdown を作り直しました。:failed 件は現在の設定では読めません（取得をやり直してください）。"
+    ":rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).": ":rebuilt 件の Markdown を作り直しました。:failed 件は現在の設定では読めません（取得をやり直してください）。",
+    "Sources → Updates → Materials → Articles": "情報源 → 更新リスト → 素材情報 → 記事"
 }

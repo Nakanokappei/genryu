@@ -2,7 +2,6 @@
 
 use App\Jobs\ConfigureSource;
 use App\Models\Article;
-use App\Models\Document;
 use App\Models\Material;
 use App\Models\Source;
 use App\Models\UpdateEntry;
@@ -20,14 +19,12 @@ beforeEach(function () {
 it('renders the list and detail screen of every stage', function () {
     $article = Article::factory()->create();
     $material = $article->material;
-    $document = $material->document;
-    $update = $document->updateEntry;
+    $update = $material->updateEntry;
     $source = $update->source;
 
     foreach ([
         route('sources.index'), route('sources.show', $source),
         route('updates.index'), route('updates.show', $update),
-        route('documents.index'), route('documents.show', $document),
         route('materials.index'), route('materials.show', $material),
         route('articles.index'), route('articles.show', $article),
         route('editorial-policy'),
@@ -39,15 +36,15 @@ it('renders the list and detail screen of every stage', function () {
     $this->get(route('sources.show', $source))->assertSee($source->name)->assertSee($update->title);
     // The source's address is a tooltip on the link icon, not a column.
     $this->get(route('sources.index'))->assertSee($source->name)->assertSee(e($source->url), false);
-    $this->get(route('articles.show', $article))->assertSee($article->title)->assertSee($document->title);
+    $this->get(route('articles.show', $article))->assertSee($article->title)->assertSee($update->title);
 });
 
 // Timestamps are stored in UTC and shown in the display timezone (JST by default).
 it('shows timestamps in the display timezone', function () {
-    $document = Document::factory()->create(['fetched_at' => '2026-09-21 14:37:00']);
+    $update = UpdateEntry::factory()->fetched()->create(['fetched_at' => '2026-09-21 14:37:00']);
 
-    expect($document->refresh()->fetched_at?->toIso8601String())->toBe('2026-09-21T14:37:00+00:00');
-    $this->get(route('documents.show', $document))->assertSee('2026-09-21 23:37');
+    expect($update->refresh()->fetched_at?->toIso8601String())->toBe('2026-09-21T14:37:00+00:00');
+    $this->get(route('updates.show', $update))->assertSee('2026-09-21 23:37');
 });
 
 it('redirects guests to the login page', function () {
@@ -66,28 +63,24 @@ it('lets the user add a source by hand, and follows one record through the stage
     expect($source->status)->toBe('pending');
     Queue::assertPushed(ConfigureSource::class, fn (ConfigureSource $job): bool => $job->source->is($source));
 
-    $update = UpdateEntry::factory()->for($source)->create(['title' => 'Press release', 'url' => 'https://www.nedo.go.jp/news/press/1.html', 'published_at' => '2026-09-17']);
+    $update = UpdateEntry::factory()->for($source)->fetched()->create(['title' => 'Press release', 'url' => 'https://www.nedo.go.jp/news/press/1.html', 'published_at' => '2026-09-17', 'markdown' => '# Press release']);
 
-    $document = Document::factory()->for($update)->create(['title' => 'Press release', 'url' => $update->url, 'markdown' => '# Press release']);
-
-    $material = Material::factory()->for($document)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
+    $material = Material::factory()->for($update)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
 
     Article::factory()->for($material)->create(['title' => 'Article', 'body' => 'Body text']);
 
     expect($update->source->is($source))->toBeTrue()
-        ->and($document->fetched_at)->not->toBeNull()
+        ->and($update->fetched_at)->not->toBeNull()
         ->and($material->data)->toEqual(['summary' => 'ammonia burner', 'topics' => ['energy']])
         ->and(Article::query()->sole()->material->is($material))->toBeTrue();
 });
 
 // The list screens are paged: 10 rows unless the user picks 25 / 50 / 100, kept in the URL.
-it('pages the sources, updates and documents lists by the chosen rows per page', function () {
+it('pages the sources and updates lists by the chosen rows per page', function () {
     $sources = Source::factory()->count(12)->sequence(fn ($sequence) => ['name' => 'Source '.($sequence->index + 1)])->create();
-    $updates = UpdateEntry::factory()->count(12)->sequence(fn ($sequence) => ['source_id' => $sources[0]->id, 'title' => 'Update '.($sequence->index + 1)])->create();
-    // One document per update entry.
-    Document::factory()->count(12)->sequence(fn ($sequence) => ['update_entry_id' => $updates[$sequence->index]->id, 'title' => 'Document '.($sequence->index + 1)])->create();
+    UpdateEntry::factory()->count(12)->sequence(fn ($sequence) => ['source_id' => $sources[0]->id, 'title' => 'Update '.($sequence->index + 1)])->create();
 
-    foreach ([['pages::sources.index', 'Source'], ['pages::updates.index', 'Update'], ['pages::documents.index', 'Document']] as [$page, $prefix]) {
+    foreach ([['pages::sources.index', 'Source'], ['pages::updates.index', 'Update']] as [$page, $prefix]) {
         Livewire::test($page)
             ->assertSee("{$prefix} 12")->assertDontSee("{$prefix} 1<")->assertSee('表示: 1 – 10 ／ 12 件')
             ->set('rowsPerPage', 25)->assertSee("{$prefix} 1<", false)

@@ -2,13 +2,12 @@
     {{-- One card per stage, in flow order, with its record count. --}}
     <div class="flex h-full w-full flex-1 flex-col gap-6">
         <flux:heading size="xl">{{ __('Dashboard') }}</flux:heading>
-        <flux:text>{{ __('Sources → Updates → Documents → Materials → Articles') }}</flux:text>
+        <flux:text>{{ __('Sources → Updates → Materials → Articles') }}</flux:text>
 
-        <div class="grid gap-4 md:grid-cols-5">
+        <div class="grid gap-4 md:grid-cols-4">
             @foreach ([
                 ['Sources', \App\Models\Source::count(), route('sources.index')],
                 ['Updates', \App\Models\UpdateEntry::count(), route('updates.index')],
-                ['Documents', \App\Models\Document::count(), route('documents.index')],
                 ['Materials', \App\Models\Material::count(), route('materials.index')],
                 ['Articles', \App\Models\Article::count(), route('articles.index')],
             ] as [$label, $count, $href])

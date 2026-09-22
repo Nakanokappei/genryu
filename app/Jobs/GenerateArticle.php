@@ -63,8 +63,8 @@ class GenerateArticle implements ShouldQueue
                 throw new RuntimeException(__('The article generation layer of the editorial policy is empty.'));
             }
 
-            $document = $material->document;
-            $proposal = $propose($policy, (array) $material->dataInPolicyOrder(), $document->title, $document->url);
+            $entry = $material->updateEntry;
+            $proposal = $propose($policy, (array) $material->dataInPolicyOrder(), $entry->title, $entry->url);
             $title = trim((string) ($proposal['title'] ?? ''));
             $body = trim((string) ($proposal['body'] ?? ''));
 

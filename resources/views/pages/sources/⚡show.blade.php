@@ -97,7 +97,7 @@ new #[Title('情報源')] class extends Component {
     // Stage 2.2: queue the fetch for every update entry whose document is missing or failed, leaving the excluded ones alone.
     public function fetchDocuments(): void
     {
-        $entries = $this->source->updateEntries()->whereNull('excluded_by')->whereDoesntHave('document', fn ($query) => $query->whereIn('status', ['fetching', 'fetched']))->get();
+        $entries = $this->source->updateEntries()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'failed'))->get();
         $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
 
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
@@ -114,7 +114,7 @@ new #[Title('情報源')] class extends Component {
     // Queue every document of the source again (after the document settings or the Markdown rules changed), except the excluded entries and those already being fetched.
     public function fetchAllDocumentsAgain(): void
     {
-        $entries = $this->source->updateEntries()->whereNull('excluded_by')->whereDoesntHave('document', fn ($query) => $query->where('status', 'fetching'))->get();
+        $entries = $this->source->updateEntries()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', '!=', 'fetching'))->get();
         $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
 
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
@@ -281,16 +281,16 @@ new #[Title('情報源')] class extends Component {
     </form>
 
     <flux:heading size="lg">{{ __('Updates') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at'), __('Document')]" :empty="$source->updateEntries->isEmpty()">
-        @foreach ($source->updateEntries()->with('document')->latest('published_at')->latest('id')->get() as $update)
+    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status')]" :empty="$source->updateEntries->isEmpty()">
+        @foreach ($source->updateEntries()->latest('published_at')->latest('id')->get() as $update)
             <tr>
                 <td class="px-3 py-2"><a href="{{ route('updates.show', $update) }}" class="underline" wire:navigate>{{ $update->title }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $update->published_at?->format('Y-m-d') }}</td>
                 <td class="px-3 py-2">
-                    @if ($update->document)
-                        <a href="{{ route('documents.show', $update->document) }}" wire:navigate><x-pages::status :status="$update->document->status" /></a>
-                    @elseif ($update->excluded_by !== null)
+                    @if ($update->excluded_by !== null)
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $update->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
+                    @elseif ($update->status !== null)
+                        <x-pages::status :status="$update->status" />
                     @else
                         —
                     @endif

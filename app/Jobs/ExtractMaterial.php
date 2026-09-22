@@ -3,9 +3,9 @@
 namespace App\Jobs;
 
 use App\Actions\ProposeMaterial;
-use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
+use App\Models\UpdateEntry;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -13,11 +13,11 @@ use Throwable;
 
 /**
  * 素材情報を抽出 (UI: "Extract material", stage 2.3 of docs/HANDOVER.md):
- * in the background, have the agent structure a fetched document per the
- * structuring layer of the editorial policy, check that every item the
- * policy lists is there, and keep the JSON as the document's material.
- * The outcome lands on the material (status 抽出中 / 抽出済み / 失敗) so
- * the screens can show it.
+ * in the background, have the agent structure the fetched document of an
+ * update entry per the structuring layer of the editorial policy, check
+ * that every item the policy lists is there, and keep the JSON as the
+ * entry's material. The outcome lands on the material (status 抽出中 /
+ * 抽出済み / 失敗) so the screens can show it.
  */
 class ExtractMaterial implements ShouldQueue
 {
@@ -30,13 +30,13 @@ class ExtractMaterial implements ShouldQueue
     public function __construct(public Material $material) {}
 
     /**
-     * Queue the extraction for a document: its material row appears at once
-     * as 抽出中, whether it is new or being extracted again.
+     * Queue the extraction for an update entry: its material row appears
+     * at once as 抽出中, whether it is new or being extracted again.
      */
-    public static function queueFor(Document $document): Material
+    public static function queueFor(UpdateEntry $entry): Material
     {
         $material = Material::query()->updateOrCreate(
-            ['document_id' => $document->id],
+            ['update_entry_id' => $entry->id],
             ['status' => 'extracting', 'status_message' => null],
         );
 
@@ -48,10 +48,10 @@ class ExtractMaterial implements ShouldQueue
     public function handle(ProposeMaterial $propose): void
     {
         $material = $this->material;
-        $document = $material->document;
+        $entry = $material->updateEntry;
 
         try {
-            if ($document->status !== 'fetched' || (string) $document->markdown === '') {
+            if ($entry->status !== 'fetched' || (string) $entry->markdown === '') {
                 throw new RuntimeException(__('The document has not been fetched yet.'));
             }
 
@@ -61,7 +61,7 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The structuring layer of the editorial policy is empty.'));
             }
 
-            $data = $propose($policy, (string) $document->markdown, $document->url);
+            $data = $propose($policy, (string) $entry->markdown, $entry->url);
             $missing = array_values(array_diff(EditorialPolicy::items($policy), array_keys($data)));
 
             if ($missing !== []) {

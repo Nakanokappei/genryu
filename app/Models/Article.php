@@ -29,11 +29,11 @@ class Article extends Model
 
     /**
      * What the screens call the article: its title once generated, the
-     * document's title until then.
+     * update entry's title until then.
      */
     public function displayTitle(): string
     {
-        return $this->title ?? (string) $this->material?->document->title;
+        return $this->title ?? (string) $this->material?->updateEntry->title;
     }
 
     /** @return BelongsTo<Material, $this> */

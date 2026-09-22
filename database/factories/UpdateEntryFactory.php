@@ -18,4 +18,18 @@ class UpdateEntryFactory extends Factory
             'published_at' => fake()->date(),
         ];
     }
+
+    /**
+     * An entry whose document has been fetched and read into Markdown.
+     */
+    public function fetched(): static
+    {
+        return $this->state(fn (): array => [
+            'format' => 'html',
+            'original_path' => null,
+            'markdown' => '# '.fake()->sentence()."\n\n".fake()->paragraph(),
+            'fetched_at' => now(),
+            'status' => 'fetched',
+        ]);
+    }
 }

@@ -28,7 +28,8 @@ beforeEach(function () {
     // Tests never hit the network: an unfaked URL fails the test instead of leaving the machine.
     Http::preventStrayRequests();
     // No robots.txt anywhere unless a test says otherwise (registered first, so it wins for that path).
-    Http::fake(['*/robots.txt' => Http::response('', 404)]);
+    // Sites without an icon: the favicon fetch that comes with reading a source finds nothing.
+    Http::fake(['*/robots.txt' => Http::response('', 404), '*/favicon.ico' => Http::response('', 404)]);
     // Each new entry queues its document fetch (stage 2.2); the queue is faked so the fetch does not run here.
     Queue::fake();
     $this->actingAs(User::factory()->create());
@@ -136,13 +137,13 @@ it('stops paging at the first page with nothing new', function () {
     $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => [...LIST_CONFIG, 'max_pages' => 5]]);
 
     app(FetchUpdates::class)($source);
-    Http::assertSentCount(3); // robots.txt, page 1, page 2
+    Http::assertSentCount(4); // robots.txt, page 1, page 2, favicon.ico
 
     $second = app(FetchUpdates::class)($source);
 
-    // Page 1 is entirely known, so page 2 is not requested again (robots.txt is cached).
+    // Page 1 is entirely known, so page 2 is not requested again (robots.txt is cached); the icon is looked for again.
     expect($second)->toMatchArray(['pages' => 1, 'added' => 0, 'existing' => 1]);
-    Http::assertSentCount(4);
+    Http::assertSentCount(6);
 });
 
 /**

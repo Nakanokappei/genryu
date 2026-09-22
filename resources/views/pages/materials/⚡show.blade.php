@@ -14,7 +14,7 @@ new #[Title('素材情報')] class extends Component {
     // Queue the extraction again (after a failure, or after the editorial policy changed).
     public function extract(): void
     {
-        ExtractMaterial::queueFor($this->material->document);
+        ExtractMaterial::queueFor($this->material->updateEntry);
         $this->material->refresh();
 
         Flux::toast(variant: 'success', text: __('Material queued.'));
@@ -37,19 +37,18 @@ new #[Title('素材情報')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($material->status === 'extracting' || $material->articles->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('materials.index')" :back-label="__('Materials')" :title="$material->document->title" />
+    <x-pages::detail-header :back="route('materials.index')" :back-label="__('Materials')" :source="$material->updateEntry->source" :title="$material->updateEntry->title" />
 
     <x-pages::fields :fields="[
-        __('Source') => $material->document->updateEntry->source->name,
-        __('Document') => $material->document->title,
-        __('URL') => $material->document->url,
+        __('Update') => $material->updateEntry->title,
+        __('URL') => $material->updateEntry->url,
         __('Created') => $material->created_at->display(),
     ]" />
 
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <x-pages::status :status="$material->status" />
         <flux:text class="flex-1">{{ $material->status_message ?? '—' }}</flux:text>
-        <a href="{{ route('documents.show', $material->document) }}" class="text-sm underline" wire:navigate>{{ __('Document') }}</a>
+        <a href="{{ route('updates.show', $material->updateEntry) }}" class="text-sm underline" wire:navigate>{{ __('Update') }}</a>
         <flux:button wire:click="extract" size="sm" icon="arrow-path">{{ __('Extract again') }}</flux:button>
     </div>
 

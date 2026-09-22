@@ -56,24 +56,30 @@ class FetchUpdates
     /** A JSON list must hold at least this many entries to be believed. */
     public const MINIMUM_JSON_ENTRIES = 3;
 
+    /** The last HTML page of the source read during a fetch, for its favicon. */
+    private ?string $pageHtml = null;
+
+    public function __construct(private FetchFavicon $favicon) {}
+
     /**
      * @return array{feed_url: ?string, pages: int, added: int, existing: int}
      */
     public function __invoke(Source $source): array
     {
+        $this->pageHtml = null;
         $json = $source->json_config ?? [];
-
-        if (($json['url'] ?? '') !== '') {
-            return $this->fromJsonList($source, $json);
-        }
-
         $config = $source->list_config ?? [];
 
-        if (($config['item'] ?? '') !== '') {
-            return $this->fromHtmlList($source, $config);
-        }
+        $result = match (true) {
+            ($json['url'] ?? '') !== '' => $this->fromJsonList($source, $json),
+            ($config['item'] ?? '') !== '' => $this->fromHtmlList($source, $config),
+            default => $this->fromFeed($source),
+        };
 
-        return $this->fromFeed($source);
+        // A source still without its icon gets it while we are at the site anyway.
+        ($this->favicon)($source, $this->pageHtml);
+
+        return $result;
     }
 
     /**
@@ -228,7 +234,8 @@ class FetchUpdates
      */
     private function fromFeed(Source $source): array
     {
-        [$feedUrl, $body] = $this->discoverFeed($source->url, $this->page($source->url))
+        $this->pageHtml = $this->page($source->url);
+        [$feedUrl, $body] = $this->discoverFeed($source->url, $this->pageHtml)
             ?? throw new RuntimeException(__('No RSS or Atom feed found. Fill in the HTML list settings to read this page.'));
 
         $counts = $this->store($source, self::feedEntries($body));
@@ -310,7 +317,9 @@ class FetchUpdates
         $existing = 0;
 
         while ($url !== null && $pages < $maxPages) {
-            $document = self::html($this->get($url)->body());
+            $body = $this->get($url)->body();
+            $this->pageHtml ??= $body;
+            $document = self::html($body);
             $pages++;
 
             $counts = $this->store($source, self::listEntries($document, $config, $url));
