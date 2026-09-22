@@ -75,11 +75,18 @@ the product (purpose, the five stages, stack); read it first.
   measured the wrong thing for a PoC and cost several times as much.)
 - **Articles are generated the same way** (stage 2.4): the article layer
   of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
-  (agent `App\Actions\ProposeArticle`, OpenAI), which asks for a title and
+  (agent `App\Actions\ProposeArticle`, OpenAI **Responses API**, the
+  policy cached with an explicit breakpoint, the material and its
+  document after it, structured output), which asks for a title and
   a Markdown body and saves them only when both came back. One article
   per material for now (the output languages of `docs/HANDOVER.md` §3 are
   not built yet); queued from the 記事を生成 buttons. The body is shown
-  rendered from Markdown on the article screen.
+  rendered from Markdown on the article screen. The article pins its
+  prompt version and its model (編集方針 chooses it, 記事生成のモデル) and
+  keeps the usage, as a screening and a material do (aligned 2026-09-23;
+  until then it ran on `OPENAI_MODEL` through chat/completions and kept
+  nothing, so two articles could not be compared). What a run cost is
+  shown on the article screen, and needs `services.openai.prices`.
 - **The selection layer (取捨選択) is set in two places, not on 編集方針**
   (decided 2026-09-22). The **title filter** (タイトルフィルタ) is on the
   情報源 list screen: when an update list is read only the titles are in

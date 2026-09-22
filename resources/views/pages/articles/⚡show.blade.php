@@ -45,6 +45,15 @@ new #[Title('記事')] class extends Component {
         @endif
     </div>
 
+    {{-- What wrote this article and what it cost, as the material and the screening say of theirs. --}}
+    @if ($article->model !== null)
+        <flux:text size="sm" class="text-neutral-500">
+            {{ $article->model }} / {{ __('Prompt version') }} v{{ $article->prompt?->version ?? '—' }} /
+            {{ __('Tokens') }}: {{ __('input') }} {{ number_format((int) $article->input_tokens) }}（{{ __('cached') }} {{ number_format((int) $article->cached_tokens) }}）, {{ __('output') }} {{ number_format((int) $article->output_tokens) }} /
+            {{ number_format((int) $article->latency_ms) }} ms / {{ $article->estimated_total_cost !== null ? '$'.number_format($article->estimated_total_cost, 5) : __('cost unknown') }}
+        </flux:text>
+    @endif
+
     <flux:heading size="lg">{{ __('Body') }}</flux:heading>
     @if ($article->body !== null)
         {{-- The body is Markdown; rendered here with any HTML in it stripped. --}}

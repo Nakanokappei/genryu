@@ -17,6 +17,9 @@ new #[Title('編集方針')] class extends Component {
 
     public string $article = '';
 
+    /** The model the article is written with (UI: モデル), one of EditorialPolicy::MODELS. */
+    public string $articleModel = EditorialPolicy::DEFAULT_MODEL;
+
     public function mount(): void
     {
         foreach (self::LAYERS as $layer) {
@@ -24,14 +27,17 @@ new #[Title('編集方針')] class extends Component {
         }
 
         $this->structuringModel = EditorialPolicy::modelFor('structuring');
+        $this->articleModel = EditorialPolicy::modelFor('article');
     }
 
     public function save(): void
     {
-        $this->validate(['structuringModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        $models = ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))];
+        $this->validate(['structuringModel' => $models, 'articleModel' => $models]);
 
+        // Each layer runs on the model chosen for it (UI: 構造化のモデル / 記事生成のモデル).
         foreach (self::LAYERS as $layer) {
-            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $this->{$layer}, ...($layer === 'structuring' ? ['model' => $this->structuringModel] : [])]);
+            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $this->{$layer}, 'model' => $this->{$layer.'Model'}]);
         }
 
         Flux::toast(variant: 'success', text: __('Saved.'));
@@ -57,6 +63,11 @@ new #[Title('編集方針')] class extends Component {
         </div>
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             <flux:textarea wire:model="article" :label="__('Article generation')" rows="10" />
+            <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
+                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
+                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+                @endforeach
+            </flux:select>
         </div>
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>

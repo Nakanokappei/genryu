@@ -240,6 +240,7 @@
     "Decided :when by :who": ":when に :who が判定",
     "Each layer is the prompt of its stage. The structuring layer is the developer prompt of the analyst that builds a material from an adopted document: the evidence quoted with its lines, the claims and inferences, the technology transition, the engineering and the possible angles; a changed prompt is a new version, pinned by every material. The article generation layer is used when articles are generated from materials: format, style, length, structure and quality criteria.": "各レイヤーの本文が、その段階のプロンプトになります。「構造化」は、採用した文書から素材情報を組み立てるアナリストのデベロッパープロンプトです。原文の引用と行位置つきの Evidence、それに基づく claim と推論、技術の状態遷移、エンジニアリング、記事の切り口候補を出します。変更すると新しいバージョンになり、各素材情報はどの版で作られたかを保持します。「記事生成」は素材情報から記事を生成するときに使われます。形式、文体、長さ、構成、品質基準を書いてください。",
     "Model of the structuring": "構造化のモデル",
+    "Model of the article generation": "記事生成のモデル",
     "Revision": "版",
     "The checks the last extraction failed": "直近の抽出が通らなかった検査",
     "line :n": ":n 行",

@@ -5,6 +5,7 @@ use App\Jobs\GenerateArticle;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
+use App\Models\Prompt;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -16,23 +17,28 @@ const ARTICLE_POLICY = "素材情報から記事を書く。\n\n- 形式: Markdo
 const ARTICLE_ANSWER = ['title' => 'NEDO、アンモニア燃焼器の開発事業を開始', 'body' => "## 発表の概要\n\nNEDO は…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html"];
 
 /**
- * What the agent would answer, as the OpenAI chat completion wire format.
+ * What the agent would answer, as the Responses API wire format.
  */
 function articleAgentAnswer(mixed $content): array
 {
-    return ['choices' => [['message' => ['content' => is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_UNICODE)]]]];
+    return [
+        'output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => is_string($content) ? $content : json_encode($content, JSON_UNESCAPED_UNICODE)]]]],
+        'usage' => ['input_tokens' => 3000, 'input_tokens_details' => ['cached_tokens' => 2000, 'cache_write_tokens' => 0], 'output_tokens' => 800],
+    ];
 }
 
 beforeEach(function () {
     Http::preventStrayRequests();
-    config(['services.openai.key' => 'test-key', 'services.openai.model' => 'gpt-4o-mini']);
-    EditorialPolicy::query()->create(['layer' => 'article', 'body' => ARTICLE_POLICY]);
+    config(['services.openai.key' => 'test-key']);
+    Queue::fake();
+    EditorialPolicy::query()->create(['layer' => 'article', 'body' => ARTICLE_POLICY, 'model' => 'gpt-5.6-luna']);
     $this->actingAs(User::factory()->create());
 });
 
 function generateArticle(Material $material): Article
 {
-    $article = Article::query()->updateOrCreate(['material_id' => $material->id], ['status' => 'generating']);
+    // Queued as the screens queue it, so the article pins the prompt version and the model.
+    $article = GenerateArticle::queueFor($material);
     (new GenerateArticle($article))->handle(app(ProposeArticle::class));
 
     return $article->refresh();
@@ -48,14 +54,20 @@ it('has the agent write an article from an extracted material per the article ge
     expect($article->status)->toBe('draft')
         ->and($article->title)->toBe(ARTICLE_ANSWER['title'])
         ->and($article->body)->toBe(ARTICLE_ANSWER['body'])
-        ->and($article->status_message)->toContain('gpt-4o-mini');
-    // The policy is the prompt; the material JSON, document title and URL are the input; the answer must be JSON.
-    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com')
-        && $request['response_format']['type'] === 'json_object'
-        && str_contains($request['messages'][0]['content'], '- 形式: Markdown')
-        && str_contains($request['messages'][1]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
-        && str_contains($request['messages'][1]['content'], 'アンモニア燃焼器')
-        && str_contains($request['messages'][1]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
+        ->and($article->status_message)->toContain('gpt-5.6-luna')
+        // The version of the policy and the model it ran on are pinned, with what the call used.
+        ->and($article->prompt->version)->toBe(1)
+        ->and($article->model)->toBe('gpt-5.6-luna')
+        ->and($article)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 800]);
+    // The policy is the cached developer message; the material JSON, document title and URL are the input; the answer is a title and a body.
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
+        && $request['model'] === 'gpt-5.6-luna'
+        && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
+        && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
+        && $request['text']['format']['schema']['required'] === ['title', 'body']
+        && str_contains($request['input'][2]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
+        && str_contains($request['input'][2]['content'], 'アンモニア燃焼器')
+        && str_contains($request['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
 });
 
 it('fails when the agent leaves out the title or the body', function () {
@@ -96,7 +108,7 @@ it('reads the article generation layer from the editorial policy screen, with a 
 
     Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer(ARTICLE_ANSWER))]);
     expect(generateArticle(Material::factory()->create())->status)->toBe('draft');
-    Http::assertSent(fn (Request $request): bool => str_contains($request['messages'][0]['content'], '- 長さ: 300 字'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request['input'][0]['content'][0]['text'], '- 長さ: 300 字'));
 });
 
 it('queues the missing and failed articles of extracted materials, and one article again, from the screens', function () {
