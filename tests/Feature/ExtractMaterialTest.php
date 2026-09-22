@@ -85,7 +85,8 @@ it('writes the parts of an article and counts what came from each side', functio
         return $body['input'][0]['content'][0]['text'] === MATERIAL_POLICY
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
             && str_contains($body['input'][2]['content'], 'NEDO は、工業炉向けの')
-            && array_keys($body['text']['format']['schema']['properties']) === ProposeMaterial::PARTS;
+            // The angle is asked for last, after the facts it should rest on.
+            && array_keys($body['text']['format']['schema']['properties']) === ['before', 'change', 'after', 'facts', 'background', 'angle'];
     });
 
     // The screens show each part, and how many lines came from each side.

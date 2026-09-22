@@ -67,7 +67,13 @@ the product (purpose, the five stages, stack); read it first.
   source gives) and `background` (lines the model fills in from its own
   general knowledge — what this PoC is out to test). **Every value is a
   sentence that could appear in the article**; where a line came from is
-  the key it is under, not an annotation. A part the model cannot write
+  the key it is under, not an annotation. **The angle is what the article
+  claims, not what happened** — asked for first it came back as a
+  paraphrase of `change`, so the schema now names it last (a model writes
+  the properties in the order the schema gives them, and after the facts
+  it has something to claim) and the prompt tests it: could someone say
+  "I don't think so"? If not, it is a summary. The prompt carries four
+  × / ○ pairs from real documents. A part the model cannot write
   plainly is left out and dropped (`ProposeMaterial::dossier`), because
   "confidence: medium" means we did not want it written —
   `App\Actions\ValidateMaterial` only checks that `angle`, `change` and

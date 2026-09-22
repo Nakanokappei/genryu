@@ -27,7 +27,7 @@ class ProposeMaterial
 
     private const MAX_MARKDOWN_CHARS = 120000;
 
-    /** The parts of a material, in the order the policy asks for them: the angle, the change it rests on, then what the two sides give. */
+    /** The parts of a material, as the screens read them: the angle first, then the change it rests on and what each side gives. The schema asks for them in another order. */
     public const PARTS = ['angle', 'before', 'change', 'after', 'facts', 'background'];
 
     /** The parts the primary source gives, and the parts the model's own general knowledge gives: what this PoC counts. */
@@ -120,6 +120,9 @@ class ProposeMaterial
      * The schema: the six parts, nothing about the answer itself. What
      * the model cannot say is null or an empty list rather than a hedge,
      * because a part it would only half-write is a part we do not want.
+     * The angle comes last, because a model writes the properties in the
+     * order the schema names them: asked for it first it restates the
+     * change, asked for it after the facts it has something to claim.
      *
      * @return array<string, mixed>
      */
@@ -129,12 +132,12 @@ class ProposeMaterial
         $lines = ['type' => 'array', 'items' => ['type' => 'string']];
 
         return self::object([
-            'angle' => $line,
             'before' => $line,
             'change' => $line,
             'after' => $line,
             'facts' => $lines,
             'background' => $lines,
+            'angle' => $line,
         ]);
     }
 
