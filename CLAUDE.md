@@ -60,14 +60,26 @@ the product (purpose, the five stages, stack); read it first.
   2026-09-23 after two shapes were tried and rejected the same day).
   `App\Jobs\ExtractMaterial` has `App\Actions\ProposeMaterial` (OpenAI
   **Responses API**, the policy cached with an explicit breakpoint, the
-  document after it as material to analyse, structured output) write six
-  things and nothing else: `angle` (the 切り口 the article would be
+  document after it as material to analyse, structured output) write
+  these and nothing else: `angle` (the 切り口 the article would be
   written on), `before` / `change` / `after` (以前はこうだった → 今回ここが
   変わった → この変化が続けばこうなりうる), `facts` (lines the primary
-  source gives) and `background` (lines the model fills in from its own
-  general knowledge — what this PoC is out to test). **Every value is a
-  sentence that could appear in the article**; where a line came from is
-  the key it is under, not an annotation. **The angle is what the article
+  source gives), `background` (lines from the model's own general
+  knowledge) and the inference — `winners` (誰が得をするか), `losers`
+  (誰が損をするか: not who loses a job, but what is scarce, intermediary
+  or incumbent today and is replaced) and `future_society` (どんな未来社会
+  が訪れるか, with the conditions it needs). **Every value is a
+  sentence that could appear in the article**; where a line stands is
+  the key it is under, not an annotation.
+  **The inference is the point, not a risk to be minimised** (decided
+  2026-09-23): terms and verified facts alone do not reach a general
+  reader, and a public that is not reached cannot be asked to fund the
+  research — translating that is the job. A material without winners,
+  losers and a future is the primary source rewritten, which is not a
+  publication. The guard is not omission but grounding: infer from the
+  capability, the industry's structure and its costs, and never invent a
+  specific with a name or a date on it (○○社が撤退する, △年に価格が半分に)
+  without the primary source or solid general knowledge behind it. **The angle is what the article
   claims, not what happened** — asked for first it came back as a
   paraphrase of `change`, so the schema now names it last (a model writes
   the properties in the order the schema gives them, and after the facts

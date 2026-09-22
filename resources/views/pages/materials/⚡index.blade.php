@@ -56,7 +56,7 @@ new #[Title('素材情報')] class extends Component {
     {{-- Structuring sits with the materials because it is what makes them: the criteria the analyst reads a document by. --}}
     <form wire:submit="saveStructuring" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Structuring') }}</flux:heading>
-        <flux:text>{{ __('The developer prompt and the model of the analyst: an LLM reads an adopted document and writes the parts an article is made of: the angle it would be written on, what was true before, what this document changes, what may follow, the facts the document gives and the background it fills in from its own general knowledge. What it cannot write plainly it leaves out. The prompt is the same for every document and is served from the cache; a changed prompt is a new version, pinned by every material.') }}</flux:text>
+        <flux:text>{{ __('The developer prompt and the model of the analyst: an LLM reads an adopted document and writes the parts an article is made of: the angle it would be written on, what was true before, what this document changes, what may follow, the facts the document gives, the background it fills in from its own general knowledge, and what it infers from both: who gains, who loses, and what everyday life looks like if this holds. What it cannot write plainly it leaves out. The prompt is the same for every document and is served from the cache; a changed prompt is a new version, pinned by every material.') }}</flux:text>
         <flux:textarea wire:model="structuring" :label="__('Developer prompt')" rows="12" class="font-mono text-xs" />
         <flux:select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl">
             @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
@@ -78,7 +78,7 @@ new #[Title('素材情報')] class extends Component {
                 {{-- The angle is what the material is for; until there is one, whatever the run had to say. --}}
                 @php $counts = $material->counts(); @endphp
                 <td class="max-w-lg px-3 py-2">{{ $material->data['angle'] ?? ($material->status_message ?? '—') }}</td>
-                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('primary_source').' '.$counts['primary_source'].' / '.__('general_knowledge').' '.$counts['general_knowledge'] : '—' }}</td>
+                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('primary_source').' '.$counts['primary_source'].' / '.__('general_knowledge').' '.$counts['general_knowledge'].' / '.__('inference').' '.$counts['inference'] : '—' }}</td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>

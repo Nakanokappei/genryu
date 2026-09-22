@@ -72,7 +72,7 @@ new #[Title('素材情報')] class extends Component {
 
         @php $counts = $material->counts(); @endphp
         <flux:text size="sm" class="text-neutral-500">
-            {{ __('primary_source') }} {{ $counts['primary_source'] }} / {{ __('general_knowledge') }} {{ $counts['general_knowledge'] }} —
+            {{ __('primary_source') }} {{ $counts['primary_source'] }} / {{ __('general_knowledge') }} {{ $counts['general_knowledge'] }} / {{ __('inference') }} {{ $counts['inference'] }} —
             {{ $material->model }} / {{ __('Prompt version') }} v{{ $material->prompt?->version ?? '—' }} / {{ __('Revision') }} #{{ $material->document_revision_id ?? '—' }} /
             {{ __('Tokens') }}: {{ __('input') }} {{ number_format((int) $material->input_tokens) }}（{{ __('cached') }} {{ number_format((int) $material->cached_tokens) }}）, {{ __('output') }} {{ number_format((int) $material->output_tokens) }} /
             {{ number_format((int) $material->latency_ms) }} ms / {{ $material->estimated_total_cost !== null ? '$'.number_format($material->estimated_total_cost, 5) : __('cost unknown') }}

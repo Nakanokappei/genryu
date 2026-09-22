@@ -15,9 +15,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * editorial policy and stored as JSON (data): the parts an article is
  * made of — the angle it would be written on, what was true before,
  * what this document changes, what may follow, the facts the primary
- * source gives and the background the model fills in from its own
- * general knowledge. Nothing about itself: a part the model cannot
- * write plainly is absent rather than hedged. Pinned to the
+ * source gives, the background the model fills in from its own general
+ * knowledge, and what it infers from both: who gains, who loses, what
+ * everyday life looks like if this holds. Nothing about itself: a part
+ * the model cannot write plainly is absent rather than hedged. Pinned to the
  * document revision it was made from, the prompt version and the model;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
  * with the report of the checks (validation) and the usage of the calls.
@@ -61,15 +62,21 @@ class Material extends Model
     }
 
     /**
-     * How many lines come from the primary source (facts) and how many
-     * from the model's own general knowledge (background): what this PoC
-     * is out to measure.
+     * How many lines stand on the primary source, how many on the
+     * model's own general knowledge, and how many on inference from
+     * both: what this PoC is out to measure.
      *
      * @return array<string, int>
      */
     public function counts(): array
     {
-        return array_map(fn (string $part): int => count((array) ($this->data[$part] ?? [])), array_flip(ProposeMaterial::LISTS));
+        $counts = array_fill_keys(ProposeMaterial::LISTS, 0);
+
+        foreach (ProposeMaterial::LISTS as $part => $stands) {
+            $counts[$stands] += count((array) ($this->data[$part] ?? []));
+        }
+
+        return $counts;
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */

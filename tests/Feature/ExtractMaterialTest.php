@@ -40,6 +40,9 @@ function materialParts(array $overrides = []): array
         'after' => '燃料製造の炭素強度が解ければ、工業炉の脱炭素が商用規模で視野に入る',
         'facts' => ['事業期間は 2026 年度から 2029 年度までの 4 年間', '予算は 20 億円', '混焼率は 85％ を目標'],
         'background' => ['アンモニアは燃焼時に CO2 を出さないが、燃焼速度が遅く窒素酸化物が出やすい'],
+        'winners' => ['既設の工業炉を使い続けたい化学メーカー'],
+        'losers' => ['燃料としての天然ガスを売る側'],
+        'future_society' => ['石油化学コンビナートの煙突から出る CO2 が減る'],
         ...$overrides,
     ];
 }
@@ -75,7 +78,7 @@ it('writes the parts of an article and counts what came from each side', functio
         ->and($material->model)->toBe(EditorialPolicy::DEFAULT_MODEL)
         ->and(array_keys($material->parts()))->toBe(ProposeMaterial::PARTS)
         ->and($material->data['angle'])->toBe('アンモニア燃焼の課題は「燃やせるか」から「分解炉全体を回せるか」へ移った')
-        ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 1])
+        ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 1, 'inference' => 3])
         ->and($material->input_tokens)->toBe(2000)->and($material->cached_tokens)->toBe(1500);
 
     // The policy is the cached block, the document follows as material to analyse, and the schema asks for the six parts and nothing about the answer itself.
@@ -86,12 +89,12 @@ it('writes the parts of an article and counts what came from each side', functio
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
             && str_contains($body['input'][2]['content'], 'NEDO は、工業炉向けの')
             // The angle is asked for last, after the facts it should rest on.
-            && array_keys($body['text']['format']['schema']['properties']) === ['before', 'change', 'after', 'facts', 'background', 'angle'];
+            && array_keys($body['text']['format']['schema']['properties']) === ['before', 'change', 'after', 'facts', 'background', 'winners', 'losers', 'future_society', 'angle'];
     });
 
     // The screens show each part, and how many lines came from each side.
     $this->get(route('materials.show', $material))->assertSee('「燃やせるか」から「分解炉全体を回せるか」へ移った')->assertSee('予算は 20 億円')->assertSee('事実（一次情報）')->assertSee('背景（一般知識）');
-    $this->get(route('materials.index'))->assertSee('一次情報 3 / 一般知識 1');
+    $this->get(route('materials.index'))->assertSee('一次情報 3 / 一般知識 1 / 推論 3');
 });
 
 // A part the model could not write is dropped rather than kept as an empty or hedged value.
@@ -101,8 +104,8 @@ it('drops what came back empty', function () {
     $material = extractMaterial(Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]));
 
     expect($material->status)->toBe('extracted')
-        ->and(array_keys($material->parts()))->toBe(['angle', 'change', 'facts'])
-        ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 0]);
+        ->and(array_keys($material->parts()))->toBe(['angle', 'change', 'facts', 'winners', 'losers', 'future_society'])
+        ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 0, 'inference' => 3]);
 });
 
 // A material without an angle, a change or the facts is no use to an article: the agent gets the errors and one more go.
