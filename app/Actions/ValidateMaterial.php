@@ -2,77 +2,77 @@
 
 namespace App\Actions;
 
-use App\Models\DocumentRevision;
-
 /**
- * The checks a material goes through before it is kept: every item the
- * editorial policy lists is there; an item taken from the document
- * quotes it, and every quote really is in the lines of the revision it
- * names; an item filled from the model's general knowledge says so and
- * quotes nothing, so the two can always be told apart. A quote that is
- * nowhere in the document is the one error worth a call to repair — it
- * means the agent wrote something the source does not say. What the
- * agent concluded from a true quote is a matter for a person (人の判定),
- * not for a validator. Each problem is one line the agent can act on.
+ * The checks a dossier goes through before it is kept. They are about
+ * what the answer says of itself, not about whether it is right: a lens
+ * that is there must have all five parts and at least one statement
+ * taken from the primary source, an angle must point at a lens that is
+ * there and be ranked from 1 without gaps, a state must be one of the
+ * lifecycle's. Whether an inference is sound is a matter for a person
+ * (人の判定), not for a validator. Each problem is one line the agent
+ * can act on, and the repair call is given them as they are.
  */
 class ValidateMaterial
 {
     /**
-     * The problems of an answer, none when it passes.
+     * The problems of a dossier, none when it passes.
      *
-     * @param  array<string, mixed>  $material
-     * @param  list<string>  $items  what the policy lists
+     * @param  array<string, mixed>  $dossier
      * @return list<string>
      */
-    public function __invoke(array $material, array $items, DocumentRevision $revision): array
+    public function __invoke(array $dossier): array
     {
         $errors = [];
-        $lines = $revision->lines();
+        $lenses = (array) ($dossier['editorial_lenses'] ?? []);
 
-        foreach (array_values(array_diff($items, array_keys($material))) as $missing) {
-            $errors[] = "{$missing}: the item is missing";
+        foreach ($lenses as $name => $lens) {
+            $lens = (array) $lens;
+
+            // A lens is kept only when it can be told as a whole story: before, change, after, the tension and the angle.
+            foreach (array_diff(ProposeMaterial::LENS_PARTS, array_keys($lens)) as $missing) {
+                $errors[] = "{$name}: {$missing} is missing; drop the lens or fill it";
+            }
+
+            $claims = (array) ($lens['claims'] ?? []);
+
+            if ($claims === []) {
+                $errors[] = "{$name}: no claims; every lens rests on statements";
+            }
+
+            // CHANGE is about this document: a lens with nothing from the primary source is an opinion, not a reading.
+            if ($claims !== [] && ! array_any($claims, fn (mixed $claim): bool => (is_array($claim) ? ($claim['type'] ?? '') : '') === 'primary_source')) {
+                $errors[] = "{$name}: no claim of type primary_source; the change must touch this document";
+            }
+
+            $errors = [...$errors, ...self::claimErrors($claims, (string) $name)];
         }
 
-        foreach ($material as $item => $filled) {
-            if (! is_array($filled)) {
-                $errors[] = "{$item}: expected an object with a value and its quotes";
+        foreach (['previous_state', 'current_state'] as $field) {
+            $state = ($dossier['technology_transition'] ?? [])[$field] ?? null;
 
-                continue;
+            if ($state !== null && ! in_array($state, ProposeMaterial::STATES, true)) {
+                $errors[] = "technology_transition.{$field}: \"{$state}\" is not one of the lifecycle states";
+            }
+        }
+
+        $errors = [...$errors, ...self::claimErrors((array) (($dossier['technology_transition'] ?? [])['evidence'] ?? []), 'technology_transition')];
+
+        foreach (array_values((array) ($dossier['recommended_angles'] ?? [])) as $index => $angle) {
+            $angle = (array) $angle;
+            $rank = $index + 1;
+
+            if (($angle['rank'] ?? null) !== $rank) {
+                $errors[] = 'recommended_angles: the ranks must run 1, 2, 3 in order';
             }
 
-            $source = (string) ($filled['source'] ?? '');
+            if (! array_key_exists((string) ($angle['lens'] ?? ''), $lenses)) {
+                $errors[] = "recommended_angles #{$rank}: lens \"".($angle['lens'] ?? '').'" is not among the lenses kept';
+            }
 
-            foreach ($filled['quotes'] ?? [] as $index => $quote) {
-                $start = (int) ($quote['line_start'] ?? 0);
-                $end = (int) ($quote['line_end'] ?? 0);
-                $where = "{$item}, quote ".($index + 1);
-
-                if ($start < 1 || $end < $start || $end > count($lines)) {
-                    $errors[] = "{$where}: line range {$start}-{$end} is outside the document (1-".count($lines).')';
-
-                    continue;
+            foreach ((array) ($angle['primary_evidence'] ?? []) as $claim) {
+                if ((is_array($claim) ? ($claim['type'] ?? '') : '') !== 'primary_source') {
+                    $errors[] = "recommended_angles #{$rank}: primary_evidence takes claims of type primary_source only";
                 }
-
-                if (! self::quoted((string) ($quote['quote'] ?? ''), implode("\n", array_slice($lines, $start - 1, $end - $start + 1)))) {
-                    $errors[] = "{$where}: the quote is not found verbatim in lines {$start}-{$end}";
-                }
-            }
-
-            // What comes from the document says where; what comes from knowledge does not quote; what has no value comes from nowhere.
-            if ($source === 'document' && ($filled['quotes'] ?? []) === []) {
-                $errors[] = "{$item}: source is document but no quote is given";
-            }
-
-            if ($source === 'knowledge' && ($filled['quotes'] ?? []) !== []) {
-                $errors[] = "{$item}: source is knowledge, which takes no quote";
-            }
-
-            if ($source === 'none' && ($filled['value'] ?? null) !== null) {
-                $errors[] = "{$item}: source is none, so the value must be null";
-            }
-
-            if ($source !== 'none' && ($filled['value'] ?? null) === null) {
-                $errors[] = "{$item}: no value, so the source must be none";
             }
         }
 
@@ -80,12 +80,33 @@ class ValidateMaterial
     }
 
     /**
-     * Whether a quote is in a text, whitespace differences aside.
+     * The problems of a list of claims: a statement, where it comes from
+     * and what it rests on are what makes a claim answerable.
+     *
+     * @param  array<int, mixed>  $claims
+     * @return list<string>
      */
-    private static function quoted(string $quote, string $text): bool
+    private static function claimErrors(array $claims, string $where): array
     {
-        $squeeze = fn (string $value): string => (string) preg_replace('/\s+/u', ' ', trim($value));
+        $errors = [];
 
-        return $quote !== '' && $squeeze($quote) !== '' && str_contains($squeeze($text), $squeeze($quote));
+        foreach (array_values($claims) as $index => $claim) {
+            $claim = (array) $claim;
+            $at = $where.', claim '.($index + 1);
+
+            if (trim((string) ($claim['statement'] ?? '')) === '') {
+                $errors[] = "{$at}: no statement";
+            }
+
+            if (! in_array($claim['type'] ?? '', ProposeMaterial::CLAIM_TYPES, true)) {
+                $errors[] = "{$at}: type must be one of ".implode(' / ', ProposeMaterial::CLAIM_TYPES);
+            }
+
+            if (trim((string) ($claim['basis'] ?? '')) === '') {
+                $errors[] = "{$at}: no basis; say what it rests on";
+            }
+        }
+
+        return $errors;
     }
 }

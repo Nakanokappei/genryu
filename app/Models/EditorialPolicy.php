@@ -12,19 +12,16 @@ use Illuminate\Database\Eloquent\Model;
  * filtering (the developer prompt of an LLM that reads a fetched document,
  * set on the 文書 screen; the judge is not built yet).
  * The structuring layer is the prompt that turns a document into a
- * material (stage 2.3): its "- item: …" lines are the items every
- * material must have, each with the quotes it rests on. The article
- * layer turns a material into an article (stage 2.4).
+ * material (stage 2.3, set on the 素材情報 screen): what changed, seen
+ * through the editorial lenses that hold. The article layer turns a
+ * material into an article (stage 2.4).
  */
 class EditorialPolicy extends Model
 {
     /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 記事生成. */
     public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article'];
 
-    /**
-     * What a layer says until someone edits it on the screen. The items
-     * of the structuring layer ("- item: …") become the keys of the JSON.
-     */
+    /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
         'exclude_keywords' => '',
         'content_filtering' => '',
@@ -130,18 +127,5 @@ class EditorialPolicy extends Model
         }
 
         return null;
-    }
-
-    /**
-     * The items a layer lists as "- item: …" lines, in order: for the
-     * structuring layer, the keys every material must have.
-     *
-     * @return list<string>
-     */
-    public static function items(string $body): array
-    {
-        preg_match_all('/^\s*[-*]\s*([^:：\n]+?)\s*[:：]/mu', $body, $matches);
-
-        return array_values(array_unique($matches[1]));
     }
 }

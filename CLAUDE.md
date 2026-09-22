@@ -56,23 +56,42 @@ the product (purpose, the five stages, stack); read it first.
 - **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
   one body per layer: selection / structuring / article; defaults in the
   model).
-- **素材情報 is the policy's items with their sources** (stage 2.3). The
-  structuring layer lists the items ("- item: …"); `App\Jobs\ExtractMaterial`
+- **素材情報 is the change, seen through the editorial lenses** (stage 2.3,
+  rebuilt 2026-09-23 from ChatGPT's dossier developer prompt, kept at
+  `~/.codex/.chatgpt-projects/…/technology-watch-dossier-developer-prompt.md`).
+  The point of the stage is not to summarise a document but to find
+  **what the technology's state changed from and to** (BEFORE → CHANGE →
+  AFTER) and the **切り口** an article could take. `App\Jobs\ExtractMaterial`
   has `App\Actions\ProposeMaterial` (OpenAI **Responses API**, the policy
-  cached with an explicit breakpoint, the document's lines numbered after
-  it, a schema built from the items) fill every one of them and say where
-  it came from: `document` with the quotes it rests on (exact text, line
-  range in the pinned revision), `knowledge` from the model's own general
-  knowledge — what this PoC is out to test, like a reporter who does not
-  look up what he already knows — or `none`. `App\Actions\ValidateMaterial`
-  checks the items are all there and every quote really is in the lines
-  it names; a miss is repaired once with the errors in hand, and what is
-  left is kept in `materials.validation`. The material pins its document
-  revision, prompt version and model (編集方針 chooses it) and keeps the
-  usage. Queued from the 素材情報を抽出 buttons, not automatically.
-  (ChatGPT's dossier design — claim graphs, tensions, entry-point review,
-  Wikipedia tools — was tried on 2026-09-23 and cut back to this: it
-  measured the wrong thing for a PoC and cost several times as much.)
+  cached with an explicit breakpoint, the document after it as material
+  to analyse, structured output) return only what it can support: the
+  editorial lenses that hold (frontier / money / factory / loser /
+  bottleneck / race / everyday / contrarian, each with before, change,
+  after, tension, angle, reason and its claims), the technology
+  transition, up to three recommended angles, what is missing and what
+  to watch next. **A lens it cannot support is simply absent from the
+  array** — the schema never offers eight slots to fill, which is the
+  one thing that keeps the model from inventing seven lenses to be
+  polite. Every claim says where it stands on: `primary_source`,
+  `general_knowledge` (the model's own, what this PoC is out to test,
+  like a reporter who does not look up what he already knows) or
+  `inference`, with a `basis` in words. `App\Actions\ValidateMaterial`
+  checks the dossier holds together — a lens has all five parts and at
+  least one primary-source claim, an angle points at a lens that is
+  there and is ranked from 1, a state is one of the lifecycle's — and a
+  miss is repaired once with the errors in hand, what is left kept in
+  `materials.validation`. Whether an inference is *sound* is a person's
+  call (人の判定), never the validator's. The material pins its document
+  revision, prompt version and model and keeps the usage. Queued from
+  the 素材情報を抽出 buttons, not automatically. **The structuring prompt
+  and its model are set on the 素材情報 screen**, above what they make, as
+  the content filtering is on 文書; 編集方針 keeps the article layer and
+  points at the other two. The quote checking of the previous shape
+  (exact text with line numbers, verified against the revision) was
+  dropped with it (decided 2026-09-23): `basis` is words now, so nothing
+  mechanical stands between a claim and the document. A dossier costs
+  several times an old material — ~14k input / ~5k output tokens and
+  around two minutes on the DARPA D2 document.
 - **Articles are generated the same way** (stage 2.4): the article layer
   of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
   (agent `App\Actions\ProposeArticle`, OpenAI **Responses API**, the

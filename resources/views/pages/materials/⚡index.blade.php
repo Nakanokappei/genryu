@@ -1,15 +1,36 @@
 <?php
 
 use App\Jobs\ExtractMaterial;
-use App\Models\Material;
 use App\Models\Document;
+use App\Models\EditorialPolicy;
+use App\Models\Material;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 素材情報 (Materials): the structure extracted from each fetched document in the background; nothing is added by hand here.
+// 素材情報 (Materials): the structuring layer of the editorial policy (the developer prompt and the model of the analyst that reads an adopted document and finds what changed, seen through the editorial lenses), and the dossier extracted from each adopted document in the background; nothing is added by hand here.
 new #[Title('素材情報')] class extends Component {
+    // Structuring: the developer prompt (OpenAI's name for the system prompt) of the analyst.
+    public string $structuring = '';
+
+    /** The model the material is built with (UI: 素材情報のモデル), one of EditorialPolicy::MODELS. */
+    public string $structuringModel = EditorialPolicy::DEFAULT_MODEL;
+
+    public function mount(): void
+    {
+        $this->structuring = EditorialPolicy::bodyFor('structuring');
+        $this->structuringModel = EditorialPolicy::modelFor('structuring');
+    }
+
+    public function saveStructuring(): void
+    {
+        $this->validate(['structuringModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'structuring'], ['body' => $this->structuring, 'model' => $this->structuringModel]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
+
     /** @return \Illuminate\Database\Eloquent\Collection<int, Material> */
     #[Computed]
     public function materials()
@@ -30,20 +51,35 @@ new #[Title('素材情報')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($this->materials->contains('status', 'extracting')) wire:poll.5s @endif>
-    <div class="flex flex-wrap items-center gap-3">
-        <flux:heading size="xl">{{ __('Materials') }}</flux:heading>
-        <flux:button wire:click="extract" class="ms-auto" icon="cube">{{ __('Extract materials from adopted documents') }}</flux:button>
-    </div>
+    <flux:heading size="xl">{{ __('Materials') }}</flux:heading>
 
-    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Summary'), __('Items'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
+    {{-- Structuring sits with the materials because it is what makes them: the criteria the analyst reads a document by. --}}
+    <form wire:submit="saveStructuring" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Structuring') }}</flux:heading>
+        <flux:text>{{ __('The developer prompt and the model of the analyst: an LLM reads an adopted document and works out what changed — what was true before, what this document changes, what may follow — and looks at that change through the editorial lenses, keeping only the ones it can support. Every statement says whether it comes from the primary source, from general knowledge or from inference. The prompt is the same for every document and is served from the cache; a changed prompt is a new version, pinned by every material.') }}</flux:text>
+        <flux:textarea wire:model="structuring" :label="__('Developer prompt')" rows="12" class="font-mono text-xs" />
+        <flux:select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl">
+            @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
+                <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+            @endforeach
+        </flux:select>
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+            <flux:button type="button" wire:click="extract" icon="cube" wire:confirm="{{ __('Extract a material from every adopted document that has none? Each one is one call to the model.') }}">{{ __('Extract materials from adopted documents') }}</flux:button>
+        </div>
+    </form>
+
+    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Recommended angle'), __('Lenses'), __('Claims'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
         @foreach ($this->materials as $material)
             <tr>
                 <td class="px-3 py-2"><x-pages::favicon :source="$material->document->source" /> <a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ $material->document->title }}</a></td>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $material->document->source) }}" class="underline" wire:navigate>{{ $material->document->source->name }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$material->status" /></td>
-                @php $items = $material->items(); $summary = $items[array_key_first($items) ?? ''] ?? null; $sources = $material->sources(); @endphp
-                <td class="max-w-lg px-3 py-2">{{ is_string($summary['value'] ?? null) ? $summary['value'] : ($material->status_message ?? '—') }}</td>
-                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('document').' '.$sources['document'].' / '.__('knowledge').' '.$sources['knowledge'] : '—' }}</td>
+                {{-- The first recommended angle is what the material is for; until there is one, whatever the run had to say. --}}
+                @php $angle = ($material->data['recommended_angles'] ?? [])[0]['angle'] ?? null; $types = $material->claimTypes(); @endphp
+                <td class="max-w-lg px-3 py-2">{{ $angle ?? ($material->status_message ?? '—') }}</td>
+                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? count($material->lenses()) : '—' }}</td>
+                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('primary_source').' '.$types['primary_source'].' / '.__('general_knowledge').' '.$types['general_knowledge'].' / '.__('inference').' '.$types['inference'] : '—' }}</td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>

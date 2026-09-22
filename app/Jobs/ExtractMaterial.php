@@ -15,11 +15,13 @@ use Throwable;
 
 /**
  * 素材情報を抽出 (UI: "Extract material", stage 2.3 of docs/HANDOVER.md):
- * in the background, have the agent fill every item of the structuring
- * layer from the revision of the document's Markdown pinned when the job
- * was queued, each item with the quotes it rests on. The quotes are
- * checked against that revision (App\Actions\ValidateMaterial) and a
- * miss is repaired once with the errors in hand. The JSON, the revision,
+ * in the background, have the agent read the revision of the document's
+ * Markdown pinned when the job was queued as the structuring layer says:
+ * what changed, and that change through the editorial lenses, every
+ * statement saying whether it comes from the primary source, from
+ * general knowledge or from inference. The dossier is checked for
+ * holding together (App\Actions\ValidateMaterial) and a miss is repaired
+ * once with the errors in hand. The JSON, the revision,
  * the prompt version, the model, the usage and the report of the checks
  * are kept on the material; a rejected document is refused.
  * The outcome lands on the material (status 抽出中 / 抽出済み / 失敗) so
@@ -80,18 +82,17 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The structuring layer of the editorial policy is empty.'));
             }
 
-            $items = EditorialPolicy::items($policy);
             $model = (string) $material->model;
 
-            // The answer, checked; a quote that is not in the document is repaired once with the errors in hand.
+            // The answer, checked; a dossier that does not hold together is repaired once with the errors in hand.
             $result = $propose($policy, $model, $material->revision->markdown);
             $usage[] = $result['usage'];
-            $errors = $validate($result['json'], $items, $material->revision);
+            $errors = $validate($result['json']);
 
             if ($errors !== []) {
                 $result = $propose($policy, $model, $material->revision->markdown, $errors);
                 $usage[] = $result['usage'];
-                $errors = $validate($result['json'], $items, $material->revision);
+                $errors = $validate($result['json']);
             }
 
             if ($errors !== []) {

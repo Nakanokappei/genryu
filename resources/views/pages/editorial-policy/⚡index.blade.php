@@ -7,13 +7,8 @@ use Livewire\Component;
 
 // 編集方針 (Editorial policy): one body of text per layer; each stage reads its layer as its prompt.
 new #[Title('編集方針')] class extends Component {
-    // The selection layer is set on the 文書 screen, next to what it screens.
-    public const LAYERS = ['structuring', 'article'];
-
-    public string $structuring = '';
-
-    /** The model the material is built with (UI: モデル), one of EditorialPolicy::MODELS. */
-    public string $structuringModel = EditorialPolicy::DEFAULT_MODEL;
+    // The selection layer is set on the 文書 screen and the structuring layer on the 素材情報 screen, each next to what it governs.
+    public const LAYERS = ['article'];
 
     public string $article = '';
 
@@ -26,16 +21,14 @@ new #[Title('編集方針')] class extends Component {
             $this->{$layer} = EditorialPolicy::bodyFor($layer);
         }
 
-        $this->structuringModel = EditorialPolicy::modelFor('structuring');
         $this->articleModel = EditorialPolicy::modelFor('article');
     }
 
     public function save(): void
     {
-        $models = ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))];
-        $this->validate(['structuringModel' => $models, 'articleModel' => $models]);
+        $this->validate(['articleModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
 
-        // Each layer runs on the model chosen for it (UI: 構造化のモデル / 記事生成のモデル).
+        // The layer runs on the model chosen for it (UI: 記事生成のモデル).
         foreach (self::LAYERS as $layer) {
             EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $this->{$layer}, 'model' => $this->{$layer.'Model'}]);
         }
@@ -46,7 +39,7 @@ new #[Title('編集方針')] class extends Component {
 
 <section class="w-full space-y-6">
     <flux:heading size="xl">{{ __('Editorial policy') }}</flux:heading>
-    <flux:text>{{ __('Each layer is the prompt of its stage. The structuring layer is the developer prompt of the analyst that builds a material from an adopted document: the evidence quoted with its lines, the claims and inferences, the technology transition, the engineering and the possible angles; a changed prompt is a new version, pinned by every material. The article generation layer is used when articles are generated from materials: format, style, length, structure and quality criteria.') }}</flux:text>
+    <flux:text>{{ __('Each layer is the prompt of its stage, and is set next to what it governs. The article generation layer is used when articles are generated from materials: format, style, length, structure and quality criteria.') }}</flux:text>
 
     <form wire:submit="save" class="space-y-6">
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
@@ -54,12 +47,8 @@ new #[Title('編集方針')] class extends Component {
             <flux:text>{{ __('The title filter is set on the Sources screen, the content filtering on the Documents screen.') }} <a href="{{ route('sources.index') }}" class="underline" wire:navigate>{{ __('Sources') }}</a> / <a href="{{ route('documents.index') }}" class="underline" wire:navigate>{{ __('Documents') }}</a></flux:text>
         </div>
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            <flux:textarea wire:model="structuring" :label="__('Structuring')" rows="24" class="font-mono text-xs" />
-            <flux:select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <flux:heading>{{ __('Structuring') }}</flux:heading>
+            <flux:text>{{ __('The structuring layer is set on the Materials screen, above what it makes.') }} <a href="{{ route('materials.index') }}" class="underline" wire:navigate>{{ __('Materials') }}</a></flux:text>
         </div>
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             <flux:textarea wire:model="article" :label="__('Article generation')" rows="10" />

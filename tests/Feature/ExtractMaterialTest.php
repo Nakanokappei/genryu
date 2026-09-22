@@ -15,7 +15,7 @@ use Livewire\Livewire;
 
 const MATERIAL_MARKDOWN = "# アンモニア燃焼器の開発を開始\n\n2026-09-17\n\nNEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。\n\n予算は 20 億円を予定している。混焼率は 85％ を目標とする。";
 
-const MATERIAL_POLICY = "文書を次の観点で整理する。\n\n- 要約: 3 文以内\n- 重要な事実: 数値や日付の一覧\n- 背景: 理解に必要な前提知識\n";
+const MATERIAL_POLICY = "一次情報から何が変わったのかを見つけ、編集のレンズから分析する。\n\n根拠をもって出せるレンズだけを出力する。\n";
 
 /**
  * What the agent would answer, as the Responses API wire format.
@@ -29,27 +29,52 @@ function materialAnswer(array $json): array
 }
 
 /**
- * A whole answer for MATERIAL_MARKDOWN and MATERIAL_POLICY: two items
- * quoted from the document, one filled from the model's knowledge.
+ * A claim of each kind: one read off the document, one from the model's
+ * own general knowledge, one drawn from both.
  */
-function materialItems(array $overrides = []): array
+function materialClaim(string $type = 'primary_source', string $statement = 'NEDO が小型アンモニア燃焼器の開発事業を開始した。'): array
+{
+    return ['statement' => $statement, 'type' => $type, 'confidence' => 'high', 'basis' => '本文「NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。」'];
+}
+
+/**
+ * A whole answer for MATERIAL_MARKDOWN, as the transport shape: one lens
+ * that holds, one transition, one recommended angle.
+ */
+function materialDossier(array $overrides = []): array
 {
     return [
-        '要約' => [
-            'value' => 'NEDO が工業炉向けの小型アンモニア燃焼器の開発事業を開始した。期間は 4 年、予算は 20 億円。',
-            'source' => 'document',
-            'quotes' => [['line_start' => 5, 'line_end' => 5, 'quote' => 'NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。']],
-        ],
-        '重要な事実' => [
-            'value' => ['予算 20 億円', '混焼率 85％ が目標'],
-            'source' => 'document',
-            'quotes' => [['line_start' => 7, 'line_end' => 7, 'quote' => '予算は 20 億円を予定している。']],
-        ],
-        '背景' => [
-            'value' => 'アンモニアは燃焼時に CO2 を出さないが、燃焼速度が遅く窒素酸化物が出やすい。',
-            'source' => 'knowledge',
-            'quotes' => [],
-        ],
+        'editorial_lenses' => [[
+            'lens' => 'money',
+            'strength' => 'STRONG',
+            'before' => '研究テーマとして扱われていた。',
+            'change' => '20 億円の開発事業が始まった。',
+            'after' => '工業炉向けの燃焼器が成立すれば、供給網の競争が始まりうる。',
+            'tension' => 'Research ↔ Capital',
+            'angle' => '研究段階だったアンモニア燃焼に、有限の資本が入った。',
+            'reason' => '予算と期間が一次情報にある。',
+            'claims' => [materialClaim(), materialClaim('general_knowledge', 'アンモニアは燃焼時に CO2 を出さないが燃焼速度が遅い。')],
+        ]],
+        'technology_transition' => [[
+            'previous_state' => 'Technically Feasible',
+            'current_state' => 'Economically Plausible',
+            'transition' => '研究から開発事業へ。',
+            'what_changed' => '4 年 20 億円の事業として着手された。',
+            'why_it_matters' => '工業炉の脱炭素の道筋が一つ増える。',
+            'confidence' => 'medium',
+            'evidence' => [materialClaim()],
+        ]],
+        'recommended_angles' => [[
+            'rank' => 1,
+            'lens' => 'money',
+            'angle' => '研究段階だったアンモニア燃焼に、有限の資本が入った。',
+            'editorial_thesis' => '資本が入った時点が、技術の状態が動いた合図である。',
+            'why_strong' => '金額と期間が一次情報で確認できる。',
+            'primary_evidence' => [materialClaim()],
+            'uncertainties' => ['混焼率 85％ の達成条件は示されていない。'],
+        ]],
+        'missing_information' => ['実証設備の規模'],
+        'next_signals' => ['パイロット設備の着工'],
         ...$overrides,
     ];
 }
@@ -70,9 +95,9 @@ function extractMaterial(Document $document): Material
     return $material->refresh();
 }
 
-// Every item of the policy is filled, each saying where it came from: the document, with the lines it quotes, or the model's general knowledge — which is what this PoC is out to test.
-it('fills every item of the policy and keeps where each one came from', function () {
-    Http::fake(['api.openai.com/v1/responses' => Http::response(materialAnswer(materialItems()))]);
+// The dossier: the lenses that hold, the angles they give, and every statement saying where it comes from — which is what this PoC is out to test.
+it('keeps the lenses that hold, the angles they give and where every statement comes from', function () {
+    Http::fake(['api.openai.com/v1/responses' => Http::response(materialAnswer(materialDossier()))]);
     $document = Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN, 'title' => 'アンモニア燃焼器の開発を開始']);
     Screening::factory()->for($document)->create();
 
@@ -83,73 +108,83 @@ it('fills every item of the policy and keeps where each one came from', function
         ->and($material->document_revision_id)->toBe($document->revisions()->sole()->id)
         ->and($material->prompt?->name)->toBe('structuring')
         ->and($material->model)->toBe(EditorialPolicy::DEFAULT_MODEL)
-        ->and(array_keys($material->items()))->toBe(['要約', '重要な事実', '背景'])
-        ->and($material->items()['背景']['source'])->toBe('knowledge')
-        ->and($material->sources())->toBe(['document' => 2, 'knowledge' => 1, 'none' => 0])
+        // The lenses are kept by name, the single transition unwrapped, and nothing empty is kept.
+        ->and(array_keys($material->lenses()))->toBe(['money'])
+        ->and($material->data['technology_transition']['current_state'])->toBe('Economically Plausible')
+        ->and($material->data['recommended_angles'][0]['angle'])->toBe('研究段階だったアンモニア燃焼に、有限の資本が入った。')
+        ->and($material->claimTypes())->toBe(['primary_source' => 3, 'general_knowledge' => 1, 'inference' => 0])
         ->and($material->input_tokens)->toBe(2000)->and($material->cached_tokens)->toBe(1500);
 
-    // The policy is the cached block, the document's lines are numbered after it, and the schema asks for the policy's items.
+    // The policy is the cached block, the document follows as material to analyse, and the lenses are a list of what holds, not eight slots.
     Http::assertSent(function (Request $request): bool {
         $body = $request->data();
 
         return $body['input'][0]['content'][0]['text'] === MATERIAL_POLICY
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
-            && str_contains($body['input'][2]['content'], '5| NEDO は、工業炉向けの')
-            && array_keys($body['text']['format']['schema']['properties']) === ['要約', '重要な事実', '背景'];
+            && str_contains($body['input'][2]['content'], 'NEDO は、工業炉向けの')
+            && $body['text']['format']['schema']['properties']['editorial_lenses']['type'] === 'array'
+            && $body['text']['format']['schema']['properties']['editorial_lenses']['items']['properties']['lens']['enum'] === ProposeMaterial::LENSES;
     });
 
-    // The screens show each item with its source and the lines it quotes.
-    $this->get(route('materials.show', $material))->assertSee('NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。')->assertSee('5 行')->assertSee('知識由来')->assertSee('文書由来');
-    $this->get(route('materials.index'))->assertSee('文書由来 2 / 知識由来 1');
+    // The screens show the angle, the lens with its before / change / after, and where each statement comes from.
+    $this->get(route('materials.show', $material))->assertSee('研究段階だったアンモニア燃焼に、有限の資本が入った。')->assertSee('MONEY — 資本')->assertSee('一次情報')->assertSee('一般知識');
+    $this->get(route('materials.index'))->assertSee('一次情報 3 / 一般知識 1 / 推論 0');
 });
 
-// A quote that is not in the lines it names is the one error worth a call: the agent gets the errors and one more go.
-it('checks the quotes against the document and repairs once', function () {
-    $wrong = materialItems(['要約' => [
-        'value' => 'NEDO が水素燃焼器の開発事業を開始した。',
-        'source' => 'document',
-        'quotes' => [['line_start' => 5, 'line_end' => 5, 'quote' => 'NEDO は水素燃焼器の開発事業を開始した。']],
-    ]]);
+// A lens that does not hold together is the error worth a call: the agent gets the errors and one more go.
+it('checks the dossier holds together and repairs once', function () {
+    $wrong = materialDossier(['editorial_lenses' => [[
+        'lens' => 'money',
+        'strength' => 'MEDIUM',
+        'before' => '研究テーマだった。',
+        'change' => '',
+        'after' => '',
+        'tension' => '',
+        'angle' => '資本が入った。',
+        'reason' => '',
+        'claims' => [materialClaim('general_knowledge')],
+    ]]]);
     Http::fake(['api.openai.com/v1/responses' => Http::sequence()
         ->push(materialAnswer($wrong))
-        ->push(materialAnswer(materialItems()))]);
+        ->push(materialAnswer(materialDossier()))]);
 
     expect(extractMaterial(Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]))->status)->toBe('extracted');
 
-    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][1]['content'], '要約, quote 1: the quote is not found verbatim in lines 5-5'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][1]['content'], 'money: no claim of type primary_source'));
     expect(Http::recorded())->toHaveCount(2);
 });
 
 // A repair that still fails leaves the material failed, with the checks' report kept.
 it('fails with the report when the checks do not pass twice', function () {
-    $broken = materialItems(['重要な事実' => ['value' => ['予算'], 'source' => 'document', 'quotes' => [['line_start' => 99, 'line_end' => 99, 'quote' => 'x']]]]);
+    $broken = materialDossier(['recommended_angles' => [['rank' => 2, 'lens' => 'factory', 'angle' => 'x', 'editorial_thesis' => 'x', 'why_strong' => 'x', 'primary_evidence' => [materialClaim()], 'uncertainties' => []]]]);
     Http::fake(['api.openai.com/v1/responses' => Http::sequence()->push(materialAnswer($broken))->push(materialAnswer($broken))]);
 
     $material = extractMaterial(Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]));
 
     expect($material->status)->toBe('failed')
         ->and($material->status_message)->toContain('素材情報が検査を通りませんでした')
-        ->and($material->validation)->toContain('重要な事実, quote 1: line range 99-99 is outside the document (1-7)')
+        ->and($material->validation)->toContain('recommended_angles: the ranks must run 1, 2, 3 in order')
+        ->and($material->validation)->toContain('recommended_angles #1: lens "factory" is not among the lenses kept')
         ->and($material->data)->toBeNull();
     $this->get(route('materials.show', $material))->assertSee('直近の抽出が通らなかった検査');
 });
 
-// The checks in their own right: the document and the model's knowledge are told apart, and an item cannot claim both or neither.
-it('tells the document and general knowledge apart', function () {
+// The checks in their own right: a lens must be a whole story resting on this document, and a claim must say where it comes from.
+it('checks a lens is a whole story resting on the primary source', function () {
     $validate = app(ValidateMaterial::class);
-    $document = Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]);
-    $revision = $document->revisions()->sole();
-    $items = ['要約', '重要な事実', '背景'];
+    $dossier = ProposeMaterial::dossier(materialDossier());
 
-    expect($validate(materialItems(), $items, $revision))->toBe([]);
-    expect($validate(materialItems(['背景' => ['value' => 'x', 'source' => 'document', 'quotes' => []]]), $items, $revision))
-        ->toBe(['背景: source is document but no quote is given']);
-    expect($validate(materialItems(['背景' => ['value' => 'x', 'source' => 'knowledge', 'quotes' => [['line_start' => 5, 'line_end' => 5, 'quote' => 'NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。']]]]), $items, $revision))
-        ->toBe(['背景: source is knowledge, which takes no quote']);
-    expect($validate(materialItems(['背景' => ['value' => null, 'source' => 'knowledge', 'quotes' => []]]), $items, $revision))
-        ->toBe(['背景: no value, so the source must be none']);
-    expect($validate(['要約' => materialItems()['要約']], $items, $revision))
-        ->toBe(['重要な事実: the item is missing', '背景: the item is missing']);
+    expect($validate($dossier))->toBe([]);
+
+    $lens = $dossier['editorial_lenses']['money'];
+    expect($validate(['editorial_lenses' => ['money' => [...$lens, 'claims' => [materialClaim('inference')]]]]))
+        ->toBe(['money: no claim of type primary_source; the change must touch this document']);
+    expect($validate(['editorial_lenses' => ['money' => array_diff_key($lens, ['after' => null, 'tension' => null])]]))
+        ->toBe(['money: after is missing; drop the lens or fill it', 'money: tension is missing; drop the lens or fill it']);
+    expect($validate(['editorial_lenses' => ['money' => [...$lens, 'claims' => [[...materialClaim(), 'basis' => ' ']]]]]))
+        ->toBe(['money, claim 1: no basis; say what it rests on']);
+    expect($validate(['technology_transition' => ['current_state' => '工業化', 'evidence' => []]]))
+        ->toBe(['technology_transition.current_state: "工業化" is not one of the lifecycle states']);
 });
 
 it('does not ask the agent about a document that has not been fetched', function () {
@@ -159,20 +194,20 @@ it('does not ask the agent about a document that has not been fetched', function
     Http::assertNothingSent();
 });
 
-// The structuring layer and its model are set on 編集方針; its items are what a material must have.
-it('reads the structuring layer and its model from the editorial policy screen', function () {
+// The structuring layer and its model are set above the materials, on the 素材情報 screen.
+it('reads the structuring layer and its model from the materials screen', function () {
     EditorialPolicy::query()->delete();
-    expect(EditorialPolicy::items(EditorialPolicy::bodyFor('structuring')))->toBe(['要約', '発表主体', '発表の種類', '技術領域', '重要な事実', '関係者', '意義', '背景', '記事の切り口'])
+    expect(EditorialPolicy::bodyFor('structuring'))->toContain('Editorial Lens')
         ->and(EditorialPolicy::modelFor('structuring'))->toBe(EditorialPolicy::DEFAULT_MODEL);
 
-    Livewire::test('pages::editorial-policy.index')
+    Livewire::test('pages::materials.index')
         ->set('structuring', MATERIAL_POLICY)->set('structuringModel', 'gpt-6-astra')
-        ->call('save')->assertHasNoErrors();
+        ->call('saveStructuring')->assertHasNoErrors();
 
     expect(EditorialPolicy::bodyFor('structuring'))->toBe(MATERIAL_POLICY)
         ->and(EditorialPolicy::modelFor('structuring'))->toBe('gpt-6-astra');
 
-    Http::fake(['api.openai.com/v1/responses' => Http::response(materialAnswer(materialItems()))]);
+    Http::fake(['api.openai.com/v1/responses' => Http::response(materialAnswer(materialDossier()))]);
     $material = extractMaterial(Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]));
     expect($material->status)->toBe('extracted')->and($material->model)->toBe('gpt-6-astra');
 });
