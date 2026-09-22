@@ -58,11 +58,8 @@ new #[Title('素材情報')] class extends PagedList {
     <form wire:submit="saveStructuring" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Structuring') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the analyst: an LLM reads an adopted document and writes the parts an article is made of: the angle it would be written on, what was true before, what this document changes, what may follow, the facts the document gives, the background it fills in from its own general knowledge, and what it infers from both: who gains, who loses, and what everyday life looks like if this holds. What it cannot write plainly it leaves out. The prompt is the same for every document and is served from the cache; a changed prompt is a new version, pinned by every material.') }}</flux:text>
-        <flux:textarea wire:model="structuring" :label="__('Developer prompt')" rows="12" class="font-mono text-xs" />
-        <x-pages::user-prompt :messages="[
-            ['role' => 'developer', 'text' => \App\Actions\ProposeMaterial::INSTRUCTIONS],
-            ['role' => 'user', 'text' => __('Primary source: the document, as Markdown.')],
-        ]" />
+        <flux:textarea wire:model="structuring" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
+        <x-pages::fixed-prompts :instruction="\App\Actions\ProposeMaterial::INSTRUCTIONS" :input="__('Primary source: the document, as Markdown.')" />
         <flux:select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl">
             @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                 <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>

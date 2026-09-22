@@ -195,11 +195,8 @@ new #[Title('文書')] class extends PagedList {
     <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the screening: an LLM reads a fetched document and decides whether it goes on to the material (adopt), stops here (reject) or needs a look (review). The prompt is the same for every document and is served from the cache; a changed prompt is a new version, and the figures below are kept per version. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
-        <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt')" rows="8" />
-        <x-pages::user-prompt :messages="[
-            ['role' => 'developer', 'text' => \App\Actions\ProposeDecision::SECOND_PASS.' '.__('(second pass only)')],
-            ['role' => 'user', 'text' => __('The document, as Markdown.')],
-        ]" />
+        <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt (editable)')" rows="8" />
+        <x-pages::fixed-prompts :instruction="\App\Actions\ProposeDecision::SECOND_PASS.' '.__('(second pass only)')" :input="__('The document, as Markdown.')" />
         <flux:select wire:model="contentFilteringModel" :label="__('First-pass model (a document the first pass sends to review is judged again by the next model up)')" class="max-w-xl">
             @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                 <flux:select.option value="{{ $id }}" :disabled="! in_array($id, \App\Models\EditorialPolicy::screeningModels(), true)">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
