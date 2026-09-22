@@ -129,8 +129,14 @@ the product (purpose, the five stages, stack); read it first.
   **content filtering** (コンテンツフィルタリング) is on the 文書 screen
   above the list: one body, the developer prompt (OpenAI's name for the
   system prompt) of the スクリーニング, and the model it runs on
-  (`EditorialPolicy::MODELS`, column `model`; the other agents use
-  `OPENAI_MODEL`).
+  (`EditorialPolicy::MODELS`, column `model`). **The developer prompts are
+  written in English and answer in the language of the document they
+  read** (content filtering, 2026-09-23): the same reasoning in English
+  costs about half the tokens of the Japanese it replaced (a screening's
+  fixed prompt went from ~2,400 to ~1,000 tokens), and a reason about a
+  French document reads better in French. The 素材情報 prompt is the
+  exception — it writes Japanese whatever it reads, because the articles
+  are Japanese.
 - **スクリーニング (Screening) is the Editorial Screening Gate** (built
   2026-09-22 from ChatGPT's spec, kept at
   `~/.codex/.chatgpt-projects/…/technology-watch-editorial-screening-gate.md`):
