@@ -158,6 +158,11 @@ the product (purpose, the five stages, stack); read it first.
   as a client are listed in `config/crawler.php`. New crawler code never
   needs to check robots itself, and must not bypass `Http`.
 
+## TODO
+
+`docs/TODO.md` lists what was decided but waits for something (the
+production deployment, mostly). Add there rather than in code comments.
+
 ## History
 
 The Phase 0 acquisition platform (DARPA / NEDO vertical slices, Claude
