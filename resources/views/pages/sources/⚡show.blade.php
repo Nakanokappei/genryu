@@ -376,7 +376,7 @@ new #[Title('情報源')] class extends Component {
     {{-- Only the documents that are not on the 文書 screen: excluded by a keyword, or failed to fetch, each with the reason. The fetched ones are the 文書 screen's business, filtered by source there. --}}
     @php $notFetched = $source->documents()->where(fn ($query) => $query->whereNotNull('excluded_by')->orWhere('status', 'failed'))->latest('published_at')->latest('id')->get(); @endphp
     <flux:heading size="lg">{{ __('Documents not fetched') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status'), __('Reason')]" :empty="$notFetched->isEmpty()">
+    <x-pages::table :columns="[__('Title'), __('Published on'), __('Status'), __('Reason')]" :empty="$notFetched->isEmpty()">
         @foreach ($notFetched as $document)
             <tr>
                 <td class="px-3 py-2"><x-pages::short-title :title="$document->title" :href="route('documents.show', $document)" /></td>

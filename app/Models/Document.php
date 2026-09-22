@@ -23,6 +23,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * person may record their own verdict (UI: 人の判定, human_decision adopt /
  * reject with a reason), which outranks the screening's at the gate.
  *
+ * @property CarbonImmutable|null $published_at
+ * @property bool $published_has_time
  * @property CarbonImmutable|null $human_decided_at
  */
 class Document extends Model
@@ -35,11 +37,26 @@ class Document extends Model
     /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
-        return ['published_at' => 'date', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
+        return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
+    }
+
+    /**
+     * 公開日時 / 公開日: when the source dated the document to the minute,
+     * the instant in the display timezone; when it gave only a day, that
+     * day as it was written (the value is midnight UTC and must not be
+     * moved to another timezone, which would show the day before or after).
+     */
+    public function publishedDisplay(): ?string
+    {
+        return match (true) {
+            $this->published_at === null => null,
+            $this->published_has_time => $this->published_at->display(),
+            default => $this->published_at->format('Y-m-d'),
+        };
     }
 
     /** @return BelongsTo<Source, $this> */

@@ -30,6 +30,7 @@ class Screening extends Model
     /** The reason classes of the gate, each with the decision it belongs to and what it means (UI 理由の内訳). */
     public const REASONS = [
         'FRONTIER_BREAK' => ['decision' => 'adopt', 'meaning' => 'Something impossible became an engineering problem'],
+        'FEASIBILITY_BET' => ['decision' => 'adopt', 'meaning' => 'A backer who can act bet that a capability is now solvable'],
         'ENGINEERING_ATTACK' => ['decision' => 'adopt', 'meaning' => 'Concrete engineering has begun on a scientific possibility'],
         'DEMONSTRATION' => ['decision' => 'adopt', 'meaning' => 'Moved from the laboratory to a real environment'],
         'INDUSTRIALIZATION' => ['decision' => 'adopt', 'meaning' => 'From making it to making it in volume'],
@@ -48,7 +49,7 @@ class Screening extends Model
     ];
 
     /** The reason classes of the gate, in the order of REASONS. */
-    public const PRIMARY_REASONS = ['FRONTIER_BREAK', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD', 'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY', 'INSUFFICIENT_EVIDENCE'];
+    public const PRIMARY_REASONS = ['FRONTIER_BREAK', 'FEASIBILITY_BET', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD', 'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY', 'INSUFFICIENT_EVIDENCE'];
 
     protected $fillable = [
         'document_id', 'document_revision_id', 'prompt_id', 'model', 'pass', 'status', 'status_message',

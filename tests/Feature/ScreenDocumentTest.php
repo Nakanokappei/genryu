@@ -295,7 +295,7 @@ it('queues screenings from the screens and shows the decisions', function () {
         ->and(round($figures['versions'][0]['cache_hit_rate'], 3))->toBe(round(4000 / 6000, 3))
         // The reasons count the latest screening of each document: the reviewed one is being screened again, so its reason is out for now.
         ->and(collect($figures['reasons'])->where('count', '>', 0)->pluck('count', 'primary_reason')->all())->toBe(['DEMONSTRATION' => 1])
-        ->and(count($figures['reasons']))->toBe(16)->and($figures['reasons'][0])->toMatchArray(['primary_reason' => 'FRONTIER_BREAK', 'decision' => 'adopt', 'count' => 0]);
+        ->and(count($figures['reasons']))->toBe(17)->and($figures['reasons'][0])->toMatchArray(['primary_reason' => 'FRONTIER_BREAK', 'decision' => 'adopt', 'count' => 0]);
 });
 
 /*
@@ -324,4 +324,6 @@ it('passes the acceptance cases with the real model', function (string $markdown
     'Case 5: 次世代太陽電池のPilot production line' => ["# ペロブスカイト太陽電池のパイロット生産ラインを建設\n\n当社は年産100MW規模のペロブスカイト太陽電池パイロット生産ラインを建設し、2027年に稼働を開始する。ロール・ツー・ロール方式で幅1mのフィルム基板に成膜し、量産時の歩留まり目標は90%。", 'adopt', 'INDUSTRIALIZATION'],
     'Case 6: 具体性のないビジョン発表' => ["# 量子技術は未来を変える\n\n当社CEOは記者会見で「量子技術はあらゆる産業を変革する。当社は量子時代のリーダーを目指す」と述べた。具体的な製品や計画は明らかにされなかった。", 'reject', 'OPINION_ONLY'],
     'Case 7: Engineeringへの移行が不明な科学研究' => ["# 新しい二次元材料で異常な熱伝導を観測\n\n研究チームは新しい二次元材料において、理論予測の3倍の熱伝導率を観測した。メカニズムは解明されておらず、試料はマイクロメートル規模で、応用に向けた検討は今後の課題としている。", 'review', null],
+    // 性能の数値目標がない賞金コンテストでも、能力ギャップとなぜ今かがあれば兆しとして採用する (2026-09-22, DARPA D2 Sprint が EVENT_PR で落ちていた)。
+    'Case 8: 数値目標のない賞金Competition' => ["# 賞金100万ドルでAI医療記録・意思決定支援を加速\n\n大規模戦闘における外傷は依然として深刻な脅威であり、病院前の戦闘負傷者ケアの75%は記録されていない。DARPAはこの制約に対処するため、賞金100万ドルのD2 Sprintを開始する。負傷者を自動で評価し、処置を推奨・誘導し、質を監視し、医療行為を記録するソフトウェアの開発を促す。「混乱した戦場で医療データを取得し、瞬時に臨床判断を下すことは、専門家でない者には極めて難しい」とProgram Managerは述べた。AI駆動型医療ツールの急速な進歩を背景に、記録Trackと意思決定支援Trackの二つを設け、各1位30万ドル。2026年9月10日にチーム資格審査を開始し、最終提出は2027年3月1日。MIT Lincoln Labs、AFRL、JHU APL等と共同で実施する。", 'adopt', 'FEASIBILITY_BET'],
 ])->skip(env('SCREENING_ACCEPTANCE') !== '1', 'Runs against the real model only with SCREENING_ACCEPTANCE=1.');

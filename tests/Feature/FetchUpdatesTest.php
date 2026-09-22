@@ -44,6 +44,9 @@ it('reads an RSS feed given directly as the source URL', function () {
 
     expect($result)->toMatchArray(['feed_url' => 'https://www.example.org/rss.xml', 'added' => 2, 'existing' => 0])
         ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole())->toMatchArray(['title' => 'First release'])
+        // A pubDate names the time and its zone, so it is kept and shown as 公開日時 in the display timezone (09:00 GMT is 18:00 in Tokyo).
+        ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole())->toMatchArray(['published_has_time' => true])
+        ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole()->publishedDisplay())->toBe('2026-09-21 18:00')
         ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole()->published_at?->toDateString())->toBe('2026-09-21')
         ->and($source->refresh()->feed_url)->toBe('https://www.example.org/rss.xml')
         ->and($source->fetched_at)->not->toBeNull();
@@ -111,6 +114,9 @@ it('reads an HTML list with the source settings, page by page, within the page b
     expect($result)->toMatchArray(['feed_url' => null, 'pages' => 2, 'added' => 3, 'existing' => 0])
         ->and(Document::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/news/1.html', 'https://www.example.org/news/2.html', 'https://www.example.org/news/3.html'])
         ->and(Document::query()->where('title', 'First')->sole()->published_at?->toDateString())->toBe('2026-09-17')
+        // A list gives the day alone: no time to show, and the day is not moved by the display timezone.
+        ->and(Document::query()->where('title', 'First')->sole())->toMatchArray(['published_has_time' => false])
+        ->and(Document::query()->where('title', 'First')->sole()->publishedDisplay())->toBe('2026-09-17')
         ->and(Document::query()->where('title', 'Second')->sole()->published_at?->toDateString())->toBe('2026-09-08');
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'p=3'));
 });

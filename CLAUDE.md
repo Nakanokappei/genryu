@@ -105,9 +105,10 @@ the product (purpose, the five stages, stack); read it first.
   latency, estimated cost from `services.openai.prices`); the document
   points at its latest one (`screening_id`). The prompt text is versioned
   in `screening_prompts` (`ScreeningPrompt::current`, a new version when
-  the hash changes). Queued from 未判定の文書をスクリーニング on 文書 and
-  スクリーニング on the document (with a model choice, to review with a
-  higher model). **Nobody reviews by hand** (decided 2026-09-22): a
+  the hash changes). Queued from 未判定の文書をスクリーニング and
+  不採用をもう一度判定する (every reject an older prompt version decided:
+  a changed prompt can rescue a document) on 文書, and スクリーニング on
+  the document (with a model choice, to review with a higher model). **Nobody reviews by hand** (decided 2026-09-22): a
   fetched document is screened on its own (`FetchDocument` queues it); a
   要確認 from the first pass gets one second pass (`pass` 2) by the next
   model up (`EditorialPolicy::nextModelUp`), told so after the cached
@@ -121,9 +122,21 @@ the product (purpose, the five stages, stack); read it first.
   on 文書. A person's verdict (人の判定, `documents.human_decision` adopt
   / reject with `human_reason`, recorded on the document screen) outranks
   the screening's everywhere (`Document::decision()`); it is kept to
-  become a few-shot example for the screening (`docs/TODO.md`). The seven
+  become a few-shot example for the screening (`docs/TODO.md`). The eight
   acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
   content_filtering, structuring, article.
+- **A bet is a signal too** (prompt v2, 2026-09-22): the gate rejected
+  DARPA's $1M D2 Sprint as EVENT_PR because a prize competition reports
+  no results — but a funder putting money, a deadline and a measure
+  behind a capability gap it quantifies is itself the sign that the gap
+  is now thought solvable, which is what this product is after. The
+  content filtering names a second kind of update ("解ける対象になった")
+  beside achievements, an ADOPT class `FEASIBILITY_BET` for it (three
+  conditions: a concrete capability gap, why now, a concrete commitment
+  — **numeric performance targets are not required**, which is what let
+  the D2 Sprint through where an earlier 公募 case with hard specs
+  passed), and a line in EVENT_PR / ADMINISTRATIVE / PURE_SCIENCE
+  sending programs and purpose-built frontier research to it instead.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings
@@ -165,6 +178,16 @@ the product (purpose, the five stages, stack); read it first.
   sortable and filterable by 情報源 / 公開日 / 形式 / 取得日時 (sort and
   filters in the URL). The source detail lists only the excluded and
   failed ones with their reasons.
+- **公開日時 when the source gives one, 公開日 when it does not** (2026-09-23):
+  a feed's pubDate names a time and its zone, an HTML list usually gives
+  only a day. `FetchUpdates::date` keeps the time only when the zone is
+  named too (a bare 10:00 could be any zone, and a guessed instant would
+  be shown as a wrong time); `documents.published_has_time` says which it
+  is, and `Document::publishedDisplay` shows an instant in the display
+  timezone and a day as written — a day is midnight UTC and must not be
+  moved to another zone. The detail screen's label follows
+  (公開日時 / 公開日); the list columns stay 公開日. The documents listed
+  before this cannot get their time back.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
   base class of 情報源 / 文書; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).

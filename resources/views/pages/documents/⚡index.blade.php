@@ -4,6 +4,7 @@ use App\Jobs\ScreenDocument;
 use App\Livewire\PagedList;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Models\Prompt;
 use App\Models\Screening;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
@@ -38,6 +39,17 @@ new #[Title('文書')] class extends PagedList {
     public function screenDocuments(): void
     {
         $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('screening_id')->get();
+        $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
+        unset($this->documents);
+
+        Flux::toast(variant: 'success', text: __(':count documents queued for screening.', ['count' => $documents->count()]));
+    }
+
+    // A changed prompt can rescue a document it would now adopt: queue again every reject an older version of the prompt decided.
+    public function rescreenRejected(): void
+    {
+        $prompt = Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'));
+        $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
 
@@ -192,6 +204,7 @@ new #[Title('文書')] class extends PagedList {
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="screenDocuments" icon="scale" wire:confirm="{{ __('Screen every fetched document not screened yet? Each one is one call to the model.') }}">{{ __('Screen the documents not screened yet') }}</flux:button>
+            <flux:button type="button" wire:click="rescreenRejected" icon="arrow-path" wire:confirm="{{ __('Screen again every document an older version of the prompt rejected? Each one is one call to the model.') }}">{{ __('Judge the rejected documents again') }}</flux:button>
         </div>
 
         {{-- The figures per prompt version, and the reason classes counted. --}}
@@ -256,7 +269,7 @@ new #[Title('文書')] class extends PagedList {
                 <flux:select.option value="{{ $option->id }}">{{ $option->name }}</flux:select.option>
             @endforeach
         </flux:select>
-        <flux:input wire:model.live="publishedFrom" :label="__('Published at')" type="date" size="sm" />
+        <flux:input wire:model.live="publishedFrom" :label="__('Published on')" type="date" size="sm" />
         <flux:input wire:model.live="publishedTo" label="〜" type="date" size="sm" />
         <flux:select wire:model.live="format" :label="__('Format')" size="sm" class="w-28!">
             <flux:select.option value="">{{ __('All') }}</flux:select.option>
@@ -277,7 +290,7 @@ new #[Title('文書')] class extends PagedList {
 
     {{-- Two rows per document: the title on its own line (whole, it has the width now), the rest beneath it, so the table is not cramped. --}}
     <x-pages::table
-        :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published at'), 'sort' => 'published_at'], __('Status'), __('Decision'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
+        :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published on'), 'sort' => 'published_at'], __('Status'), __('Decision'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
             <tr class="border-b-0" wire:key="title-{{ $document->id }}">

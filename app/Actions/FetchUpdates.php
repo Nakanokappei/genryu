@@ -356,7 +356,7 @@ class FetchUpdates
         foreach ($entries as $entry) {
             $created = Document::query()->firstOrCreate(
                 ['source_id' => $source->id, 'url' => $entry['url']],
-                ['title' => $entry['title'], 'published_at' => $entry['published_at'], 'excluded_by' => EditorialPolicy::excludedBy($entry['title'])],
+                ['title' => $entry['title'], 'published_at' => $entry['published_at'], 'published_has_time' => self::hasTime($entry['published_at']), 'excluded_by' => EditorialPolicy::excludedBy($entry['title'])],
             );
 
             if ($created->wasRecentlyCreated) {
@@ -524,7 +524,8 @@ class FetchUpdates
 
     /**
      * A date as printed (RFC 2822, ISO 8601, or Japanese 2026年9月17日) to
-     * Y-m-d. Shared with ReadDocument, which dates a document the same way.
+     * Y-m-d, or to ISO 8601 when the source names a time and its zone.
+     * Shared with ReadDocument, which dates a document the same way.
      */
     public static function date(string $raw): ?string
     {
@@ -537,10 +538,23 @@ class FetchUpdates
         $raw = (string) preg_replace('/^(\d{4})年(\d{1,2})月(\d{1,2})日/u', '$1-$2-$3', $raw);
 
         try {
-            return CarbonImmutable::parse($raw)->toDateString();
+            $date = CarbonImmutable::parse($raw);
         } catch (\Throwable) {
             return null;
         }
+
+        // A time is kept only when the source also names the zone it is in
+        // (a feed's pubDate does): a bare 10:00 could be any of them, and a
+        // guessed instant would be shown as a wrong 公開日時.
+        $named = preg_match('/\d{1,2}:\d{2}/', $raw) === 1 && preg_match('/(Z|[+-]\d{2}:?\d{2}|GMT|UTC)$/i', $raw) === 1;
+
+        return $named ? $date->toIso8601String() : $date->toDateString();
+    }
+
+    /** Whether a date read by self::date() names a time (公開日時) or only a day (公開日). */
+    public static function hasTime(?string $date): bool
+    {
+        return $date !== null && str_contains($date, 'T');
     }
 
     /**

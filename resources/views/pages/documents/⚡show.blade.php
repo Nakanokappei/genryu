@@ -86,13 +86,29 @@ new #[Title('文書')] class extends Component {
 <section class="w-full space-y-6" @if ($document->status === 'fetching' || $document->screening?->status === 'screening' || $document->material?->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
     <x-pages::detail-header :back="route('documents.index')" :back-label="__('Documents')" :source="$document->source" :title="$document->title" />
 
-    <x-pages::fields :fields="[
-        __('URL') => $document->url,
-        __('Published at') => $document->published_at?->format('Y-m-d'),
-        __('Format') => strtoupper((string) $document->format),
-        __('Fetched at') => $document->fetched_at?->display(),
-        __('Created') => $document->created_at->display(),
-    ]" />
+    {{-- What the document is and where it came from, then its three times. The URL opens the primary source itself, in a window of its own. --}}
+    <div class="space-y-2 rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-700">
+        <dl class="grid gap-x-6 gap-y-2 md:grid-cols-[max-content_1fr]">
+            <div class="flex gap-3">
+                <dt class="text-neutral-500">{{ __('Format') }}</dt>
+                <dd>{{ strtoupper((string) $document->format) ?: '—' }}</dd>
+            </div>
+            <div class="flex min-w-0 gap-3">
+                <dt class="text-neutral-500">{{ __('URL') }}</dt>
+                <dd class="min-w-0 break-all">
+                    <a href="{{ $document->url }}" target="_blank" rel="noopener noreferrer" class="underline">{{ $document->url }}</a>
+                </dd>
+            </div>
+        </dl>
+        <dl class="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+            @foreach ([($document->published_has_time ? __('Published at') : __('Published on')) => $document->publishedDisplay(), __('Fetched at') => $document->fetched_at?->display(), __('Created') => $document->created_at->display()] as $label => $value)
+                <div class="flex gap-3">
+                    <dt class="text-neutral-500">{{ $label }}</dt>
+                    <dd>{{ $value !== null && $value !== '' ? $value : '—' }}</dd>
+                </div>
+            @endforeach
+        </dl>
+    </div>
 
     <flux:heading size="lg">{{ __('Document') }}</flux:heading>
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
@@ -161,12 +177,13 @@ new #[Title('文書')] class extends Component {
                 <flux:radio value="adopt" :label="__('adopt')" />
                 <flux:radio value="reject" :label="__('reject')" />
             </flux:radio.group>
-            <flux:input wire:model="humanReason" :label="__('Reason')" class="min-w-80 flex-1" />
             <flux:button type="submit" variant="primary" size="sm">{{ __('Save') }}</flux:button>
             @if ($document->human_decision !== null)
                 <flux:button type="button" wire:click="undecide" size="sm">{{ __('Withdraw') }}</flux:button>
             @endif
         </div>
+        {{-- The reason on a row of its own: a verdict is worth a few lines, and Enter writes one instead of saving. --}}
+        <flux:textarea wire:model="humanReason" :label="__('Reason')" rows="3" />
         @if ($document->human_decision !== null)
             <flux:text size="sm" class="text-neutral-500">{{ __('Decided :when by :who', ['when' => $document->human_decided_at?->display(), 'who' => $document->humanDecider?->name ?? '—']) }}</flux:text>
         @endif
