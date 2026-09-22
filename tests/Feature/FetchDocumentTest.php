@@ -155,8 +155,9 @@ it('does not fetch the document of an update entry whose title has an exclude ke
     $excluded = Document::query()->where('url', 'https://www.example.org/news/2')->sole();
     expect($excluded->excluded_by)->toBe('セミナー')->and($excluded->status)->toBeNull()
         ->and(Document::query()->where('url', 'https://www.example.org/news/1')->sole()->excluded_by)->toBeNull();
-    // The excluded entry is not on 文書 (fetched documents only); its own screen says why it was excluded.
+    // The excluded entry is not on 文書 (fetched documents only) but on its source, next to the failed ones; its own screen says why it was excluded.
     $this->get(route('documents.index'))->assertDontSee($excluded->title);
+    $this->get(route('sources.show', $source))->assertSee($excluded->title)->assertSee('除外キーワード「セミナー」に一致');
     $this->get(route('documents.show', $excluded))->assertSee('除外キーワード「セミナー」に一致');
 
     // The source's "fetch documents" leaves excluded entries alone; the entry's own button still fetches it.

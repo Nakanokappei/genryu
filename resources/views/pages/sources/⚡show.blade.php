@@ -280,11 +280,11 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    {{-- Only the documents whose fetch failed, with the reason: the fetched ones are the 文書 screen's business, filtered by source there. --}}
-    @php $failedDocuments = $source->documents()->where('status', 'failed')->latest('published_at')->latest('id')->get(); @endphp
-    <flux:heading size="lg">{{ __('Failed documents') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at'), __('Reason')]" :empty="$failedDocuments->isEmpty()">
-        @foreach ($failedDocuments as $document)
+    {{-- Only the documents that are not on the 文書 screen: excluded by a keyword, or failed to fetch, each with the reason. The fetched ones are the 文書 screen's business, filtered by source there. --}}
+    @php $notFetched = $source->documents()->where(fn ($query) => $query->whereNotNull('excluded_by')->orWhere('status', 'failed'))->latest('published_at')->latest('id')->get(); @endphp
+    <flux:heading size="lg">{{ __('Documents not fetched') }}</flux:heading>
+    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status'), __('Reason')]" :empty="$notFetched->isEmpty()">
+        @foreach ($notFetched as $document)
             <tr>
                 <td class="px-3 py-2">
                     {{-- The title is cut at 31 characters; the whole of it is the tooltip. --}}
@@ -293,7 +293,13 @@ new #[Title('情報源')] class extends Component {
                     </flux:tooltip>
                 </td>
                 <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
-                <td class="px-3 py-2 text-red-600 dark:text-red-400">{{ $document->status_message ?? '—' }}</td>
+                @if ($document->excluded_by !== null)
+                    <td class="px-3 py-2"><x-pages::status status="excluded" /></td>
+                    <td class="px-3 py-2 text-neutral-500">{{ __('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by]) }}</td>
+                @else
+                    <td class="px-3 py-2"><x-pages::status :status="$document->status" /></td>
+                    <td class="px-3 py-2 text-red-600 dark:text-red-400">{{ $document->status_message ?? '—' }}</td>
+                @endif
             </tr>
         @endforeach
     </x-pages::table>
