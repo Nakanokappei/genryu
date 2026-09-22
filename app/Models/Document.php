@@ -83,7 +83,7 @@ class Document extends Model
     protected static function booted(): void
     {
         static::saved(function (Document $document): void {
-            if ($document->wasChanged('markdown') && $document->markdown !== null && $document->markdown !== '') {
+            if (($document->wasRecentlyCreated || $document->wasChanged('markdown')) && $document->markdown !== null && $document->markdown !== '') {
                 $document->recordRevision();
             }
         });
