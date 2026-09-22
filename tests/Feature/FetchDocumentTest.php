@@ -60,8 +60,8 @@ it('reads an HTML page into Markdown with the document settings of the source an
     expect($document)->toMatchArray(['status' => 'fetched', 'format' => 'html', 'original_path' => "documents/{$source->id}/{$entry->id}.html", 'status_message' => null])
         ->and($document->fetched_at)->not->toBeNull()
         // Heading, date, body; the body's headings sit one level under the document heading.
-        ->and($document->markdown)->toStartWith("## Ammonia burner programme\n\n2026-09-17\n\nThe agency announced")
-        ->toContain('### Background')
+        ->and($document->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\nThe agency announced")
+        ->toContain('## Background')
         ->toContain('- Budget: 2 billion yen')
         // Links and images resolve against the page; navigation, scripts and the share bar are gone.
         ->toContain('[plan](https://www.example.org/docs/plan.pdf)')
@@ -73,7 +73,7 @@ it('reads an HTML page into Markdown with the document settings of the source an
 });
 
 // DARPA: the <h1> sits in the page header outside the article, the date is a short <h5>, prizes are a table, contact is a mailto link.
-it('puts the page heading first when the body has none, dates it from a short date line, keeps tables and mailto links, and drops emptied headings', function () {
+it('titles the document from the update list or the page heading, dates it from a short date line, keeps tables and mailto links, and drops emptied headings', function () {
     $page = '<html><body><header><h1> $1M to advance   AI tools </h1></header><article>'
         .'<h2 class="share"><a href="/share">Share</a></h2><h5 class="news-date">June 26, 2026</h5>'
         .'<p>DARPA is launching a prize competition designed to rapidly advance AI-driven medical tools for point-of-injury care.</p>'
@@ -83,49 +83,56 @@ it('puts the page heading first when the body has none, dates it from a short da
     Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
     $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share a']]);
 
-    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Entry title']));
+    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => '$1M to advance AI tools']));
 
     expect($document->status)->toBe('fetched')
-        ->and($document->markdown)->toStartWith("## \$1M to advance AI tools\n\n2026-06-26\n\nDARPA is launching")
+        ->and($document->markdown)->toStartWith("# \$1M to advance AI tools\n\n2026-06-26\n\nDARPA is launching")
         ->toContain("| 1st place | \$300,000 |\n|---|---|\n| 2nd place | \$150,000 |")
         ->toContain('<outreach@darpa.mil>')
-        ->not->toContain('###');
+        ->not->toContain('##');
 
     // Without any <h1> on the page, the update entry's title stands in.
-    Http::fake(['www.example.org/news/2' => Http::response(str_replace('<header><h1> $1M to advance   AI tools </h1></header>', '', $page), 200, ['Content-Type' => 'text/html'])]);
+    Http::fake(['www.example.org/news/3' => Http::response(str_replace('<header><h1> $1M to advance   AI tools </h1></header>', '', $page), 200, ['Content-Type' => 'text/html'])]);
+    expect(fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/3', 'title' => 'Entry title']))->markdown)->toStartWith("# Entry title\n\n2026-06-26\n\n");
+
+    // With a page <h1> and an entry title that differ, what the update list said wins (the page's <h1> is often the site or the section).
+    Http::fake(['www.example.org/news/2' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
     $untitled = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/2', 'title' => 'Entry title']));
-    expect($untitled->markdown)->toStartWith("## Entry title\n\n2026-06-26\n\n");
+    expect($untitled->markdown)->toStartWith("# Entry title\n\n2026-06-26\n\n");
 });
 
-// A Japanese press release: date line, breadcrumb, notes and a copyright line around the body.
-it('reads heading, date and body in that order, moves fixed text to the end, drops navigation and keeps heading levels relative under ##', function () {
-    $page = '<html><body><div class="breadcrumb"><a href="/">トップページ</a> &gt; <a href="/news">ニュース</a></div>'
-        .'<article><p class="date">更新日：2026年9月10日</p><h1>アンモニア燃焼器の開発を開始</h1>'
-        .'<p>NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。<br>'
+// A Japanese press release (三菱電機): a back link and a caution before the date, the title as an <h2>, indented markup,
+// notes and a copyright line after the body, and the heading of a search widget whose form is gone.
+it('reads title, date and body in that order, moves fixed text to the end, drops navigation and keeps heading levels relative under #', function () {
+    $page = '<html><body><h1 class="logo"><img src="/logo.png" alt=""></h1><div class="breadcrumb"><a href="/">トップページ</a> &gt; <a href="/news">ニュース</a></div>'
+        ."<article>\n  <a class=\"link--back\" href=\"/news\">最新ニュース一覧ページへ戻る</a>\n  <p class=\"caution\">掲載のデータは発表当時のものです。</p>\n"
+        .'<p class="date">更新日：2026年9月10日</p><h2 class="title">アンモニア燃焼器の開発を開始</h2>'
+        ."\n  <p>NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。<br>"
         .'  <br>予算は 20 億円を予定している。</p>'
-        .'<h3>背景</h3><p>アンモニアは液化の費用をかけずに水素を運べる。</p>'
+        ."\n    <h3>背景</h3><p>アンモニアは液化の費用をかけずに水素を運べる。</p>"
         .'<h4>事業の位置づけ</h4><p>本事業はグリーンイノベーション基金の一部である。</p>'
         .'<p class="notice">掲載時の注意：本ページの情報は発表時点のものです。</p>'
         .'<p>※ 詳細は担当部署までお問い合わせください。</p>'
         .'<p>Copyright 2026 NEDO. All rights reserved.</p>'
-        .'<a class="back" href="/news">一覧へ戻る</a></article></body></html>';
+        .'<h2>カテゴリーや発表年別で探す</h2><form><input name="q"></form></article></body></html>';
     Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'date' => '.date', 'remove' => '.back', 'fixed_text' => '.notice']]);
+    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'date' => '.date', 'remove' => '', 'fixed_text' => '.notice']]);
 
-    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
+    $document = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'アンモニア燃焼器の開発を開始']));
 
     expect($document->status)->toBe('fetched')
         ->and($document->markdown)->toBe(
-            "## アンモニア燃焼器の開発を開始\n\n"
+            "# アンモニア燃焼器の開発を開始\n\n"
             ."2026-09-10\n\n"
             ."NEDO は、工業炉向けの小型アンモニア燃焼器の開発事業を開始した。事業期間は 2026 年度から 2029 年度までの 4 年間である。\n\n"
             ."予算は 20 億円を予定している。\n\n"
-            ."### 背景\n\n"
+            ."## 背景\n\n"
             ."アンモニアは液化の費用をかけずに水素を運べる。\n\n"
-            ."#### 事業の位置づけ\n\n"
+            ."### 事業の位置づけ\n\n"
             ."本事業はグリーンイノベーション基金の一部である。\n\n"
             ."---\n\n"
             ."掲載時の注意：本ページの情報は発表時点のものです。\n\n"
+            ."掲載のデータは発表当時のものです。\n\n"
             ."※ 詳細は担当部署までお問い合わせください。\n\n"
             .'Copyright 2026 NEDO. All rights reserved.'
         );

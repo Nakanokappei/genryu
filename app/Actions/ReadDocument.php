@@ -34,8 +34,16 @@ class ReadDocument
     /** Markdown shorter than this cannot be the body of a document: the settings missed. */
     public const MINIMUM_CHARS = 100;
 
-    /** The level the document heading gets; body headings start one below it. */
-    private const TOP_LEVEL = 2;
+    /** The level the document title gets ("#", which Markdown has no other way to mark); body headings start one below it. */
+    private const TOP_LEVEL = 1;
+
+    /** Where the title of a document may be inside the body (三菱電機: <h2 class="article-header__title">). */
+    private const TITLE_CANDIDATES = 'h1, h2, h3, h4';
+
+    /** A link that only leads back to a list or a top page, whatever the site. */
+    private const NAVIGATION_LINK_PATTERN = '/(へ戻る|に戻る|^戻る$|一覧へ$|^back to\b|^return to\b|^go back\b|^zurück\b|^retour\b)/iu';
+
+    private const NAVIGATION_LINK_MAX_CHARS = 40;
 
     /** Never part of a body, whatever the site: scripts, controls and navigation. */
     private const ALWAYS_REMOVED = 'script, style, noscript, iframe, svg, form, button, nav, template, [role="navigation"], .breadcrumb, .breadcrumbs, .pager, .pagination';
@@ -54,7 +62,7 @@ class ReadDocument
     private const DATE_META = 'meta[property="article:published_time"], meta[name="date"], meta[name="pubdate"]';
 
     /** A paragraph that starts like this is fixed text, whatever the settings say. */
-    private const FIXED_TEXT_PATTERN = '/^(©|\(c\)|copyright\b|all rights reserved|無断転載|著作権|※)/iu';
+    private const FIXED_TEXT_PATTERN = '/^(©|\(c\)|copyright\b|all rights reserved|無断転載|著作権|※|掲載の(データ|情報|内容)は|発表(当時|時点)の)/iu';
 
     /**
      * The body of an HTML page as Markdown, per the document settings.
@@ -84,12 +92,15 @@ class ReadDocument
             self::takeOut($document, $content, $dropped);
         }
 
+        // Links that only lead back to the list are navigation, wherever they sit.
+        self::dropNavigationLinks($content);
+
         // The date and the fixed text leave the body to be printed in their own places.
         $date = self::takeDate($document, $content, trim((string) ($config['date'] ?? '')));
         $fixedHtml = self::takeOut($document, $content, trim((string) ($config['fixed_text'] ?? '')));
 
-        // The heading: the body's own <h1>, the page's <h1> (DARPA keeps it in the page header), or the given title.
-        $heading = self::takeHeading($document, $content, $title);
+        // The title, taken out of the body when it is there.
+        $heading = self::takeTitle($document, $content, $title);
 
         // Links and images must still work once the Markdown is read away from the page.
         foreach ([['a', 'href'], ['img', 'src']] as [$tag, $attribute]) {
@@ -211,21 +222,66 @@ class ReadDocument
     }
 
     /**
-     * The heading of the document, taken out of the body when it is there
-     * so it is printed once, at the top.
+     * Remove the links whose text says they only go back (最新ニュース一覧
+     * ページへ戻る, "Back to the list").
      */
-    private static function takeHeading(HTMLDocument $document, Element $content, ?string $title): string
+    private static function dropNavigationLinks(Element $content): void
     {
-        $own = $content->querySelector('h1');
-        $page = $document->querySelector('h1');
+        foreach (iterator_to_array($content->querySelectorAll('a')) as $anchor) {
+            $text = self::oneLine($anchor->textContent);
 
-        if ($own instanceof Element) {
-            $text = $own->textContent;
-            $own->parentNode?->removeChild($own);
-        } else {
-            $text = $page instanceof Element ? $page->textContent : (string) $title;
+            if ($text !== '' && mb_strlen($text) <= self::NAVIGATION_LINK_MAX_CHARS && preg_match(self::NAVIGATION_LINK_PATTERN, $text) === 1) {
+                $anchor->parentNode?->removeChild($anchor);
+            }
+        }
+    }
+
+    /**
+     * The title of the document, printed once at the top: the heading in
+     * the body that says what the update list said (taken out of the
+     * body), else the body's own <h1> (taken out), else what the update
+     * list said, else the page's <h1> (DARPA keeps it in the page header;
+     * elsewhere it is the site logo or the section, hence last).
+     */
+    private static function takeTitle(HTMLDocument $document, Element $content, ?string $title): string
+    {
+        $listed = self::oneLine((string) $title);
+
+        if ($listed !== '') {
+            foreach ($content->querySelectorAll(self::TITLE_CANDIDATES) as $heading) {
+                $text = self::oneLine($heading->textContent);
+
+                if ($text !== '' && (str_starts_with($text, $listed) || str_starts_with($listed, $text))) {
+                    $heading->parentNode?->removeChild($heading);
+
+                    return $text;
+                }
+            }
         }
 
+        $own = $content->querySelector('h1');
+
+        if ($own instanceof Element) {
+            $text = self::oneLine($own->textContent);
+            $own->parentNode?->removeChild($own);
+
+            return $text;
+        }
+
+        if ($listed !== '') {
+            return $listed;
+        }
+
+        $page = $document->querySelector('h1');
+
+        return $page instanceof Element ? self::oneLine($page->textContent) : '';
+    }
+
+    /**
+     * Text with its whitespace collapsed to single spaces.
+     */
+    private static function oneLine(string $text): string
+    {
         return trim((string) preg_replace('/\s+/u', ' ', $text));
     }
 
@@ -274,14 +330,24 @@ class ReadDocument
     }
 
     /**
-     * Trailing whitespace off every line (hard breaks included), headings
-     * left empty by the removals dropped, runs of blank lines closed up.
+     * Whitespace the page's own indentation left behind: trailing on every
+     * line (hard breaks included), leading on the first line of a block
+     * (Markdown indents only inside lists and code). Headings left empty by
+     * the removals are dropped, as are headings with nothing after them
+     * (the heading of a search widget whose form was removed), and runs
+     * of blank lines are closed up.
      */
     private static function tidy(string $markdown): string
     {
         $markdown = (string) preg_replace('/[ \t\x{00A0}]+$/mu', '', $markdown);
+        $markdown = (string) preg_replace('/(^|\n\n)[ \t\x{00A0}]+/u', '$1', $markdown);
         $markdown = (string) preg_replace('/^\\\\?#{1,6}\s*$/m', '', $markdown);
+        $markdown = trim((string) preg_replace("/\n{3,}/", "\n\n", $markdown));
 
-        return trim((string) preg_replace("/\n{3,}/", "\n\n", $markdown));
+        while (preg_match('/\n\n#{1,6} [^\n]*$/', $markdown) === 1) {
+            $markdown = trim((string) preg_replace('/\n\n#{1,6} [^\n]*$/', '', $markdown));
+        }
+
+        return $markdown;
     }
 }
