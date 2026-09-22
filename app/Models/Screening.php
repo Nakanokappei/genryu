@@ -26,12 +26,28 @@ class Screening extends Model
 
     public const DECISIONS = ['adopt', 'reject', 'review'];
 
-    /** The reason classes of the gate: the first eight adopt, the next seven reject, the last one is review. */
-    public const PRIMARY_REASONS = [
-        'FRONTIER_BREAK', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD',
-        'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY',
-        'INSUFFICIENT_EVIDENCE',
+    /** The reason classes of the gate, each with the decision it belongs to and what it means (UI 理由の内訳). */
+    public const REASONS = [
+        'FRONTIER_BREAK' => ['decision' => 'adopt', 'meaning' => 'Something impossible became an engineering problem'],
+        'ENGINEERING_ATTACK' => ['decision' => 'adopt', 'meaning' => 'Concrete engineering has begun on a scientific possibility'],
+        'DEMONSTRATION' => ['decision' => 'adopt', 'meaning' => 'Moved from the laboratory to a real environment'],
+        'INDUSTRIALIZATION' => ['decision' => 'adopt', 'meaning' => 'From making it to making it in volume'],
+        'ECONOMIC_TRANSITION' => ['decision' => 'adopt', 'meaning' => 'Technically possible became economically real'],
+        'COMPETITION_DIFFUSION' => ['decision' => 'adopt', 'meaning' => 'Competing with, replacing or spreading past existing technology'],
+        'IMPORTANT_FAILURE' => ['decision' => 'adopt', 'meaning' => 'A failure that changes what is thought feasible'],
+        'REGULATION_STANDARD' => ['decision' => 'adopt', 'meaning' => 'Regulation, a standard or a certification changed feasibility'],
+        'PURE_SCIENCE' => ['decision' => 'reject', 'meaning' => 'Basic research with no move toward engineering'],
+        'ROUTINE_PRODUCT' => ['decision' => 'reject', 'meaning' => 'An ordinary product, model or update'],
+        'GENERAL_CORPORATE' => ['decision' => 'reject', 'meaning' => 'Personnel, organisation, partnerships, M&A, funding, results'],
+        'EVENT_PR' => ['decision' => 'reject', 'meaning' => 'Seminars, exhibitions, talks, awards, CSR, publicity'],
+        'ADMINISTRATIVE' => ['decision' => 'reject', 'meaning' => 'Schedules, deadlines, venues, corrections, routine reports'],
+        'OPINION_ONLY' => ['decision' => 'reject', 'meaning' => 'Visions, forecasts and roadmaps without new evidence'],
+        'TECHNOLOGY_USE_ONLY' => ['decision' => 'reject', 'meaning' => 'Existing technology merely put to use'],
+        'INSUFFICIENT_EVIDENCE' => ['decision' => 'review', 'meaning' => 'A possible transition the text alone cannot confirm'],
     ];
+
+    /** The reason classes of the gate, in the order of REASONS. */
+    public const PRIMARY_REASONS = ['FRONTIER_BREAK', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD', 'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY', 'INSUFFICIENT_EVIDENCE'];
 
     protected $fillable = [
         'document_id', 'screening_prompt_id', 'model', 'pass', 'status', 'status_message',

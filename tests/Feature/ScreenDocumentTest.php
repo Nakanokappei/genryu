@@ -244,7 +244,9 @@ it('queues screenings from the screens and shows the decisions', function () {
     $figures = Livewire::test('pages::documents.index')->assertSee('プロンプト版')->instance()->screeningFigures;
     expect($figures['versions'][0])->toMatchArray(['screened' => 2, 'adopted' => 1, 'rejected' => 0, 'reviewed' => 1])
         ->and(round($figures['versions'][0]['cache_hit_rate'], 3))->toBe(round(4000 / 6000, 3))
-        ->and(collect($figures['reasons'])->pluck('count', 'primary_reason')->all())->toBe(['DEMONSTRATION' => 1, 'INSUFFICIENT_EVIDENCE' => 1]);
+        // The reasons count the latest screening of each document: the reviewed one is being screened again, so its reason is out for now.
+        ->and(collect($figures['reasons'])->where('count', '>', 0)->pluck('count', 'primary_reason')->all())->toBe(['DEMONSTRATION' => 1])
+        ->and(count($figures['reasons']))->toBe(16)->and($figures['reasons'][0])->toMatchArray(['primary_reason' => 'FRONTIER_BREAK', 'decision' => 'adopt', 'count' => 0]);
 });
 
 /*

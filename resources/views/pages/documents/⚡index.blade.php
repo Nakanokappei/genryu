@@ -50,7 +50,7 @@ new #[Title('文書')] class extends PagedList {
      * from the cache or was written to it, and what a screening and an
      * adoption cost on average; the reason classes counted apart.
      *
-     * @return array{versions: list<array<string, mixed>>, reasons: list<array{primary_reason: string, count: int}>}
+     * @return array{versions: list<array<string, mixed>>, reasons: list<array{primary_reason: string, decision: string, meaning: string, count: int, share: float}>}
      */
     #[Computed]
     public function screeningFigures(): array
@@ -61,7 +61,14 @@ new #[Title('文書')] class extends PagedList {
             ->selectRaw('screening_prompts.version, count(*) as screened, sum(case when decision = ? then 1 else 0 end) as adopted, sum(case when decision = ? then 1 else 0 end) as rejected, sum(case when decision = ? then 1 else 0 end) as reviewed, sum(input_tokens) as input_tokens, sum(cached_tokens) as cached_tokens, sum(cache_write_tokens) as cache_write_tokens, sum(output_tokens) as output_tokens, sum(estimated_total_cost) as cost', ['adopt', 'reject', 'review'])
             ->get();
 
-        $reasons = Screening::query()->where('status', 'screened')->groupBy('primary_reason')->orderByDesc('count')->selectRaw('primary_reason, count(*) as count')->get();
+        // The reason classes counted over the latest screening of each document, in the order of the gate's list.
+        $counted = Screening::query()->where('status', 'screened')->whereIn('id', Document::query()->whereNotNull('screening_id')->select('screening_id'))->groupBy('primary_reason')->selectRaw('primary_reason, count(*) as count')->pluck('count', 'primary_reason');
+        $total = max(1, (int) $counted->sum());
+        $reasons = [];
+
+        foreach (Screening::REASONS as $reason => $about) {
+            $reasons[] = ['primary_reason' => $reason, 'decision' => $about['decision'], 'meaning' => $about['meaning'], 'count' => (int) ($counted[$reason] ?? 0), 'share' => (int) ($counted[$reason] ?? 0) / $total];
+        }
 
         return [
             'versions' => $versions->map(fn ($row): array => [
@@ -75,7 +82,7 @@ new #[Title('文書')] class extends PagedList {
                 'average_cost' => $row->cost !== null ? $row->cost / $row->screened : null,
                 'cost_per_adopt' => $row->cost !== null && $row->adopted > 0 ? $row->cost / $row->adopted : null,
             ])->all(),
-            'reasons' => $reasons->map(fn ($row): array => ['primary_reason' => (string) $row->primary_reason, 'count' => (int) $row->count])->all(),
+            'reasons' => $reasons,
         ];
     }
 
@@ -214,7 +221,29 @@ new #[Title('文書')] class extends PagedList {
                     </tbody>
                 </table>
             </div>
-            <flux:text size="sm">{{ __('Reasons') }}: {{ collect($this->screeningFigures['reasons'])->map(fn (array $reason): string => $reason['primary_reason'].' '.$reason['count'])->implode(' / ') }}</flux:text>
+            {{-- The reason classes, as the latest screening of each document named them. --}}
+            <div class="overflow-x-auto">
+                <table class="w-full text-left text-sm">
+                    <thead class="text-neutral-500">
+                        <tr>
+                            @foreach ([__('Decision'), __('Reason'), __('Meaning'), __('Documents'), __('Share')] as $column)
+                                <th class="whitespace-nowrap px-3 py-1 font-medium">{{ $column }}</th>
+                            @endforeach
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                        @foreach ($this->screeningFigures['reasons'] as $reason)
+                            <tr class="{{ $reason['count'] === 0 ? 'text-neutral-400' : '' }}">
+                                <td class="whitespace-nowrap px-3 py-1">{{ __($reason['decision']) }}</td>
+                                <td class="whitespace-nowrap px-3 py-1 font-mono text-xs">{{ $reason['primary_reason'] }}</td>
+                                <td class="px-3 py-1">{{ __($reason['meaning']) }}</td>
+                                <td class="px-3 py-1 text-right">{{ $reason['count'] }}</td>
+                                <td class="px-3 py-1 text-right">{{ number_format(100 * $reason['share'], 1) }}%</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         @endif
     </form>
 
