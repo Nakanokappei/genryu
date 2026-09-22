@@ -1,16 +1,16 @@
 <?php
 
 use App\Jobs\ExtractMaterial;
+use App\Livewire\PagedList;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
-use Livewire\Component;
 
 // 素材情報 (Materials): the structuring layer of the editorial policy (the developer prompt and the model of the analyst that reads an adopted document and writes the parts an article is made of), and the material extracted from each adopted document in the background; nothing is added by hand here.
-new #[Title('素材情報')] class extends Component {
+new #[Title('素材情報')] class extends PagedList {
     // Structuring: the developer prompt (OpenAI's name for the system prompt) of the analyst.
     public string $structuring = '';
 
@@ -31,11 +31,12 @@ new #[Title('素材情報')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    /** @return \Illuminate\Database\Eloquent\Collection<int, Material> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Material> */
     #[Computed]
     public function materials()
     {
-        return Material::query()->with('document.source')->withCount('articles')->latest()->get();
+        // Ordered by created_at then id so the pages never overlap, as the other list screens are.
+        return Material::query()->with('document.source')->withCount('articles')->latest()->latest('id')->paginate($this->rowsPerPage());
     }
 
     // Stage 2.3: queue the extraction for every adopted document whose material is missing or failed.
@@ -69,19 +70,16 @@ new #[Title('素材情報')] class extends Component {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('angle'), __('Lines'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
+    <x-pages::table :columns="[__('Document'), __('Status'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
         @foreach ($this->materials as $material)
             <tr>
                 <td class="px-3 py-2"><x-pages::favicon :source="$material->document->source" /> <a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ $material->document->title }}</a></td>
-                <td class="px-3 py-2"><a href="{{ route('sources.show', $material->document->source) }}" class="underline" wire:navigate>{{ $material->document->source->name }}</a></td>
-                <td class="px-3 py-2"><x-pages::status :status="$material->status" /></td>
-                {{-- The angle is what the material is for; until there is one, whatever the run had to say. --}}
-                @php $counts = $material->counts(); @endphp
-                <td class="max-w-lg px-3 py-2">{{ $material->data['angle'] ?? ($material->status_message ?? '—') }}</td>
-                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('primary_source').' '.$counts['primary_source'].' / '.__('general_knowledge').' '.$counts['general_knowledge'].' / '.__('inference').' '.$counts['inference'] : '—' }}</td>
+                <td class="px-3 py-2"><x-pages::status :status="$material->status" /> <span class="text-neutral-500">{{ $material->data === null ? $material->status_message : '' }}</span></td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
+                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>
         @endforeach
     </x-pages::table>
+
+    <x-pages::pagination :paginator="$this->materials" />
 </section>

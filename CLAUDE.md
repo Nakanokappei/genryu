@@ -234,7 +234,7 @@ the product (purpose, the five stages, stack); read it first.
   (公開日時 / 公開日); the list columns stay 公開日. The documents listed
   before this cannot get their time back.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
-  base class of 情報源 / 文書; `?rowsPerPage=` in the URL,
+  base class of 情報源 / 文書 / 素材情報; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).
 - **Favicons** are fetched by `App\Actions\FetchFavicon` when a page of
   the site is in hand (configuring it, reading its update list, fetching

@@ -92,9 +92,9 @@ it('writes the parts of an article and counts what came from each side', functio
             && array_keys($body['text']['format']['schema']['properties']) === ['before', 'change', 'after', 'facts', 'background', 'winners', 'losers', 'future_society', 'angle'];
     });
 
-    // The screens show each part, and how many lines came from each side.
-    $this->get(route('materials.show', $material))->assertSee('「燃やせるか」から「分解炉全体を回せるか」へ移った')->assertSee('予算は 20 億円')->assertSee('事実（一次情報）')->assertSee('背景（一般知識）');
-    $this->get(route('materials.index'))->assertSee('一次情報 3 / 一般知識 1 / 推論 3');
+    // The detail screen shows each part and how many lines came from each side; the list shows the document and its state.
+    $this->get(route('materials.show', $material))->assertSee('「燃やせるか」から「分解炉全体を回せるか」へ移った')->assertSee('予算は 20 億円')->assertSee('事実（一次情報）')->assertSee('背景（一般知識）')->assertSee('一次情報 3 / 一般知識 1 / 推論 3');
+    $this->get(route('materials.index'))->assertSee('アンモニア燃焼器の開発を開始')->assertSee('抽出済み')->assertSee(__('rows per page'));
 });
 
 // A part the model could not write is dropped rather than kept as an empty or hedged value.
