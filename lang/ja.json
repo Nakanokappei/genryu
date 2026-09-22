@@ -230,5 +230,9 @@
     "Schedules, deadlines, venues, corrections, routine reports": "日程・締切・会場・訂正・定例報告",
     "Visions, forecasts and roadmaps without new evidence": "新しい根拠のないビジョン・予測・ロードマップ",
     "Existing technology merely put to use": "既存技術を利用しただけの事例",
-    "A possible transition the text alone cannot confirm": "移行の可能性はあるが本文だけでは確認できない"
+    "A possible transition the text alone cannot confirm": "移行の可能性はあるが本文だけでは確認できない",
+    "Human decision": "人の判定",
+    "Your own verdict on this document. It outranks the screening at the gate, and is kept to teach the screening later.": "この文書に対するあなたの判定です。スクリーニングの判定より優先され、今後スクリーニングに例として与えるために保存されます。",
+    "Withdraw": "取り消す",
+    "Decided :when by :who": ":when に :who が判定"
 }

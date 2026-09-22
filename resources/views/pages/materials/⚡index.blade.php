@@ -20,8 +20,8 @@ new #[Title('素材情報')] class extends Component {
     // Stage 2.3: queue the extraction for every adopted document whose material is missing or failed.
     public function extract(): void
     {
-        // Only the documents the screening adopted go on to the detailed analysis in bulk; a single document can still be extracted from its own screen unless rejected.
-        $documents = Document::query()->where('status', 'fetched')->whereRelation('screening', 'decision', 'adopt')->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
+        // Only the adopted documents (by a person, else by the screening) go on to the detailed analysis in bulk; a single document can still be extracted from its own screen unless rejected.
+        $documents = Document::query()->where('status', 'fetched')->where(fn ($query) => $query->where('human_decision', 'adopt')->orWhere(fn ($query) => $query->whereNull('human_decision')->whereRelation('screening', 'decision', 'adopt')))->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
         $documents->each(fn (Document $document) => ExtractMaterial::queueFor($document));
         unset($this->materials);
 

@@ -55,7 +55,7 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The document has not been fetched yet.'));
             }
 
-            // The gate: a document the screening rejected does not reach the detailed analysis.
+            // The gate: a rejected document (by a person, else by the screening) does not reach the detailed analysis.
             if ($document->isRejected()) {
                 throw new RuntimeException(__('The screening rejected this document.'));
             }

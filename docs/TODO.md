@@ -24,8 +24,9 @@ Things decided but not built yet, with the condition they wait for.
   the same source as examples. Since the prompt is cached as one block,
   the examples go after the cache breakpoint, before the document, so the
   fixed prompt stays cached and only the examples vary per source.
-  Needs first: a way to record a human verdict (the daily mail above is
-  where a person would come from).
+  The verdict is recorded on the document screen since 2026-09-22
+  (人の判定, `documents.human_decision`); the daily mail above is where a
+  person would come from.
 - **Then, examples chosen by similarity** (same idea): embed the
   documents (title + first part of the body) and, for a document to
   screen, pick the few human-decided documents nearest to it — across

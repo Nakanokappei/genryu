@@ -197,6 +197,35 @@ it('revises the document settings and screens again when a short body is rejecte
     Queue::assertNotPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($stubborn) && ! $job->screening->is($screening));
 });
 
+// A person's verdict (人の判定) is recorded on the document, shows before the screening's on the lists, outranks it at the gate, and can be withdrawn.
+it('records a human decision that outranks the screening', function () {
+    $document = Document::factory()->fetched()->create(['title' => 'Overruled doc']);
+    Screening::factory()->for($document)->rejected()->create();
+
+    Livewire::test('pages::documents.show', ['document' => $document->refresh()])->assertSet('humanDecision', '')
+        ->call('decide')->assertHasErrors(['humanDecision'])
+        ->set('humanDecision', 'adopt')->set('humanReason', '量産ラインの建設が本文にある')->call('decide')->assertHasNoErrors();
+
+    expect($document->refresh())->toMatchArray(['human_decision' => 'adopt', 'human_reason' => '量産ラインの建設が本文にある'])
+        ->and($document->human_decided_at)->not->toBeNull()->and($document->humanDecider?->is(auth()->user()))->toBeTrue()
+        ->and($document->decision())->toBe('adopt')->and($document->isRejected())->toBeFalse();
+
+    // The lists follow the decision that stands.
+    $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
+    $component = Livewire::test('pages::documents.index')->assertSee('人の判定：量産ラインの建設が本文にある');
+    expect($titles($component->set('decision', 'adopt')))->toBe(['Overruled doc'])
+        ->and($titles($component->set('decision', 'reject')))->toBe([]);
+
+    // The material goes on for a document a person adopted, screening notwithstanding; the bulk extraction takes it too.
+    Queue::fake();
+    Livewire::test('pages::materials.index')->call('extract');
+    Queue::assertPushed(ExtractMaterial::class, fn (ExtractMaterial $job): bool => $job->material->document->is($document));
+
+    // Withdrawn, the screening's reject stands again.
+    Livewire::test('pages::documents.show', ['document' => $document->refresh()])->call('undecide');
+    expect($document->refresh()->human_decision)->toBeNull()->and($document->isRejected())->toBeTrue();
+});
+
 // A rejected document is stopped at the gate: the material job refuses it; an adopted or reviewed one goes on.
 it('keeps a rejected document from the material', function () {
     $rejected = Document::factory()->fetched()->create();

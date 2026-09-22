@@ -114,7 +114,7 @@ new #[Title('文書')] class extends PagedList {
     #[Url]
     public string $fetchedTo = '';
 
-    /** The decision of the latest screening (UI 判定): adopt / reject / review, or none for the documents not screened. */
+    /** The decision that stands (UI 判定): a person's, else the latest screening's: adopt / reject / review, or none for the documents nobody has decided. */
     #[Url]
     public string $decision = '';
 
@@ -135,8 +135,9 @@ new #[Title('文書')] class extends PagedList {
             // The fetched time is stored in UTC and filtered by days of the display timezone.
             ->when($this->fetchedFrom !== '', fn ($query) => $query->where('fetched_at', '>=', $this->displayDay($this->fetchedFrom)))
             ->when($this->fetchedTo !== '', fn ($query) => $query->where('fetched_at', '<', $this->displayDay($this->fetchedTo)->addDay()))
-            ->when($this->decision === 'none', fn ($query) => $query->whereNull('screening_id'))
-            ->when(in_array($this->decision, Screening::DECISIONS, true), fn ($query) => $query->whereRelation('screening', 'decision', $this->decision))
+            // The decision that stands: a person's, else the latest screening's.
+            ->when($this->decision === 'none', fn ($query) => $query->whereNull('human_decision')->whereNull('screening_id'))
+            ->when(in_array($this->decision, Screening::DECISIONS, true), fn ($query) => $query->where(fn ($query) => $query->where('human_decision', $this->decision)->orWhere(fn ($query) => $query->whereNull('human_decision')->whereRelation('screening', 'decision', $this->decision))))
             // A document without a date goes last either way rather than heading the list (PostgreSQL puts nulls first in descending order).
             ->orderByRaw(self::SORTS[$sort].' '.$direction.' NULLS LAST')
             ->when($sort === 'source', fn ($query) => $query->orderBy('documents.title', $direction))
@@ -299,7 +300,7 @@ new #[Title('文書')] class extends PagedList {
                         —
                     @endif
                 </td>
-                <td class="px-3 pt-1 pb-2"><x-pages::decision :screening="$document->screening" /></td>
+                <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" /></td>
                 <td class="px-3 pt-1 pb-2 uppercase">{{ $document->format }}</td>
                 <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
                 <td class="px-3 pt-1 pb-2">

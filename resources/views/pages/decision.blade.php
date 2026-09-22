@@ -1,7 +1,13 @@
-{{-- The latest screening of a document as a badge: its decision (採用 / 不採用 / 要確認, the reason class and the model's reason as tooltip), or where the run stands (判定中 / 失敗 with its message); a dash when never screened. --}}
-@props(['screening'])
+{{-- The decision that stands for a document as a badge: a person's verdict (採用 / 不採用 with a person mark, the reason as tooltip) before the latest screening's (採用 / 不採用 / 要確認, the reason class and the model's reason as tooltip), or where the run stands (判定中 / 失敗 with its message); a dash when nothing has decided. --}}
+@props(['document'])
 
-@if ($screening === null)
+@php $screening = $document->screening; @endphp
+
+@if ($document->human_decision !== null)
+    <flux:tooltip :content="__('Human decision').'：'.($document->human_reason ?? '—')">
+        <flux:badge size="sm" icon="user" :color="$document->human_decision === 'adopt' ? 'green' : 'red'">{{ __($document->human_decision) }}</flux:badge>
+    </flux:tooltip>
+@elseif ($screening === null)
     —
 @elseif ($screening->status === 'screened')
     <flux:tooltip :content="$screening->primary_reason.' — '.$screening->reason">

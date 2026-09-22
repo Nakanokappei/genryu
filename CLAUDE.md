@@ -97,8 +97,11 @@ the product (purpose, the five stages, stack); read it first.
   screens the cured documents again. The gate: `ExtractMaterial` refuses
   a rejected document and the bulk extraction takes adopted ones only.
   Figures per prompt version (rates, cache hit / write rate, cost) are
-  on 文書. The seven acceptance cases run only with
-  `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
+  on 文書. A person's verdict (人の判定, `documents.human_decision` adopt
+  / reject with `human_reason`, recorded on the document screen) outranks
+  the screening's everywhere (`Document::decision()`); it is kept to
+  become a few-shot example for the screening (`docs/TODO.md`). The seven
+  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
   content_filtering, structuring, article.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body

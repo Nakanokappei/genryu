@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\CarbonImmutable;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -18,7 +19,11 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * A document whose title has an exclude keyword of the editorial policy is
  * listed as 対象外 (excluded_by) and not fetched. A fetched document is
  * screened by App\Jobs\ScreenDocument (UI: スクリーニング); the latest
- * screening (screening_id) carries the decision 採用 / 不採用 / 要確認.
+ * screening (screening_id) carries the decision 採用 / 不採用 / 要確認. A
+ * person may record their own verdict (UI: 人の判定, human_decision adopt /
+ * reject with a reason), which outranks the screening's at the gate.
+ *
+ * @property CarbonImmutable|null $human_decided_at
  */
 class Document extends Model
 {
@@ -30,11 +35,11 @@ class Document extends Model
     /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
-        return ['published_at' => 'date', 'fetched_at' => 'datetime'];
+        return ['published_at' => 'date', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
     }
 
     /** @return BelongsTo<Source, $this> */
@@ -71,6 +76,21 @@ class Document extends Model
         return $this->status === 'fetched' && $this->excluded_by === null && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
     }
 
+    /** @return BelongsTo<User, $this> who recorded the human decision */
+    public function humanDecider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'human_decided_by');
+    }
+
+    /**
+     * The decision that stands (UI 判定): a person's when there is one,
+     * else the latest screening's; null when neither has decided.
+     */
+    public function decision(): ?string
+    {
+        return $this->human_decision ?? ($this->screening?->status === 'screened' ? $this->screening->decision : null);
+    }
+
     /**
      * Whether the gate lets the document on to the detailed analysis: a
      * rejected document does not go; one not screened yet, or to be
@@ -78,6 +98,6 @@ class Document extends Model
      */
     public function isRejected(): bool
     {
-        return $this->screening?->decision === 'reject';
+        return $this->decision() === 'reject';
     }
 }
