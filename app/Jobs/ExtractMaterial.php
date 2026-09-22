@@ -15,13 +15,13 @@ use Throwable;
 
 /**
  * 素材情報を抽出 (UI: "Extract material", stage 2.3 of docs/HANDOVER.md):
- * in the background, have the agent build the material of an adopted
- * document from the revision of its Markdown pinned when the job was
- * queued, in two passes (extract the evidence, then finalize the
- * analysis on it), each checked by App\Actions\ValidateMaterial and
- * repaired once with the errors in hand when it fails. The JSON, the
- * revision, the prompt version, the model, the usage and the report of
- * the checks are kept on the material; a rejected document is refused.
+ * in the background, have the agent fill every item of the structuring
+ * layer from the revision of the document's Markdown pinned when the job
+ * was queued, each item with the quotes it rests on. The quotes are
+ * checked against that revision (App\Actions\ValidateMaterial) and a
+ * miss is repaired once with the errors in hand. The JSON, the revision,
+ * the prompt version, the model, the usage and the report of the checks
+ * are kept on the material; a rejected document is refused.
  * The outcome lands on the material (status 抽出中 / 抽出済み / 失敗) so
  * the screens can show it.
  */
@@ -62,6 +62,7 @@ class ExtractMaterial implements ShouldQueue
     {
         $material = $this->material;
         $document = $material->document;
+        $usage = [];
 
         try {
             if ($document->status !== 'fetched' || $material->revision === null) {
@@ -73,34 +74,34 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The screening rejected this document.'));
             }
 
-            $prompt = $material->prompt !== null ? $material->prompt->text : '';
+            $policy = $material->prompt !== null ? $material->prompt->text : '';
 
-            if (trim($prompt) === '') {
+            if (trim($policy) === '') {
                 throw new RuntimeException(__('The structuring layer of the editorial policy is empty.'));
             }
 
-            $markdown = $material->revision->markdown;
+            $items = EditorialPolicy::items($policy);
             $model = (string) $material->model;
-            $usage = [];
 
-            // Extract, checked, repaired once.
-            [$extract, $errors] = $this->pass($propose, $model, $prompt, 'extract', $markdown, null, fn (array $json): array => $validate->extract($json, $material->revision), $usage);
+            // The answer, checked; a quote that is not in the document is repaired once with the errors in hand.
+            $result = $propose($policy, $model, $material->revision->markdown);
+            $usage[] = $result['usage'];
+            $errors = $validate($result['json'], $items, $material->revision);
 
             if ($errors !== []) {
-                throw new RuntimeException(__('The evidence did not pass the checks: :errors', ['errors' => implode(' / ', array_slice($errors, 0, 5))]), previous: null);
+                $result = $propose($policy, $model, $material->revision->markdown, $errors);
+                $usage[] = $result['usage'];
+                $errors = $validate($result['json'], $items, $material->revision);
             }
-
-            // Finalize on the evidence, checked, repaired once.
-            [$finalize, $errors] = $this->pass($propose, $model, $prompt, 'finalize', $markdown, $extract, fn (array $json): array => $validate->finalize($json, $extract), $usage);
 
             if ($errors !== []) {
                 $material->update(['validation' => $errors]);
 
-                throw new RuntimeException(__('The analysis did not pass the checks: :errors', ['errors' => implode(' / ', array_slice($errors, 0, 5))]));
+                throw new RuntimeException(__('The material did not pass the checks: :errors', ['errors' => implode(' / ', array_slice($errors, 0, 5))]));
             }
 
             $material->update([
-                'data' => self::merge($extract, $finalize),
+                'data' => $result['json'],
                 'validation' => [],
                 'status' => 'extracted',
                 'status_message' => __('Extracted by :model.', ['model' => $model]),
@@ -108,56 +109,8 @@ class ExtractMaterial implements ShouldQueue
                 'estimated_total_cost' => self::cost($model, $usage),
             ]);
         } catch (Throwable $exception) {
-            $material->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000), ...(isset($usage) ? self::summed($usage) : [])]);
+            $material->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000), ...self::summed($usage)]);
         }
-    }
-
-    /**
-     * One phase: the agent's answer, checked; when it fails, once more
-     * with the errors in hand. Returns the answer and the errors left.
-     *
-     * @param  array<string, mixed>|null  $evidence
-     * @param  callable(array<string, mixed>): list<string>  $check
-     * @param  list<array<string, ?int>>  $usage
-     * @return array{0: array<string, mixed>, 1: list<string>}
-     */
-    private function pass(ProposeMaterial $propose, string $model, string $prompt, string $phase, string $markdown, ?array $evidence, callable $check, array &$usage): array
-    {
-        $result = $propose($prompt, $model, $phase, $markdown, $evidence);
-        $usage[] = $result['usage'];
-        $errors = $check($result['json']);
-
-        if ($errors === []) {
-            return [$result['json'], []];
-        }
-
-        $result = $propose($prompt, $model, $phase, $markdown, $evidence, $errors);
-        $usage[] = $result['usage'];
-
-        return [$result['json'], $check($result['json'])];
-    }
-
-    /**
-     * The material: the evidence and the analysis as one JSON, the claims
-     * of both phases together.
-     *
-     * @param  array<string, mixed>  $extract
-     * @param  array<string, mixed>  $finalize
-     * @return array<string, mixed>
-     */
-    public static function merge(array $extract, array $finalize): array
-    {
-        return [
-            'schema_version' => ProposeMaterial::SCHEMA_VERSION,
-            'source_language' => $extract['source_language'] ?? '',
-            'primary_evidence' => $extract['primary_evidence'] ?? [],
-            'technology_transition' => $finalize['technology_transition'] ?? [],
-            'engineering' => $finalize['engineering'] ?? [],
-            'editorial' => $finalize['editorial'] ?? [],
-            'claims' => [...($extract['claims'] ?? []), ...($finalize['claims'] ?? [])],
-            'provenance' => ['primary_spans' => $extract['primary_spans'] ?? []],
-            'quality' => $finalize['quality'] ?? ['warnings' => []],
-        ];
     }
 
     /**

@@ -2,25 +2,25 @@
 
 namespace App\Actions;
 
+use App\Models\EditorialPolicy;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
  * The agent behind 素材情報 (UI: "Materials", stage 2.3 of docs/HANDOVER.md):
- * given the structuring layer of the editorial policy (the developer
- * prompt of the Editorial Research Analyst) and a document's Markdown,
- * a model builds the material in two passes on the Responses API, the
- * prompt cached as one block with an explicit breakpoint and the phase
- * named after it. extract reads the whole document and fixes the
- * evidence: quotes with their line ranges, the claims that rest on them,
- * the facets of what happened. finalize gets that evidence back and
- * builds the analysis on it alone: the technology transition, the
- * engineering, the tensions and the possible angles. Each pass is
- * constrained to its JSON schema; App\Actions\ValidateMaterial then
- * checks what a schema cannot (quotes in the text, references, cycles),
- * and a pass that fails it is repaired once with the errors in hand.
- * The usage of every call comes back with the JSON. It only proposes;
- * App\Jobs\ExtractMaterial keeps the material.
+ * given the structuring layer of the editorial policy and a document's
+ * Markdown, a model fills every item the policy lists, says where each
+ * one comes from — the document, quoting the lines it rests on, or its
+ * own general knowledge, which is what this project is out to test —
+ * and leaves as null what neither gives. The call goes to
+ * the Responses API: the policy as the developer message carrying an
+ * explicit prompt-cache breakpoint, so the same policy is served from
+ * the cache document after document, then the document with its lines
+ * numbered. The answer is constrained to a schema built from the
+ * policy's items; App\Actions\ValidateMaterial then checks that every
+ * quote really is in the lines it names, and a miss is repaired once
+ * with the errors in hand. It only proposes; App\Jobs\ExtractMaterial
+ * keeps the material.
  */
 class ProposeMaterial
 {
@@ -28,31 +28,19 @@ class ProposeMaterial
 
     private const MAX_MARKDOWN_CHARS = 120000;
 
-    public const SCHEMA_VERSION = 'A.1';
+    /** Where an item's value comes from: the document, the model's general knowledge, or nowhere. */
+    public const SOURCES = ['document', 'knowledge', 'none'];
 
-    public const STATES = ['impossible', 'extremely_hard', 'technically_feasible', 'economically_plausible', 'industrializable', 'competitive', 'diffusion', 'unknown'];
+    /** What the model is told after the cached policy, and what a repair adds. */
+    private const INSTRUCTIONS = 'The document below has its lines numbered "N| " for your quotes; the numbers are not part of the text. Fill every item of the policy. An item taken from the document has source "document" and the quotes it rests on: the exact text as written, with the first and last line it spans (1-based, inclusive). An item you fill from your own general knowledge, to give the reader what the document assumes, has source "knowledge" and no quotes; never use it for what was achieved here. An item neither gives has source "none", a null value and no quotes.';
 
-    public const ENTRY_POINTS = ['frontier', 'money', 'factory', 'loser', 'bottleneck', 'race', 'everyday', 'contrarian', 'paradox', 'number'];
-
-    public const LENSES = ['frontier', 'capability', 'mechanism', 'bottleneck', 'money', 'factory', 'race', 'displacement', 'everyday', 'paradox'];
-
-    public const AXES = ['before_after', 'lab_world', 'performance_manufacturability', 'possible_affordable', 'expert_software', 'incumbent_challenger', 'benefit_cost', 'expectation_reality', 'other'];
-
-    /** What each phase is told, after the cached prompt. */
-    private const PHASES = [
-        'extract' => 'Phase: extract. Read the whole document below (its lines are numbered "N| " for your line references; the numbers are not part of the text) and return the primary evidence: spans quoted exactly as written with their line range, the primary_evidence claims resting on them, and the facets. No analysis yet.',
-        'finalize' => 'Phase: finalize. Below are the evidence claims and spans fixed in the extract phase, then the document. Build the analysis on those claims alone: inference claims (new ids, never reusing an evidence id, basis = existing claim ids), the technology transition, the engineering facets, the tensions and the possible angles. Do not restate or add primary evidence. An angle\'s why_now_primary_claim_ids and supporting_primary_claim_ids take evidence claim ids only, the ones given below; its angle_claim_id and counterpoint_claim_ids take inference ids, and an angle needs at least one tension and one lens. Every facet marked supported names at least one claim.',
-        'repair' => 'The previous answer for this phase failed these checks; return the corrected answer for the same phase, fixing every item listed and changing nothing else.',
-    ];
+    private const REPAIR = 'The previous answer failed these checks; return the corrected answer, fixing every item listed and changing nothing else.';
 
     /**
-     * One pass: the JSON the phase asked for, with the usage of the call.
-     *
-     * @param  array<string, mixed>|null  $evidence  the extract phase's answer, for finalize
-     * @param  list<string>  $errors  what the previous answer for this phase got wrong, for a repair
+     * @param  list<string>  $errors  what the previous answer got wrong, for a repair
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $prompt, string $model, string $phase, string $markdown, ?array $evidence = null, array $errors = []): array
+    public function __invoke(string $policy, string $model, string $markdown, array $errors = []): array
     {
         $key = (string) config('services.openai.key');
 
@@ -64,7 +52,7 @@ class ProposeMaterial
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($prompt, $model, $phase, $markdown, $evidence, $errors))
+            ->post(self::ENDPOINT, self::request($policy, $model, $markdown, $errors))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -87,25 +75,20 @@ class ProposeMaterial
     }
 
     /**
-     * The request of a phase: the fixed prompt first, with the cache
-     * breakpoint; the phase, the errors to repair and the evidence after
-     * it; the document, its lines numbered, last; the answer constrained
-     * to the phase's schema.
+     * The request: the policy first, as the developer message, with the
+     * cache breakpoint on it; the instructions and any repair after it;
+     * the document, its lines numbered, last.
      *
-     * @param  array<string, mixed>|null  $evidence
      * @param  list<string>  $errors
      * @return array<string, mixed>
      */
-    public static function request(string $prompt, string $model, string $phase, string $markdown, ?array $evidence = null, array $errors = []): array
+    public static function request(string $policy, string $model, string $markdown, array $errors = []): array
     {
-        $instructions = [self::PHASES[$phase]];
+        $instructions = [self::INSTRUCTIONS];
 
         if ($errors !== []) {
-            $instructions[] = self::PHASES['repair']."\n- ".implode("\n- ", $errors);
+            $instructions[] = self::REPAIR."\n- ".implode("\n- ", $errors);
         }
-
-        $user = ($evidence !== null ? "Evidence (extract phase):\n".json_encode($evidence, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)."\n\n" : '')
-            ."Document:\n".self::numbered(mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS));
 
         return [
             'model' => $model,
@@ -114,18 +97,18 @@ class ProposeMaterial
                 [
                     'role' => 'developer',
                     'content' => [
-                        ['type' => 'input_text', 'text' => $prompt, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
+                        ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
                 ['role' => 'developer', 'content' => implode("\n\n", $instructions)],
-                ['role' => 'user', 'content' => $user],
+                ['role' => 'user', 'content' => "Document:\n".self::numbered(mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS))],
             ],
             'text' => [
                 'format' => [
                     'type' => 'json_schema',
-                    'name' => "material_{$phase}",
+                    'name' => 'material',
                     'strict' => true,
-                    'schema' => $phase === 'extract' ? self::extractSchema() : self::finalizeSchema(),
+                    'schema' => self::schema(EditorialPolicy::items($policy)),
                 ],
             ],
         ];
@@ -142,172 +125,41 @@ class ProposeMaterial
     }
 
     /**
-     * The schema of the extract phase: spans, primary claims, the facets of what happened.
+     * The schema: one property per item of the policy, each a value (text
+     * or a list of texts, null when nothing gives it), where it came
+     * from, and the quotes it rests on when that is the document.
      *
+     * @param  list<string>  $items
      * @return array<string, mixed>
      */
-    public static function extractSchema(): array
+    public static function schema(array $items): array
     {
-        return self::object([
-            'source_language' => self::string(),
-            'primary_spans' => self::list(self::object([
-                'id' => self::string(),
-                'line_start' => ['type' => 'integer'],
-                'line_end' => ['type' => 'integer'],
-                'quote' => self::string(),
-            ])),
-            'claims' => self::list(self::claim(['primary_evidence'], ['reported', 'observed_in_source', 'proposed'])),
-            'primary_evidence' => self::object([
-                'what_happened' => self::facet(),
-                'key_facts' => self::facet(),
-                'reported_claims' => self::facet(),
-                'numbers' => self::facet(),
-                'actors' => self::facet(),
-            ]),
-        ]);
-    }
+        $item = [
+            'type' => 'object',
+            'properties' => [
+                'value' => ['type' => ['string', 'array', 'null'], 'items' => ['type' => 'string']],
+                'source' => ['type' => 'string', 'enum' => self::SOURCES],
+                'quotes' => [
+                    'type' => 'array',
+                    'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'line_start' => ['type' => 'integer'],
+                            'line_end' => ['type' => 'integer'],
+                            'quote' => ['type' => 'string'],
+                        ],
+                        'required' => ['line_start', 'line_end', 'quote'],
+                        'additionalProperties' => false,
+                    ],
+                ],
+            ],
+            'required' => ['value', 'source', 'quotes'],
+            'additionalProperties' => false,
+        ];
 
-    /**
-     * The schema of the finalize phase: inference claims and the analysis resting on the evidence.
-     *
-     * @return array<string, mixed>
-     */
-    public static function finalizeSchema(): array
-    {
-        return self::object([
-            'claims' => self::list(self::claim(['inference'], ['inferred', 'proposed', 'unknown', 'insufficient_evidence'])),
-            'technology_transition' => self::object([
-                'scope' => self::string(),
-                'previous_state' => self::enum(self::STATES),
-                'current_state' => self::enum(self::STATES),
-                'assessment' => self::enum(['observed_transition', 'no_observed_transition', 'insufficient_evidence']),
-                'assessment_claim_ids' => self::list(self::string()),
-                'frontier_transition' => self::facet(),
-            ]),
-            'engineering' => self::object([
-                'capability' => self::facet(),
-                'mechanism' => self::facet(),
-                'engineering_attack' => self::facet(),
-                'capital_commitment' => self::facet(),
-                'bottleneck' => self::facet(),
-                'industrialization' => self::facet(),
-            ]),
-            'editorial' => self::object([
-                'why_it_matters' => self::facet(),
-                'tensions' => self::list(self::object([
-                    'id' => self::string(),
-                    'axis' => self::enum(self::AXES),
-                    'left_claim_ids' => self::list(self::string()),
-                    'right_claim_ids' => self::list(self::string()),
-                    'relationship_claim_ids' => self::list(self::string()),
-                    'status' => self::enum(['observed', 'proposed', 'hypothesis', 'insufficient_evidence']),
-                ])),
-                'possible_angles' => self::list(self::object([
-                    'id' => self::string(),
-                    'angle' => self::string(),
-                    'entry_point' => self::enum(self::ENTRY_POINTS),
-                    'lenses' => self::list(self::enum(self::LENSES)),
-                    'tension_ids' => self::list(self::string()),
-                    'angle_claim_id' => self::string(),
-                    'why_now_primary_claim_ids' => self::list(self::string()),
-                    'supporting_primary_claim_ids' => self::list(self::string()),
-                    'counterpoint_claim_ids' => self::list(self::string()),
-                    'missing_information_ids' => self::list(self::string()),
-                    'reader_question' => self::string(),
-                    'strength' => self::enum(['high', 'medium', 'low']),
-                    'decision' => self::enum(['candidate', 'hold', 'reject']),
-                    'decision_reason' => self::string(),
-                ])),
-                'recommended_angle_id' => ['type' => ['string', 'null']],
-                'recommendation_reason' => self::string(),
-                'missing_information' => self::list(self::object([
-                    'id' => self::string(),
-                    'question' => self::string(),
-                    'why_it_matters' => self::string(),
-                    'related_claim_ids' => self::list(self::string()),
-                    'reason' => self::enum(['not_in_primary', 'ambiguous', 'conflicting_evidence', 'other']),
-                ])),
-                'next_signals' => self::list(self::object([
-                    'id' => self::string(),
-                    'signal' => self::string(),
-                    'observable_criterion' => self::string(),
-                    'required_primary_evidence' => self::string(),
-                    'related_claim_ids' => self::list(self::string()),
-                    'target_state' => self::enum(self::STATES),
-                ])),
-                'reader_questions' => self::list(self::object([
-                    'id' => self::string(),
-                    'question' => self::string(),
-                    'answer_claim_ids' => self::list(self::string()),
-                    'status' => self::enum(['answered', 'partial', 'unanswered']),
-                ])),
-            ]),
-            'quality' => self::object([
-                'warnings' => self::list(self::object([
-                    'code' => self::string(),
-                    'message' => self::string(),
-                    'related_ids' => self::list(self::string()),
-                ])),
-            ]),
-        ]);
-    }
+        $properties = array_fill_keys($items, $item);
 
-    /**
-     * @param  list<string>  $types
-     * @param  list<string>  $statuses
-     * @return array<string, mixed>
-     */
-    private static function claim(array $types, array $statuses): array
-    {
-        return self::object([
-            'id' => self::string(),
-            'type' => self::enum($types),
-            'statement' => self::string(),
-            'epistemic_status' => self::enum($statuses),
-            'basis' => self::list(self::string()),
-            'confidence' => self::enum(['high', 'medium', 'low', 'unknown']),
-            'confidence_reason' => self::string(),
-            'limitations' => self::list(self::string()),
-        ]);
-    }
-
-    /** @return array<string, mixed> */
-    private static function facet(): array
-    {
-        return self::object(['status' => self::enum(['supported', 'unknown', 'insufficient_evidence', 'not_applicable']), 'claim_ids' => self::list(self::string())]);
-    }
-
-    /**
-     * @param  array<string, array<string, mixed>>  $properties
-     * @return array<string, mixed>
-     */
-    private static function object(array $properties): array
-    {
         return ['type' => 'object', 'properties' => $properties, 'required' => array_keys($properties), 'additionalProperties' => false];
-    }
-
-    /**
-     * @param  array<string, mixed>  $items
-     * @return array<string, mixed>
-     */
-    private static function list(array $items): array
-    {
-        return ['type' => 'array', 'items' => $items];
-    }
-
-    /** @return array<string, mixed> */
-    private static function string(): array
-    {
-        return ['type' => 'string'];
-    }
-
-    /**
-     * @param  list<string>  $values
-     * @return array<string, mixed>
-     */
-    private static function enum(array $values): array
-    {
-        return ['type' => 'string', 'enum' => $values];
     }
 
     /**

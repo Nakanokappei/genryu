@@ -17,6 +17,14 @@ loop — nothing waits for a person, a person looks after the fact.
   Likely shape: a scheduled command (`schedule:run`) rendering one
   Markdown mail through the framework's mailer; no per-event mails.
 
+## If the PoC calls for it
+
+- **Background from outside the model** (Wikipedia EN with pinned
+  revisions, as ChatGPT's dossier design describes). Cut on 2026-09-23:
+  the PoC asks whether the model's own general knowledge is enough, so
+  `knowledge` items are marked and can be judged first. Build this only
+  if those items prove wrong often enough to matter.
+
 ## When human decisions start to accumulate
 
 - **Human decisions as few-shot examples for the screening** (idea

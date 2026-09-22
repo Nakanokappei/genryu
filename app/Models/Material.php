@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\ProposeMaterial;
 use Database\Factories\MaterialFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,15 +12,15 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * 素材情報 (UI: "Materials"): what a document yields for the articles,
  * built by App\Jobs\ExtractMaterial per the structuring layer of the
- * editorial policy and stored as JSON (data): the evidence quoted from
- * the document with its lines (provenance), the claims resting on it,
- * the inferences resting on those, the technology transition, the
- * engineering, the tensions and the possible angles. Pinned to the
+ * editorial policy and stored as JSON (data): one entry per item the
+ * policy lists, with its value, where it came from (the document, with
+ * the lines it quotes; the model\'s general knowledge; or nowhere) and
+ * those quotes. Pinned to the
  * document revision it was made from, the prompt version and the model;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
  * with the report of the checks (validation) and the usage of the calls.
  *
- * @property array<string, mixed>|null $data the material JSON (App\Actions\ProposeMaterial::SCHEMA_VERSION)
+ * @property array<string, mixed>|null $data one entry per item of the structuring layer
  * @property list<string>|null $validation the problems the last checks found, empty when they passed
  */
 class Material extends Model
@@ -38,53 +39,43 @@ class Material extends Model
     }
 
     /**
-     * The claims of the material by id, for the screens and the article.
+     * The material item by item, in the order the structuring layer
+     * lists them (jsonb stores keys sorted by length and letter), any
+     * other key after them; each with its value, where it came from and
+     * its quotes.
      *
      * @return array<string, array<string, mixed>>
      */
-    public function claims(): array
+    public function items(): array
     {
-        $claims = [];
+        $data = $this->data ?? [];
+        $ordered = [];
 
-        foreach ($this->data['claims'] ?? [] as $claim) {
-            $claims[(string) $claim['id']] = $claim;
-        }
-
-        return $claims;
-    }
-
-    /**
-     * The spans of the material by id: the quotes and their lines.
-     *
-     * @return array<string, array<string, mixed>>
-     */
-    public function spans(): array
-    {
-        $spans = [];
-
-        foreach ($this->data['provenance']['primary_spans'] ?? [] as $span) {
-            $spans[(string) $span['id']] = $span;
-        }
-
-        return $spans;
-    }
-
-    /**
-     * The angle the material recommends, if any.
-     *
-     * @return array<string, mixed>|null
-     */
-    public function recommendedAngle(): ?array
-    {
-        $id = $this->data['editorial']['recommended_angle_id'] ?? null;
-
-        foreach ($this->data['editorial']['possible_angles'] ?? [] as $angle) {
-            if ($id !== null && ($angle['id'] ?? null) === $id) {
-                return $angle;
+        foreach (EditorialPolicy::items(EditorialPolicy::bodyFor('structuring')) as $item) {
+            if (array_key_exists($item, $data)) {
+                $ordered[$item] = $data[$item];
             }
         }
 
-        return null;
+        return [...$ordered, ...$data];
+    }
+
+    /**
+     * How many items came from the document and how many from the
+     * model's general knowledge: what this PoC is out to measure.
+     *
+     * @return array<string, int>
+     */
+    public function sources(): array
+    {
+        $counts = array_fill_keys(ProposeMaterial::SOURCES, 0);
+
+        foreach ($this->items() as $item) {
+            $source = (string) ($item['source'] ?? 'none');
+            $counts[$source] = ($counts[$source] ?? 0) + 1;
+        }
+
+        return $counts;
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */

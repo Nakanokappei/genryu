@@ -56,23 +56,23 @@ the product (purpose, the five stages, stack); read it first.
 - **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
   one body per layer: selection / structuring / article; defaults in the
   model).
-- **素材情報 is an evidence dossier** (stage 2.3, rebuilt 2026-09-23 from
-  ChatGPT's dossier design, Phase A — no Wikipedia yet). The structuring
-  layer is the developer prompt of `App\Jobs\ExtractMaterial`, which runs
-  `App\Actions\ProposeMaterial` (OpenAI **Responses API**, prompt cached
-  with an explicit breakpoint, the phase named after it) in two passes:
-  **extract** fixes the evidence (quotes with their 1-based line ranges
-  in the pinned revision, the primary_evidence claims resting on them,
-  the facets), **finalize** builds the analysis on those claims alone
-  (inference claims, technology transition, engineering, tensions,
-  possible angles with entry point and lenses). Each pass is checked by
-  `App\Actions\ValidateMaterial` — quotes found verbatim in the lines,
-  references, no cycles, an observed transition rooted in evidence, an
-  angle with its tension, lens and why-now evidence — and repaired once
-  with the errors in hand; the report is kept in `materials.validation`.
-  The material pins its document revision, prompt version and model
-  (編集方針 chooses it), and keeps the usage of both calls. Extraction is
-  queued from the 素材情報を抽出 buttons, not automatically.
+- **素材情報 is the policy's items with their sources** (stage 2.3). The
+  structuring layer lists the items ("- item: …"); `App\Jobs\ExtractMaterial`
+  has `App\Actions\ProposeMaterial` (OpenAI **Responses API**, the policy
+  cached with an explicit breakpoint, the document's lines numbered after
+  it, a schema built from the items) fill every one of them and say where
+  it came from: `document` with the quotes it rests on (exact text, line
+  range in the pinned revision), `knowledge` from the model's own general
+  knowledge — what this PoC is out to test, like a reporter who does not
+  look up what he already knows — or `none`. `App\Actions\ValidateMaterial`
+  checks the items are all there and every quote really is in the lines
+  it names; a miss is repaired once with the errors in hand, and what is
+  left is kept in `materials.validation`. The material pins its document
+  revision, prompt version and model (編集方針 chooses it) and keeps the
+  usage. Queued from the 素材情報を抽出 buttons, not automatically.
+  (ChatGPT's dossier design — claim graphs, tensions, entry-point review,
+  Wikipedia tools — was tried on 2026-09-23 and cut back to this: it
+  measured the wrong thing for a PoC and cost several times as much.)
 - **Articles are generated the same way** (stage 2.4): the article layer
   of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
   (agent `App\Actions\ProposeArticle`, OpenAI), which asks for a title and

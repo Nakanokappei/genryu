@@ -35,15 +35,15 @@ new #[Title('素材情報')] class extends Component {
         <flux:button wire:click="extract" class="ms-auto" icon="cube">{{ __('Extract materials from adopted documents') }}</flux:button>
     </div>
 
-    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Transition'), __('Recommended angle'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
+    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Summary'), __('Items'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
         @foreach ($this->materials as $material)
             <tr>
                 <td class="px-3 py-2"><x-pages::favicon :source="$material->document->source" /> <a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ $material->document->title }}</a></td>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $material->document->source) }}" class="underline" wire:navigate>{{ $material->document->source->name }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$material->status" /></td>
-                @php $transition = $material->data['technology_transition'] ?? null; $angle = $material->recommendedAngle(); @endphp
-                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $transition !== null ? __($transition['previous_state']).' → '.__($transition['current_state']) : ($material->status_message ?? '—') }}</td>
-                <td class="max-w-md px-3 py-2">{{ $angle !== null ? $angle['angle'] : ($material->data !== null ? '—' : '') }}</td>
+                @php $items = $material->items(); $summary = $items[array_key_first($items) ?? ''] ?? null; $sources = $material->sources(); @endphp
+                <td class="max-w-lg px-3 py-2">{{ is_string($summary['value'] ?? null) ? $summary['value'] : ($material->status_message ?? '—') }}</td>
+                <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $material->data !== null ? __('document').' '.$sources['document'].' / '.__('knowledge').' '.$sources['knowledge'] : '—' }}</td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $material->created_at->display() }}</td>
             </tr>

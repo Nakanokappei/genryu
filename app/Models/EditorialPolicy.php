@@ -11,9 +11,10 @@ use Illuminate\Database\Eloquent\Model;
  * document from being fetched, set on the 情報源 screen) and the content
  * filtering (the developer prompt of an LLM that reads a fetched document,
  * set on the 文書 screen; the judge is not built yet).
- * The structuring layer is the developer prompt that turns a document
- * into a material (stage 2.3, an evidence dossier with provenance), the
- * article layer the one that turns a material into an article (stage 2.4).
+ * The structuring layer is the prompt that turns a document into a
+ * material (stage 2.3): its "- item: …" lines are the items every
+ * material must have, each with the quotes it rests on. The article
+ * layer turns a material into an article (stage 2.4).
  */
 class EditorialPolicy extends Model
 {
@@ -129,5 +130,18 @@ class EditorialPolicy extends Model
         }
 
         return null;
+    }
+
+    /**
+     * The items a layer lists as "- item: …" lines, in order: for the
+     * structuring layer, the keys every material must have.
+     *
+     * @return list<string>
+     */
+    public static function items(string $body): array
+    {
+        preg_match_all('/^\s*[-*]\s*([^:：\n]+?)\s*[:：]/mu', $body, $matches);
+
+        return array_values(array_unique($matches[1]));
     }
 }
