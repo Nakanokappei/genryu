@@ -213,6 +213,29 @@ it('falls back to generic selectors when the proposed content selector finds not
         ->and($source->refresh()->document_config)->toMatchArray(['content' => 'article', 'remove' => '']);
 });
 
+// 日立: every article page numbers its container (#content-17863846), so the agent proposes a selector that fits one page only.
+it('generalises a proposed selector that names the page number, and takes the configured date before the removals', function () {
+    $page = fn (int $number): string => "<html><body><div id=\"main\"><div id=\"content-{$number}\" class=\"content\"><h1>Article {$number}</h1>"
+        .'<div class="content-info"><a href="/_users/1">H</a><div class="content-pubdate">2026-09-17</div></div>'
+        .'<p>Hitachi developed a method that extracts practical knowledge from operation logs on a 3D digital twin to support maintenance sites.</p>'
+        .'</div></div></body></html>';
+    Http::fake([
+        'www.example.org/_ct/17863846' => Http::response($page(17863846), 200, ['Content-Type' => 'text/html']),
+        'www.example.org/_ct/17864379' => Http::response($page(17864379), 200, ['Content-Type' => 'text/html']),
+        'api.openai.com/*' => Http::response(documentAgentAnswer(['content' => '#content-17863846', 'date' => '#content-17863846 .content-pubdate', 'remove' => '.content-info', 'fixed_text' => ''])),
+    ]);
+    $source = Source::factory()->create();
+
+    $first = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/_ct/17863846', 'title' => 'Article 17863846']));
+    $second = fetchDocument(UpdateEntry::factory()->for($source)->create(['url' => 'https://www.example.org/_ct/17864379', 'title' => 'Article 17864379']));
+
+    expect($source->refresh()->document_config)->toEqual(['content' => '[id^="content-"]', 'date' => '[id^="content-"] .content-pubdate', 'remove' => '.content-info', 'fixed_text' => ''])
+        ->and($first->markdown)->toStartWith("# Article 17863846\n\n2026-09-17\n\nHitachi developed")->not->toContain('[H]')
+        ->and($second->status_message)->toBeNull()
+        ->and($second->markdown)->toStartWith("# Article 17864379\n\n2026-09-17\n\n");
+    Http::assertSentCount(4); // robots.txt, page 1, agent, page 2
+});
+
 // The site changed its layout: the saved settings match nothing, so the agent is asked again.
 it('asks the agent again when the saved document settings no longer match the page', function () {
     Http::fake([

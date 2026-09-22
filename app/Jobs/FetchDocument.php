@@ -99,17 +99,20 @@ class FetchDocument implements ShouldQueue
     }
 
     /**
-     * Apply the proposal to the page; when its content selector yields no
-     * usable body, generic selectors are tried in a fixed order, and the
-     * settings that actually worked are what gets saved.
+     * Apply the proposal to the page, ids and classes numbered per page
+     * generalised first; when its content selector yields no usable body,
+     * the proposal as made and then generic selectors are tried in a fixed
+     * order, and the settings that actually worked are what gets saved.
      *
      * @param  array{content: string, date: string, remove: string, fixed_text: string}  $proposal
      * @return array{0: array{content: string, date: string, remove: string, fixed_text: string}, 1: string}
      */
     private static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
     {
-        foreach (array_unique(array_filter([$proposal['content'], ...self::FALLBACK_CONTENT])) as $content) {
-            $settings = [...$proposal, 'content' => $content];
+        $general = array_map(self::generalise(...), $proposal);
+
+        foreach (array_unique(array_filter([$general['content'], $proposal['content'], ...self::FALLBACK_CONTENT])) as $content) {
+            $settings = [...$general, 'content' => $content];
 
             try {
                 return [$settings, $read->html($html, $settings, $document->url, $document->title)];
@@ -120,5 +123,17 @@ class FetchDocument implements ShouldQueue
         }
 
         throw new RuntimeException(__('Neither the agent\'s proposal nor the generic selectors found the body of this page. Enter the content selector in the document settings of the source.'));
+    }
+
+    /**
+     * A selector that names this page's number (日立: #content-17863846,
+     * one per article) would match no other page of the site: the number
+     * is dropped for a prefix match on the id or class.
+     */
+    public static function generalise(string $selector): string
+    {
+        $selector = (string) preg_replace('/#([A-Za-z_][\w-]*?[-_])\d{4,}(?![\w-])/', '[id^="$1"]', $selector);
+
+        return (string) preg_replace('/\.([A-Za-z_][\w-]*?[-_])\d{4,}(?![\w-])/', '[class*="$1"]', $selector);
     }
 }

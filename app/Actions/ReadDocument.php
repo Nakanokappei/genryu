@@ -87,6 +87,9 @@ class ReadDocument
             throw new RuntimeException(__('The document settings matched nothing on this page.'));
         }
 
+        // The date the settings point at is taken first: it may sit in a block the settings then drop (日立: the author line).
+        $date = self::takeDate($document, $content, trim((string) ($config['date'] ?? '')), fallbacks: false);
+
         // Drop what is never body text, then what the settings say to drop.
         foreach (array_filter([self::ALWAYS_REMOVED, trim((string) ($config['remove'] ?? ''))]) as $dropped) {
             self::takeOut($document, $content, $dropped);
@@ -95,8 +98,8 @@ class ReadDocument
         // Links that only lead back to the list are navigation, wherever they sit.
         self::dropNavigationLinks($content);
 
-        // The date and the fixed text leave the body to be printed in their own places.
-        $date = self::takeDate($document, $content, trim((string) ($config['date'] ?? '')));
+        // Without a configured date, the usual places are tried once the noise is gone; the fixed text leaves the body for its end.
+        $date ??= self::takeDate($document, $content, '', fallbacks: true);
         $fixedHtml = self::takeOut($document, $content, trim((string) ($config['fixed_text'] ?? '')));
 
         // The title, taken out of the body when it is there.
@@ -169,11 +172,11 @@ class ReadDocument
     /**
      * The date of the document as Y-m-d (or as printed when it cannot be
      * parsed): the configured element, looked for in the body then on the
-     * page, else a <time> in the body, else a short line in the body that
-     * reads as a date, else the page's meta tags. An element found is
-     * removed so the date is not printed twice.
+     * page; with fallbacks, else a <time> in the body, else a short line in
+     * the body that reads as a date, else the page's meta tags. An element
+     * found is removed so the date is not printed twice.
      */
-    private static function takeDate(HTMLDocument $document, Element $content, string $selector): ?string
+    private static function takeDate(HTMLDocument $document, Element $content, string $selector, bool $fallbacks): ?string
     {
         $node = null;
 
@@ -181,14 +184,18 @@ class ReadDocument
             $node = $content->querySelector($selector) ?? $document->querySelector($selector);
         }
 
-        $node ??= $content->querySelector(self::DATE_FALLBACK) ?? self::dateLine($content);
+        if ($fallbacks) {
+            $node ??= $content->querySelector(self::DATE_FALLBACK) ?? self::dateLine($content);
+        }
 
         if ($node instanceof Element) {
             $raw = trim((string) $node->getAttribute('datetime')) ?: (string) $node->textContent;
             $node->parentNode?->removeChild($node);
-        } else {
+        } elseif ($fallbacks) {
             $meta = $document->querySelector(self::DATE_META);
             $raw = $meta instanceof Element ? (string) $meta->getAttribute('content') : '';
+        } else {
+            return null;
         }
 
         $raw = trim((string) preg_replace('/\s+/u', ' ', $raw));
