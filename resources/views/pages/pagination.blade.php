@@ -14,5 +14,5 @@
         @endif
     </flux:text>
     {{-- Flux's pagination is a size container, so it needs a width of its own: the rest of the row, or a row of its own when narrow. Its own count is hidden, printed beside the choice above instead. --}}
-    <flux:pagination :paginator="$paginator" class="grow basis-80 border-t-0 pt-0 [&>div:first-child]:hidden" />
+    <flux:pagination :paginator="$paginator" class="grow basis-80 border-t-0! pt-0! [&>div:first-child]:hidden" />
 </div>
