@@ -92,6 +92,12 @@ the product (purpose, the five stages, stack); read it first.
   for every non-excluded document). A proposed selector that names a page
   number (日立 `#content-17863846`) is generalised to `[id^="content-"]`
   by `FetchDocument::generalise` before it is verified and saved.
+- **文書 lists every document with its state** (状態: 取得済み / 取得中 /
+  失敗 with the reason as tooltip / 対象外 with the rule as tooltip, — when
+  not queued yet; restored 2026-09-22 after a spell of fetched-only),
+  sortable and filterable by 情報源 / 公開日 / 形式 / 取得日時 (sort and
+  filters in the URL). The source detail lists only the excluded and
+  failed ones with their reasons.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
   base class of 情報源 / 文書; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).

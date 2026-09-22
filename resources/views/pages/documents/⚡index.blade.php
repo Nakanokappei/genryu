@@ -10,7 +10,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the content filtering of the editorial policy (the criteria an LLM judge reads the fetched documents by; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time. A document whose fetch failed is listed on its source instead.
+// 文書 (Documents): the content filtering of the editorial policy (the criteria an LLM judge reads the fetched documents by; the title filter is on 情報源), and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time, each with its state (fetched / fetching / failed / excluded by the title filter).
 new #[Title('文書')] class extends PagedList {
     // Content filtering: criteria kept for the LLM judge, which is not built yet.
     public string $fetchCriteria = '';
@@ -67,8 +67,8 @@ new #[Title('文書')] class extends PagedList {
         $sort = array_key_exists($this->sort, self::SORTS) ? $this->sort : 'fetched_at';
         $direction = $this->direction === 'asc' ? 'asc' : 'desc';
 
-        // Only the fetched documents are listed; the source's name is ordered through the sources table, and id breaks ties so pages never overlap.
-        return Document::query()->with('source', 'material')->where('documents.status', 'fetched')
+        // Every listed document, whatever its state; the source's name is ordered through the sources table, and id breaks ties so pages never overlap.
+        return Document::query()->with('source', 'material')
             ->when($sort === 'source', fn ($query) => $query->join('sources', 'sources.id', '=', 'documents.source_id')->select('documents.*'))
             ->when($this->source !== '', fn ($query) => $query->where('documents.source_id', $this->source))
             ->when($this->format !== '', fn ($query) => $query->where('format', $this->format))
@@ -113,7 +113,7 @@ new #[Title('文書')] class extends PagedList {
 
 }; ?>
 
-<section class="w-full space-y-6">
+<section class="w-full space-y-6" @if ($this->documents->contains('status', 'fetching')) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
 
     {{-- Content filtering sits with the documents because it judges what was fetched: the criteria an LLM reads a document by. --}}
@@ -148,13 +148,24 @@ new #[Title('文書')] class extends PagedList {
     </div>
 
     <x-pages::table
-        :columns="[__('Title'), ['label' => __('Source'), 'sort' => 'source'], ['label' => __('Published at'), 'sort' => 'published_at'], ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
+        :columns="[__('Title'), ['label' => __('Source'), 'sort' => 'source'], ['label' => __('Published at'), 'sort' => 'published_at'], __('Status'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
             <tr>
                 <td class="px-3 py-2"><x-pages::favicon :source="$document->source" /> <x-pages::short-title :title="$document->title" :href="route('documents.show', $document)" /></td>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
+                <td class="px-3 py-2">
+                    @if ($document->excluded_by !== null)
+                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
+                    @elseif ($document->status === 'failed')
+                        <flux:tooltip :content="$document->status_message ?? ''"><x-pages::status :status="$document->status" /></flux:tooltip>
+                    @elseif ($document->status !== null)
+                        <x-pages::status :status="$document->status" />
+                    @else
+                        —
+                    @endif
+                </td>
                 <td class="px-3 py-2 uppercase">{{ $document->format }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
                 <td class="px-3 py-2">

@@ -96,25 +96,27 @@ it('pages the sources and documents lists by the chosen rows per page', function
     $this->get(route('sources.index', ['rowsPerPage' => 25]))->assertSee('Source 1<', false);
 });
 
-// 文書 lists fetched documents only, sorted and filtered by source, published date, format and fetched time.
-it('lists fetched documents sorted and filtered by the chosen column', function () {
+// 文書 lists every document with its state, sorted and filtered by source, published date, format and fetched time.
+it('lists documents with their state, sorted and filtered by the chosen column', function () {
     [$a, $b] = Source::factory()->count(2)->sequence(['name' => 'A 研究所'], ['name' => 'B 研究所'])->create();
     Document::factory()->fetched()->for($a)->create(['title' => 'Old HTML', 'published_at' => '2026-01-10', 'fetched_at' => '2026-09-01 00:00:00']);
     Document::factory()->fetched()->for($b)->create(['title' => 'New PDF', 'format' => 'pdf', 'published_at' => '2026-03-10', 'fetched_at' => '2026-09-20 00:00:00']);
-    Document::factory()->for($a)->create(['title' => 'Not fetched yet']);
-    Document::factory()->for($a)->create(['title' => 'Failed one', 'status' => 'failed']);
+    Document::factory()->for($a)->create(['title' => 'Not fetched yet', 'published_at' => null]);
+    Document::factory()->for($a)->create(['title' => 'Failed one', 'status' => 'failed', 'status_message' => 'HTTP 404', 'published_at' => null]);
+    Document::factory()->for($a)->create(['title' => 'Excluded one', 'excluded_by' => '寄稿; 掲載', 'published_at' => null]);
 
     $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
 
-    $component = Livewire::test('pages::documents.index')->assertDontSee('Not fetched yet')->assertDontSee('Failed one');
-    expect($titles($component))->toBe(['New PDF', 'Old HTML']);
-    expect($titles($component->call('sortBy', 'fetched_at')))->toBe(['Old HTML', 'New PDF']);
-    expect($titles($component->call('sortBy', 'source')))->toBe(['New PDF', 'Old HTML']);
-    expect($titles($component->call('sortBy', 'source')))->toBe(['Old HTML', 'New PDF']);
-    expect($titles($component->call('sortBy', 'published_at')))->toBe(['New PDF', 'Old HTML']);
-    expect($titles($component->call('sortBy', 'format')))->toBe(['New PDF', 'Old HTML']);
+    // Fetched first (newest fetch), then the ones without a fetch time; the failed one carries its reason, the excluded one its rule.
+    $component = Livewire::test('pages::documents.index')->assertSee('Not fetched yet')->assertSee('失敗')->assertSee('HTTP 404')->assertSee('対象外')->assertSee('除外キーワード「寄稿; 掲載」に一致');
+    expect($titles($component))->toBe(['New PDF', 'Old HTML', 'Excluded one', 'Failed one', 'Not fetched yet']);
+    expect($titles($component->call('sortBy', 'fetched_at')))->toBe(['Old HTML', 'New PDF', 'Not fetched yet', 'Failed one', 'Excluded one']);
+    expect($titles($component->call('sortBy', 'source'))[0])->toBe('New PDF');
+    expect($titles($component->call('sortBy', 'source')))->toBe(['Old HTML', 'Not fetched yet', 'Failed one', 'Excluded one', 'New PDF']);
+    expect(array_slice($titles($component->call('sortBy', 'published_at')), 0, 2))->toBe(['New PDF', 'Old HTML']);
+    expect(array_slice($titles($component->call('sortBy', 'format')), 0, 2))->toBe(['New PDF', 'Old HTML']);
 
-    expect($titles($component->set('source', (string) $a->id)))->toBe(['Old HTML']);
+    expect($titles($component->set('source', (string) $a->id)))->toBe(['Old HTML', 'Excluded one', 'Failed one', 'Not fetched yet']);
     expect($titles($component->set('source', '')->set('format', 'pdf')))->toBe(['New PDF']);
     expect($titles($component->set('format', '')->set('publishedFrom', '2026-02-01')))->toBe(['New PDF']);
     expect($titles($component->set('publishedFrom', '')->set('publishedTo', '2026-02-01')))->toBe(['Old HTML']);
