@@ -77,6 +77,28 @@ new #[Title('情報源')] class extends PagedList {
         </div>
     </form>
 
+    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Created')]" :empty="$this->sources->isEmpty()">
+        @foreach ($this->sources as $source)
+            <tr>
+                <td class="px-3 py-2">
+                    <span class="inline-flex items-center gap-2">
+                        <x-pages::favicon :source="$source" />
+                        <a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
+                        {{-- The site itself: the address is the tooltip, not a column. --}}
+                        <flux:tooltip :content="$source->url">
+                            <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
+                        </flux:tooltip>
+                    </span>
+                </td>
+                <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
+                <td class="px-3 py-2">{{ $source->documents_count }}</td>
+                <td class="px-3 py-2 {{ $source->failed_documents_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500' }}">{{ $source->failed_documents_count }}</td>
+                <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
+            </tr>
+        @endforeach
+    </x-pages::table>
+    <x-pages::pagination :paginator="$this->sources" />
+
     {{-- The selection layer sits with the sources because it acts when their update lists are read: one setting for every source. --}}
     <form wire:submit="saveSelection" class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Selection') }}</flux:heading>
@@ -99,26 +121,4 @@ new #[Title('情報源')] class extends PagedList {
 
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
-
-    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Created')]" :empty="$this->sources->isEmpty()">
-        @foreach ($this->sources as $source)
-            <tr>
-                <td class="px-3 py-2">
-                    <span class="inline-flex items-center gap-2">
-                        <x-pages::favicon :source="$source" />
-                        <a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
-                        {{-- The site itself: the address is the tooltip, not a column. --}}
-                        <flux:tooltip :content="$source->url">
-                            <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
-                        </flux:tooltip>
-                    </span>
-                </td>
-                <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
-                <td class="px-3 py-2">{{ $source->documents_count }}</td>
-                <td class="px-3 py-2 {{ $source->failed_documents_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500' }}">{{ $source->failed_documents_count }}</td>
-                <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
-            </tr>
-        @endforeach
-    </x-pages::table>
-    <x-pages::pagination :paginator="$this->sources" />
 </section>
