@@ -164,7 +164,7 @@ new #[Title('文書')] class extends PagedList {
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
             <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$document->source" /> <a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$document->source" /> <x-pages::short-title :title="$document->title" :href="route('documents.show', $document)" /></td>
                 <td class="px-3 py-2"><a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
                 <td class="px-3 py-2 uppercase">{{ $document->format }}</td>

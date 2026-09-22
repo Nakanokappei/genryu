@@ -139,12 +139,19 @@ it('reports how many feed entries the page links to, and skips feeds when told t
         ->and($asHtml->list_config['item'])->toBe('table.table1 tr');
 });
 
-it('saves the read-as-HTML choice from the source detail screen', function () {
+// The 一覧の取得方法 tab chosen on the source detail screen is the choice to skip feeds; the HTML and JSON settings each drop the other when saved.
+it('remembers the list method chosen on the source detail screen', function () {
     $source = Source::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->set('readAsHtml', true);
-
+    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'feed')->set('method', 'html');
     expect($source->refresh()->read_as_html)->toBeTrue();
+
+    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'html')
+        ->set('list.item', 'li')->set('list.title', 'a')->call('saveList')->assertHasNoErrors()
+        ->set('method', 'json')->set('json.url', 'https://www.example.org/news.json')->call('saveJson')->assertHasNoErrors();
+    expect($source->refresh()->list_config)->toBeNull()->and($source->json_config['url'])->toBe('https://www.example.org/news.json')->and($source->read_as_html)->toBeFalse();
+
+    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'json');
 });
 
 // CNRS: <a href><h2 class="article__title">…</h2></a>; the agent proposed "h2.article__title a", which is inside out.
