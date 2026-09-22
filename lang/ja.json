@@ -142,5 +142,9 @@
     "Sources → Documents → Materials → Articles": "情報源 → 文書 → 素材情報 → 記事",
     "The selection layer is set on the Documents screen.": "取捨選択は「文書」の画面で設定します。",
     "Documents whose title contains one of these keywords are listed but not fetched. Separate several with a semicolon.": "タイトルにこのキーワードを含む文書は、リストには載せますが取得しません。複数はセミコロン（;）で区切ります。",
-    "Used as the system prompt of the LLM that judges new documents. Not applied yet.": "新しい文書を判定する LLM のシステムプロンプトに使います。判定はまだ動いていません。"
+    "Used as the system prompt of the LLM that judges new documents. Not applied yet.": "新しい文書を判定する LLM のシステムプロンプトに使います。判定はまだ動いていません。",
+    "Failed fetches": "取得失敗数",
+    "Failed documents": "取得に失敗した文書",
+    "Reason": "理由",
+    "All": "すべて"
 }

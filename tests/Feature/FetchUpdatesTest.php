@@ -229,10 +229,11 @@ it('runs from the source detail screen', function () {
     Http::fake(['www.example.org/rss.xml' => Http::response(RSS, 200, ['Content-Type' => 'application/rss+xml'])]);
     $source = Source::factory()->create(['url' => 'https://www.example.org/rss.xml']);
 
+    // The listed documents are queued for fetching, not shown on the source (its list holds the failed ones only).
     Livewire::test('pages::sources.show', ['source' => $source])
         ->call('fetchUpdates')
         ->assertHasNoErrors()
-        ->assertSee('First release');
+        ->assertDontSee('First release');
 
     expect($source->refresh()->documents()->count())->toBe(2);
 });

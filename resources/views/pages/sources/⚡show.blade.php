@@ -280,21 +280,20 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status')]" :empty="$source->documents->isEmpty()">
-        @foreach ($source->documents()->latest('published_at')->latest('id')->get() as $document)
+    {{-- Only the documents whose fetch failed, with the reason: the fetched ones are the 文書 screen's business, filtered by source there. --}}
+    @php $failedDocuments = $source->documents()->where('status', 'failed')->latest('published_at')->latest('id')->get(); @endphp
+    <flux:heading size="lg">{{ __('Failed documents') }}</flux:heading>
+    <x-pages::table :columns="[__('Title'), __('Published at'), __('Reason')]" :empty="$failedDocuments->isEmpty()">
+        @foreach ($failedDocuments as $document)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
-                <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
                 <td class="px-3 py-2">
-                    @if ($document->excluded_by !== null)
-                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
-                    @elseif ($document->status !== null)
-                        <x-pages::status :status="$document->status" />
-                    @else
-                        —
-                    @endif
+                    {{-- The title is cut at 31 characters; the whole of it is the tooltip. --}}
+                    <flux:tooltip :content="$document->title">
+                        <a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ mb_strlen($document->title) > 31 ? mb_substr($document->title, 0, 31).'…' : $document->title }}</a>
+                    </flux:tooltip>
                 </td>
+                <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
+                <td class="px-3 py-2 text-red-600 dark:text-red-400">{{ $document->status_message ?? '—' }}</td>
             </tr>
         @endforeach
     </x-pages::table>

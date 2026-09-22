@@ -22,7 +22,10 @@ new #[Title('情報源')] class extends PagedList {
     #[Computed]
     public function sources()
     {
-        return Source::query()->withCount('documents')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
+        // The failed fetches are counted here so the list shows which source needs a look (its detail lists them with the reason).
+        return Source::query()
+            ->withCount(['documents', 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed')])
+            ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
     // A new source is configured in the background (feed or agent-proposed HTML list settings).
@@ -50,7 +53,7 @@ new #[Title('情報源')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Created')]" :empty="$this->sources->isEmpty()">
+    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Created')]" :empty="$this->sources->isEmpty()">
         @foreach ($this->sources as $source)
             <tr>
                 <td class="px-3 py-2">
@@ -65,6 +68,7 @@ new #[Title('情報源')] class extends PagedList {
                 </td>
                 <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
                 <td class="px-3 py-2">{{ $source->documents_count }}</td>
+                <td class="px-3 py-2 {{ $source->failed_documents_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500' }}">{{ $source->failed_documents_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>
         @endforeach
