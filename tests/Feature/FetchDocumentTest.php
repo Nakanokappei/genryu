@@ -222,6 +222,40 @@ it('asks the agent for document settings when the source has none, verifies them
     Http::assertSentCount(7); // robots.txt (page host), page 1, robots.txt (source host), favicon.ico, agent, page 2, favicon.ico
 });
 
+// A fetched body under Document::SHORT_BODY_CHARS is flagged on the lists and the document (the settings may catch a teaser); from the source, the agent can propose settings again from a short document's original, kept only when they yield more.
+it('warns of short bodies and lets the agent propose the document settings again from one', function () {
+    // The page: a teaser in the header the current settings catch, the body in a section they miss.
+    $page = '<html><body><header><h1>Ammonia burner programme</h1><p class="teaser">'.str_repeat('A short teaser. ', 10).'</p></header>'
+        .'<section class="body"><time datetime="2026-09-17">2026-09-17</time>'.str_repeat('<p>'.str_repeat('The long body of the release. ', 8).'</p>', 6).'</section></body></html>';
+    Http::fake([
+        'www.example.org/news/*' => Http::response($page, 200, ['Content-Type' => 'text/html']),
+        // The agent's proposals, in turn: one that reaches the body, then one that does not (Http::fake keeps its first callback, hence the sequence).
+        'api.openai.com/*' => Http::sequence()
+            ->push(documentAgentAnswer(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => '']))
+            ->push(documentAgentAnswer(['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => ''])),
+    ]);
+    $source = Source::factory()->create(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Ammonia burner programme']));
+
+    expect($document->hasShortBody())->toBeTrue();
+    $this->get(route('documents.index'))->assertSee('本文が短い');
+    $this->get(route('documents.show', $document))->assertSee('字しかありません')->assertSee($source->name.' の文書の設定');
+    $this->get(route('sources.index'))->assertSee('本文が短い');
+
+    Livewire::test('pages::sources.show', ['source' => $source])->assertSee('本文が短い（1000 字未満）')->call('proposeDocumentSettings')->assertHasNoErrors();
+
+    expect($source->refresh()->document_config)->toEqual(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => ''])
+        ->and($document->refresh()->hasShortBody())->toBeFalse()
+        ->and($document->markdown)->toContain('The long body of the release.')->not->toContain('A short teaser');
+    $this->get(route('documents.show', $document))->assertDontSee('字しかありません');
+
+    // A proposal that yields no more than now is not kept.
+    $source->update(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $document->update(['markdown' => '# Ammonia burner programme'.str_repeat("\n\nA short teaser.", 10)]);
+    Livewire::test('pages::sources.show', ['source' => $source])->call('proposeDocumentSettings')->assertHasNoErrors();
+    expect($source->refresh()->document_config['content'])->toBe('header');
+});
+
 it('falls back to generic selectors when the proposed content selector finds nothing, and saves what worked', function () {
     Http::fake([
         'www.example.org/news/1' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),

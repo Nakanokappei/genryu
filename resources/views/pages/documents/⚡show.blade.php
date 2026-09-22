@@ -85,6 +85,13 @@ new #[Title('文書')] class extends Component {
         <flux:button wire:click="fetchDocument" size="sm" icon="arrow-path">{{ $document->status === null ? __('Fetch document') : __('Fetch again') }}</flux:button>
     </div>
 
+    @if ($document->hasShortBody())
+        <flux:callout variant="warning" icon="exclamation-triangle">
+            <flux:callout.heading>{{ __('The body has only :count characters', ['count' => mb_strlen((string) $document->markdown)]) }}</flux:callout.heading>
+            <flux:callout.text>{{ __('The document settings of the source may catch a teaser or a header instead of the body. Compare with the original, then fix the settings on the source and rebuild the Markdown.') }} <a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ __('Document settings of :source', ['source' => $document->source->name]) }}</a></flux:callout.text>
+        </flux:callout>
+    @endif
+
     <flux:heading size="lg">{{ __('Screening') }}</flux:heading>
     <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <div class="flex flex-wrap items-center gap-3">

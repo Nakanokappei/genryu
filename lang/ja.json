@@ -196,5 +196,17 @@
     "The document is excluded by the title filter.": "タイトルフィルタで対象外になった文書です。",
     "The content filtering prompt is empty.": "コンテンツフィルタリングのデベロッパープロンプトが空です。",
     "The agent did not return a decision.": "エージェントの回答に判定がありません。",
-    "First-pass model (a document the first pass sends to review is judged again by the next model up)": "初回判定モデル（初回判定がREVIEWの場合、ひとつ上位のモデルで再判定されます）"
+    "First-pass model (a document the first pass sends to review is judged again by the next model up)": "初回判定モデル（初回判定がREVIEWの場合、ひとつ上位のモデルで再判定されます）",
+    "Short bodies": "本文が短い",
+    "short body": "本文が短い",
+    "Only :count characters: the document settings of the source may miss the body.": "本文が :count 字しかありません。情報源の文書の設定が本文を捉えていない可能性があります。",
+    "The body has only :count characters": "本文が :count 字しかありません",
+    "The document settings of the source may catch a teaser or a header instead of the body. Compare with the original, then fix the settings on the source and rebuild the Markdown.": "情報源の文書の設定が、本文ではなくリード文や見出し部分を拾っている可能性があります。原本と見比べて、情報源の文書の設定を直し、Markdown を作り直してください。",
+    "Document settings of :source": ":source の文書の設定",
+    ":count fetched documents have a short body (under :chars characters)": "取得済み文書のうち :count 件は本文が短い（:chars 字未満）です",
+    "The content selector may catch a teaser or a header instead of the body. Check one, then fix the selectors above and rebuild the Markdown, or have the agent propose settings again from the original of a short document:": "本文セレクタが、本文ではなくリード文や見出し部分を拾っている可能性があります。1 件確認して上のセレクタを直し Markdown を作り直すか、短い文書の原本からエージェントに設定を提案し直させてください:",
+    "Propose settings again from a short document": "短い文書から設定を提案し直す",
+    "No short HTML document with its original on disk to propose from.": "提案の元にできる、原本が残っている短い HTML 文書がありません。",
+    "The agent's proposal (content: :content) gives :count characters for \":title\", no more than now. Enter the content selector by hand.": "エージェントの提案（本文: :content）でも「:title」は :count 字で、いまより増えません。本文セレクタを手で入力してください。",
+    "Document settings proposed by the agent and verified on \":title\" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed.": "エージェントが提案した文書の設定を「:title」で検証しました（本文: :content、:count 字）。:rebuilt 件の Markdown を作り直し、:failed 件は失敗しました。"
 }

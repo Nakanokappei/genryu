@@ -1,12 +1,16 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Actions\ProposeDocumentSettings;
+use App\Actions\ReadDocument;
 use App\Actions\RebuildMarkdown;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
 use App\Models\Source;
 use App\Models\Document;
 use Flux\Flux;
+use Illuminate\Support\Facades\Storage;
+use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -111,10 +115,62 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $documents->count()]));
     }
 
+    /**
+     * The fetched documents whose body came out short (UI: 本文が短い): a
+     * sign that the document settings catch a teaser, not the body.
+     *
+     * @return \Illuminate\Database\Eloquent\Collection<int, Document>
+     */
+    #[Computed]
+    public function shortDocuments()
+    {
+        return $this->source->documents()->where('status', 'fetched')->whereNull('excluded_by')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->orderBy('id')->get();
+    }
+
+    /**
+     * Have the agent look at the original of a short document and propose
+     * document settings again; they are verified on that page, kept only
+     * when they yield a longer body than the current settings did, and
+     * then every document of the source is read again from its original.
+     */
+    public function proposeDocumentSettings(ProposeDocumentSettings $propose, ReadDocument $read, RebuildMarkdown $rebuild): void
+    {
+        $document = $this->shortDocuments->first(fn (Document $document) => $document->format === 'html' && $document->original_path !== null && Storage::disk('local')->exists((string) $document->original_path));
+
+        if ($document === null) {
+            Flux::toast(variant: 'warning', text: __('No short HTML document with its original on disk to propose from.'));
+
+            return;
+        }
+
+        try {
+            $html = Storage::disk('local')->get((string) $document->original_path);
+            [$settings, $markdown] = FetchDocument::verify($html, $propose($html, $document->url), $document, $read);
+        } catch (\Throwable $exception) {
+            Flux::toast(variant: 'danger', duration: 8000, text: $exception->getMessage());
+
+            return;
+        }
+
+        if (mb_strlen($markdown) <= mb_strlen((string) $document->markdown)) {
+            Flux::toast(variant: 'warning', duration: 8000, text: __('The agent\'s proposal (content: :content) gives :count characters for ":title", no more than now. Enter the content selector by hand.', ['content' => $settings['content'], 'count' => mb_strlen($markdown), 'title' => $document->title]));
+
+            return;
+        }
+
+        $this->source->update(['document_config' => $settings]);
+        $result = $rebuild($this->source);
+        $this->mount();
+        unset($this->shortDocuments);
+
+        Flux::toast(variant: 'success', duration: 8000, text: __('Document settings proposed by the agent and verified on ":title" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed.', ['title' => $document->title, 'content' => $settings['content'], 'count' => mb_strlen($markdown), ...$result]));
+    }
+
     // Read every document of the source again from the original on disk, with the current settings and Markdown rules; no request to the site.
     public function rebuildMarkdown(RebuildMarkdown $rebuild): void
     {
         $result = $rebuild($this->source);
+        unset($this->shortDocuments);
 
         Flux::toast(variant: $result['failed'] === 0 ? 'success' : 'warning', duration: 8000, text: __(':rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).', $result));
     }
@@ -302,6 +358,21 @@ new #[Title('情報源')] class extends Component {
             <flux:input wire:model="documentSettings.remove" :label="__('Remove')" placeholder=".share, .related" />
             <flux:input wire:model="documentSettings.fixed_text" :label="__('Fixed text')" placeholder=".notice, .copyright" />
         </div>
+        {{-- Short bodies point at settings that miss the body; the agent can propose again from one of them. --}}
+        @if ($this->shortDocuments->isNotEmpty())
+            <flux:callout variant="warning" icon="exclamation-triangle">
+                <flux:callout.heading>{{ __(':count fetched documents have a short body (under :chars characters)', ['count' => $this->shortDocuments->count(), 'chars' => \App\Models\Document::SHORT_BODY_CHARS]) }}</flux:callout.heading>
+                <flux:callout.text>
+                    {{ __('The content selector may catch a teaser or a header instead of the body. Check one, then fix the selectors above and rebuild the Markdown, or have the agent propose settings again from the original of a short document:') }}
+                    @foreach ($this->shortDocuments->take(3) as $short)
+                        <a href="{{ route('documents.show', $short) }}" class="underline" wire:navigate>{{ mb_strimwidth($short->title, 0, 40, '…') }}</a>（{{ mb_strlen((string) $short->markdown) }}）@if (! $loop->last)、@endif
+                    @endforeach
+                </flux:callout.text>
+                <x-slot name="actions">
+                    <flux:button wire:click="proposeDocumentSettings" size="sm" icon="sparkles">{{ __('Propose settings again from a short document') }}</flux:button>
+                </x-slot>
+            </flux:callout>
+        @endif
         <div class="flex items-center gap-3">
             <flux:button type="submit">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="fetchDocuments" icon="document-arrow-down">{{ __('Fetch documents') }}</flux:button>

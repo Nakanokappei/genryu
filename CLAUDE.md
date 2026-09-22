@@ -106,6 +106,16 @@ the product (purpose, the five stages, stack); read it first.
   date line, bigger lines as headings, cells in columns as tables,
   bullets as list items, page numbers dropped. Figures come out as text
   in reading order; there is no cure for a font without a Unicode map.
+- **A short body is flagged** (本文が短い, `Document::SHORT_BODY_CHARS` =
+  1000, excluded documents aside): a badge on 文書, a callout on the
+  document with a link to the source's document settings, a count column
+  on 情報源, and on the source's detail a callout naming them with
+  短い文書から設定を提案し直す, which has the agent propose settings again
+  from a short document's original, keeps them only when they yield a
+  longer body, and rebuilds the Markdown (found 2026-09-22 when
+  Fraunhofer's selector caught only the teaser and the screening sent 12
+  documents to review for lack of a body). AIST's 研究成果 pages are
+  short by nature: a warning, not an error.
 - **Re-reading documents per source** (情報源 detail): 原本から Markdown を
   作り直す (`App\Actions\RebuildMarkdown`, from the originals on disk, no
   network, synchronous) and 文書をすべて取り直す (queues `FetchDocument`

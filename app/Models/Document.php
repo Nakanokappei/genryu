@@ -27,6 +27,9 @@ class Document extends Model
 
     public const FORMATS = ['html', 'pdf'];
 
+    /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
+    public const SHORT_BODY_CHARS = 1000;
+
     protected $fillable = ['source_id', 'title', 'url', 'published_at', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id'];
 
     protected function casts(): array
@@ -56,6 +59,16 @@ class Document extends Model
     public function screenings(): HasMany
     {
         return $this->hasMany(Screening::class)->latest('id');
+    }
+
+    /**
+     * Whether the fetched body is suspiciously short: the settings of the
+     * source caught a teaser, a header or a page whose body sits elsewhere.
+     * An excluded document is not worth the warning.
+     */
+    public function hasShortBody(): bool
+    {
+        return $this->status === 'fetched' && $this->excluded_by === null && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
     }
 
     /**

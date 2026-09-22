@@ -261,6 +261,9 @@ new #[Title('文書')] class extends PagedList {
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
                     @elseif ($document->status === 'failed')
                         <flux:tooltip :content="$document->status_message ?? ''"><x-pages::status :status="$document->status" /></flux:tooltip>
+                    @elseif ($document->hasShortBody())
+                        <x-pages::status :status="$document->status" />
+                        <flux:tooltip :content="__('Only :count characters: the document settings of the source may miss the body.', ['count' => mb_strlen((string) $document->markdown)])"><flux:badge size="sm" color="amber">{{ __('short body') }}</flux:badge></flux:tooltip>
                     @elseif ($document->status !== null)
                         <x-pages::status :status="$document->status" />
                     @else

@@ -110,7 +110,7 @@ class FetchDocument implements ShouldQueue
      * @param  array{content: string, date: string, remove: string, fixed_text: string}  $proposal
      * @return array{0: array{content: string, date: string, remove: string, fixed_text: string}, 1: string}
      */
-    private static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
+    public static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
     {
         $general = array_map(self::generalise(...), $proposal);
 

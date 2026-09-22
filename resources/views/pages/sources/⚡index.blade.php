@@ -3,6 +3,7 @@
 use App\Actions\ApplyTitleFilter;
 use App\Jobs\ConfigureSource;
 use App\Livewire\PagedList;
+use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Source;
 use Flux\Flux;
@@ -43,7 +44,12 @@ new #[Title('情報源')] class extends PagedList {
     {
         // The failed fetches are counted here so the list shows which source needs a look (its detail lists them with the reason).
         return Source::query()
-            ->withCount(['documents', 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed')])
+            ->withCount([
+                'documents',
+                'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed'),
+                // Fetched bodies shorter than Document::SHORT_BODY_CHARS, excluded documents aside: the document settings may miss the body (its detail says which and offers a fix).
+                'documents as short_documents_count' => fn ($query) => $query->where('status', 'fetched')->whereNull('excluded_by')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS]),
+            ])
             ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
@@ -72,7 +78,7 @@ new #[Title('情報源')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Created')]" :empty="$this->sources->isEmpty()">
+    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Short bodies'), __('Created')]" :empty="$this->sources->isEmpty()">
         @foreach ($this->sources as $source)
             <tr>
                 <td class="px-3 py-2">
@@ -88,6 +94,7 @@ new #[Title('情報源')] class extends PagedList {
                 <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
                 <td class="px-3 py-2">{{ $source->documents_count }}</td>
                 <td class="px-3 py-2 {{ $source->failed_documents_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-neutral-500' }}">{{ $source->failed_documents_count }}</td>
+                <td class="px-3 py-2 {{ $source->short_documents_count > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-neutral-500' }}">{{ $source->short_documents_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>
         @endforeach
