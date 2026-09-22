@@ -3,8 +3,8 @@
 namespace Database\Factories;
 
 use App\Models\Document;
+use App\Models\Prompt;
 use App\Models\Screening;
-use App\Models\ScreeningPrompt;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /** @extends Factory<Screening> */
@@ -14,7 +14,7 @@ class ScreeningFactory extends Factory
     {
         return [
             'document_id' => Document::factory()->fetched(),
-            'screening_prompt_id' => ScreeningPrompt::factory(),
+            'prompt_id' => Prompt::factory(),
             'model' => 'gpt-5.6-terra',
             'status' => 'screened',
             'decision' => 'adopt',

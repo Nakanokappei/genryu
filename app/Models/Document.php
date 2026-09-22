@@ -76,6 +76,46 @@ class Document extends Model
         return $this->status === 'fetched' && $this->excluded_by === null && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
     }
 
+    /**
+     * Every Markdown written to the document is kept as a revision, so
+     * what a screening or a material was made from stays as it was.
+     */
+    protected static function booted(): void
+    {
+        static::saved(function (Document $document): void {
+            if ($document->wasChanged('markdown') && $document->markdown !== null && $document->markdown !== '') {
+                $document->recordRevision();
+            }
+        });
+    }
+
+    /**
+     * The document's Markdown as a revision: the latest one when the
+     * text is unchanged, else a new one.
+     */
+    public function recordRevision(): ?DocumentRevision
+    {
+        $markdown = (string) $this->markdown;
+
+        if ($markdown === '') {
+            return null;
+        }
+
+        $latest = $this->revisions()->latest('id')->first();
+
+        if ($latest !== null && $latest->sha256 === hash('sha256', $markdown)) {
+            return $latest;
+        }
+
+        return $this->revisions()->create(['markdown' => $markdown, 'sha256' => hash('sha256', $markdown), 'chars' => mb_strlen($markdown)]);
+    }
+
+    /** @return HasMany<DocumentRevision, $this> every Markdown the document had, oldest first */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(DocumentRevision::class);
+    }
+
     /** @return BelongsTo<User, $this> who recorded the human decision */
     public function humanDecider(): BelongsTo
     {

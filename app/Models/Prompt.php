@@ -2,22 +2,23 @@
 
 namespace App\Models;
 
-use Database\Factories\ScreeningPromptFactory;
+use Database\Factories\PromptFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A version of the prompt the スクリーニング (UI: "Screening") runs with:
- * the text of the content filtering layer as it was when a screening
- * used it, numbered per name, with its hash. The text is edited on the
- * 文書 screen (EditorialPolicy); a screening pins the version it used so
- * adoption rates, cache figures and cost can be compared before and
- * after a change. A changed prompt also changes the cached prefix.
+ * A version of a prompt a stage runs with (UI: プロンプト版): the text of a
+ * layer of the editorial policy as it was when a run used it, numbered
+ * per name (content_filtering for the スクリーニング, structuring for the
+ * 素材情報), with its hash. The text is edited on its screen
+ * (EditorialPolicy); a run pins the version it used so results, cache
+ * figures and cost can be compared before and after a change. A changed
+ * prompt also changes the cached prefix.
  */
-class ScreeningPrompt extends Model
+class Prompt extends Model
 {
-    /** @use HasFactory<ScreeningPromptFactory> */
+    /** @use HasFactory<PromptFactory> */
     use HasFactory;
 
     protected $fillable = ['name', 'version', 'hash', 'text', 'activated_at'];
@@ -53,5 +54,11 @@ class ScreeningPrompt extends Model
     public function screenings(): HasMany
     {
         return $this->hasMany(Screening::class);
+    }
+
+    /** @return HasMany<Material, $this> */
+    public function materials(): HasMany
+    {
+        return $this->hasMany(Material::class);
     }
 }

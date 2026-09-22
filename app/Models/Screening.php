@@ -17,7 +17,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * (pass 2) by the next model up, which decides adopt or reject: nobody
  * reviews by hand, and a reject is final. The tokens
  * (cached and cache-written ones apart), the latency and the estimated
- * cost are kept for the cache and cost figures on the 文書 screen.
+ * cost are kept for the cache and cost figures on the 文書 screen. The run
+ * pins the document revision it read (document_revision_id).
  */
 class Screening extends Model
 {
@@ -50,7 +51,7 @@ class Screening extends Model
     public const PRIMARY_REASONS = ['FRONTIER_BREAK', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD', 'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY', 'INSUFFICIENT_EVIDENCE'];
 
     protected $fillable = [
-        'document_id', 'screening_prompt_id', 'model', 'pass', 'status', 'status_message',
+        'document_id', 'document_revision_id', 'prompt_id', 'model', 'pass', 'status', 'status_message',
         'decision', 'primary_reason', 'evidence', 'reason',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms',
         'estimated_input_cost', 'estimated_output_cost', 'estimated_total_cost',
@@ -67,9 +68,15 @@ class Screening extends Model
         return $this->belongsTo(Document::class);
     }
 
-    /** @return BelongsTo<ScreeningPrompt, $this> */
+    /** @return BelongsTo<Prompt, $this> */
     public function prompt(): BelongsTo
     {
-        return $this->belongsTo(ScreeningPrompt::class, 'screening_prompt_id');
+        return $this->belongsTo(Prompt::class);
+    }
+
+    /** @return BelongsTo<DocumentRevision, $this> the Markdown the decision was made on */
+    public function revision(): BelongsTo
+    {
+        return $this->belongsTo(DocumentRevision::class, 'document_revision_id');
     }
 }

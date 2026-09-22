@@ -56,9 +56,9 @@ new #[Title('文書')] class extends PagedList {
     public function screeningFigures(): array
     {
         $versions = Screening::query()->where('status', 'screened')
-            ->join('screening_prompts', 'screening_prompts.id', '=', 'screenings.screening_prompt_id')
-            ->groupBy('screening_prompts.version')->orderByDesc('screening_prompts.version')
-            ->selectRaw('screening_prompts.version, count(*) as screened, sum(case when decision = ? then 1 else 0 end) as adopted, sum(case when decision = ? then 1 else 0 end) as rejected, sum(case when decision = ? then 1 else 0 end) as reviewed, sum(input_tokens) as input_tokens, sum(cached_tokens) as cached_tokens, sum(cache_write_tokens) as cache_write_tokens, sum(output_tokens) as output_tokens, sum(estimated_total_cost) as cost', ['adopt', 'reject', 'review'])
+            ->join('prompts', 'prompts.id', '=', 'screenings.prompt_id')
+            ->groupBy('prompts.version')->orderByDesc('prompts.version')
+            ->selectRaw('prompts.version, count(*) as screened, sum(case when decision = ? then 1 else 0 end) as adopted, sum(case when decision = ? then 1 else 0 end) as rejected, sum(case when decision = ? then 1 else 0 end) as reviewed, sum(input_tokens) as input_tokens, sum(cached_tokens) as cached_tokens, sum(cache_write_tokens) as cache_write_tokens, sum(output_tokens) as output_tokens, sum(estimated_total_cost) as cost', ['adopt', 'reject', 'review'])
             ->get();
 
         // The reason classes counted over the latest screening of each document, in the order of the gate's list.

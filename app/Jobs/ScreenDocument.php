@@ -6,8 +6,8 @@ use App\Actions\ProposeDecision;
 use App\Actions\ReviseDocumentSettings;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Models\Prompt;
 use App\Models\Screening;
-use App\Models\ScreeningPrompt;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -49,7 +49,8 @@ class ScreenDocument implements ShouldQueue
     {
         $screening = Screening::query()->create([
             'document_id' => $document->id,
-            'screening_prompt_id' => ScreeningPrompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'))->id,
+            'document_revision_id' => $document->recordRevision()?->id,
+            'prompt_id' => Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'))->id,
             'model' => $model ?? EditorialPolicy::modelFor('content_filtering'),
             'pass' => $pass,
             'status' => 'screening',
@@ -71,7 +72,10 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The document is excluded by the title filter.'));
             }
 
-            if ($document->status !== 'fetched' || (string) $document->markdown === '') {
+            // The text read is the revision pinned when the run was queued, not whatever the document holds by now.
+            $markdown = $screening->revision !== null ? $screening->revision->markdown : (string) $document->markdown;
+
+            if ($document->status !== 'fetched' || $markdown === '') {
                 throw new RuntimeException(__('The document has not been fetched yet.'));
             }
 
@@ -81,7 +85,7 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The content filtering prompt is empty.'));
             }
 
-            $result = $propose($prompt, $screening->model, (string) $document->markdown, $screening->pass);
+            $result = $propose($prompt, $screening->model, $markdown, $screening->pass);
 
             $screening->update([
                 ...$result,

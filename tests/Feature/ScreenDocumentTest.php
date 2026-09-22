@@ -7,8 +7,8 @@ use App\Jobs\ExtractMaterial;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Models\Prompt;
 use App\Models\Screening;
-use App\Models\ScreeningPrompt;
 use App\Models\Source;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
@@ -94,6 +94,25 @@ it('screens a fetched document with the prompt cached and keeps the decision, th
     });
 });
 
+// Every Markdown written to a document is kept as a revision; a screening pins the one it was queued on and reads that, whatever the document holds later.
+it('keeps document revisions and screens the pinned one', function () {
+    $document = Document::factory()->fetched()->create(['markdown' => "# v1\n\nFirst text."]);
+    expect($document->revisions()->count())->toBe(1)->and($document->revisions()->first()?->chars)->toBe(mb_strlen("# v1\n\nFirst text."));
+
+    $document->update(['markdown' => "# v1\n\nFirst text."]);
+    $document->update(['status' => 'fetched']);
+    expect($document->revisions()->count())->toBe(1);
+
+    Queue::fake();
+    $screening = ScreenDocument::queueFor($document);
+    $document->update(['markdown' => "# v2\n\nSecond text."]);
+    expect($document->revisions()->count())->toBe(2)->and($screening->revision?->markdown)->toBe("# v1\n\nFirst text.");
+
+    Http::fake(['api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => 'ADOPT', 'primary_reason' => 'DEMONSTRATION', 'evidence' => '', 'reason' => '']))]);
+    (new ScreenDocument($screening))->handle(app(ProposeDecision::class), app(ReviseDocumentSettings::class));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][1]['content'], 'First text.') && ! str_contains($request->data()['input'][1]['content'], 'Second text.'));
+});
+
 // The cost comes from the prices per million tokens configured for the model: cached input at the cached price.
 it('estimates the cost of a screening from the configured prices', function () {
     config(['services.openai.prices.gpt-5.6-terra' => ['input' => 2.0, 'cached' => 0.5, 'output' => 8.0]]);
@@ -115,7 +134,7 @@ it('numbers the prompt versions as the prompt changes', function () {
 
     expect($first->prompt->version)->toBe(1)->and($second->prompt->id)->toBe($first->prompt->id)
         ->and($third->prompt->version)->toBe(2)->and($third->prompt->text)->toBe(SCREENING_PROMPT.' 改訂。')
-        ->and(ScreeningPrompt::query()->count())->toBe(2);
+        ->and(Prompt::query()->count())->toBe(2);
 });
 
 // A document the title filter excluded, or not fetched, or an answer without a decision: the run fails with the reason and the document is not stopped.
@@ -242,7 +261,7 @@ it('keeps a rejected document from the material', function () {
 // The screens: the bulk button queues the fetched documents not screened yet; the list shows and filters by the decision; the detail shows the run and screens again with a chosen model.
 it('queues screenings from the screens and shows the decisions', function () {
     Queue::fake();
-    $prompt = ScreeningPrompt::factory()->create();
+    $prompt = Prompt::factory()->create();
     $adopted = Document::factory()->fetched()->create(['title' => 'Adopted doc']);
     Screening::factory()->for($adopted)->for($prompt, 'prompt')->create(['reason' => '実環境での実証']);
     $reviewed = Document::factory()->fetched()->create(['title' => 'Reviewed doc']);
