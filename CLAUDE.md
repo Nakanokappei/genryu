@@ -55,10 +55,24 @@ the product (purpose, the five stages, stack); read it first.
   ones, which are verified on the page before being saved to the source.
 - **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
   one body per layer: selection / structuring / article; defaults in the
-  model). The structuring layer is the prompt of `App\Jobs\ExtractMaterial`
-  (agent `App\Actions\ProposeMaterial`, OpenAI); its "- item: …" lines are
-  the keys every material must have, checked before the JSON is saved.
-  Extraction is queued from the 素材情報を抽出 buttons, not automatically.
+  model).
+- **素材情報 is an evidence dossier** (stage 2.3, rebuilt 2026-09-23 from
+  ChatGPT's dossier design, Phase A — no Wikipedia yet). The structuring
+  layer is the developer prompt of `App\Jobs\ExtractMaterial`, which runs
+  `App\Actions\ProposeMaterial` (OpenAI **Responses API**, prompt cached
+  with an explicit breakpoint, the phase named after it) in two passes:
+  **extract** fixes the evidence (quotes with their 1-based line ranges
+  in the pinned revision, the primary_evidence claims resting on them,
+  the facets), **finalize** builds the analysis on those claims alone
+  (inference claims, technology transition, engineering, tensions,
+  possible angles with entry point and lenses). Each pass is checked by
+  `App\Actions\ValidateMaterial` — quotes found verbatim in the lines,
+  references, no cycles, an observed transition rooted in evidence, an
+  angle with its tension, lens and why-now evidence — and repaired once
+  with the errors in hand; the report is kept in `materials.validation`.
+  The material pins its document revision, prompt version and model
+  (編集方針 chooses it), and keeps the usage of both calls. Extraction is
+  queued from the 素材情報を抽出 buttons, not automatically.
 - **Articles are generated the same way** (stage 2.4): the article layer
   of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
   (agent `App\Actions\ProposeArticle`, OpenAI), which asks for a title and
@@ -135,6 +149,10 @@ the product (purpose, the five stages, stack); read it first.
   Fraunhofer's selector caught only the teaser and the screening sent 12
   documents to review for lack of a body). AIST's 研究成果 pages are
   short by nature: a warning, not an error.
+- **Every Markdown a document had is a revision** (`document_revisions`,
+  recorded by `Document` on save): a screening and a material pin the
+  revision they were made from and read that text, so a quote's line
+  numbers stay true when the document is fetched or rebuilt again.
 - **Re-reading documents per source** (情報源 detail): 原本から Markdown を
   作り直す (`App\Actions\RebuildMarkdown`, from the originals on disk, no
   network, synchronous) and 文書をすべて取り直す (queues `FetchDocument`

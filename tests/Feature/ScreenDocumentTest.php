@@ -3,6 +3,7 @@
 use App\Actions\ProposeDecision;
 use App\Actions\ProposeMaterial;
 use App\Actions\ReviseDocumentSettings;
+use App\Actions\ValidateMaterial;
 use App\Jobs\ExtractMaterial;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
@@ -251,7 +252,7 @@ it('keeps a rejected document from the material', function () {
     Screening::factory()->for($rejected)->rejected()->create();
 
     $material = ExtractMaterial::queueFor($rejected);
-    (new ExtractMaterial($material))->handle(app(ProposeMaterial::class));
+    (new ExtractMaterial($material))->handle(app(ProposeMaterial::class), app(ValidateMaterial::class));
 
     expect($material->refresh())->toMatchArray(['status' => 'failed', 'status_message' => 'スクリーニングで不採用になった文書です。'])
         ->and($rejected->refresh()->isRejected())->toBeTrue();

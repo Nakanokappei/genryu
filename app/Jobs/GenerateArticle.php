@@ -64,7 +64,7 @@ class GenerateArticle implements ShouldQueue
             }
 
             $document = $material->document;
-            $proposal = $propose($policy, (array) $material->dataInPolicyOrder(), $document->title, $document->url);
+            $proposal = $propose($policy, (array) $material->data, $document->title, $document->url);
             $title = trim((string) ($proposal['title'] ?? ''));
             $body = trim((string) ($proposal['body'] ?? ''));
 
