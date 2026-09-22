@@ -49,11 +49,22 @@ new #[Title('記事')] class extends Component {
         return $this->versions[$this->language] ?? $this->original();
     }
 
+    /**
+     * The one the screen itself is headed and listed by: the version in
+     * the language of the interface, else the article as written. The
+     * tabs change what is read, not what the page around it is called.
+     */
+    #[Computed]
+    public function inUiLanguage(): Article
+    {
+        return $this->versions[app()->getLocale()] ?? $this->original();
+    }
+
     // Queue the writing again (after a failure, or after the editorial policy changed); the translations follow it.
     public function generate(): void
     {
         GenerateArticle::queueFor($this->original()->material);
-        unset($this->versions, $this->reading);
+        unset($this->versions, $this->reading, $this->inUiLanguage);
 
         Flux::toast(variant: 'success', text: __('Article queued.'));
     }
@@ -62,7 +73,7 @@ new #[Title('記事')] class extends Component {
     public function translate(): void
     {
         TranslateArticle::queueFor($this->original(), $this->language);
-        unset($this->versions, $this->reading);
+        unset($this->versions, $this->reading, $this->inUiLanguage);
 
         Flux::toast(variant: 'success', text: __('Article queued.'));
     }
@@ -71,18 +82,18 @@ new #[Title('記事')] class extends Component {
     public function refreshStatus(): void
     {
         $this->article->refresh();
-        unset($this->versions, $this->reading);
+        unset($this->versions, $this->reading, $this->inUiLanguage);
     }
 }; ?>
 
 <section class="w-full space-y-6" @if ($this->versions->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->reading->displayTitle()" />
+    <x-pages::detail-header :back="route('articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->inUiLanguage->displayTitle()" />
 
     <x-pages::fields :fields="[
         __('Document') => $this->original()->material?->document->title,
         __('URL') => $this->original()->material?->document->url,
-        __('Published at') => $this->reading->published_at?->display() ?? __('Not published.'),
-        __('Created') => $this->reading->created_at->display(),
+        __('Published at') => $this->inUiLanguage->published_at?->display() ?? __('Not published.'),
+        __('Created') => $this->original()->created_at->display(),
     ]" />
 
     {{-- The languages are tabs over one piece: the article as written, then each translation of it. --}}

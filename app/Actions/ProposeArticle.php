@@ -24,8 +24,8 @@ class ProposeArticle
 {
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
-    /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. */
-    private const INSTRUCTIONS = 'The material below was drawn from one primary-source document. Write the article from it, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
+    /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. Shown on the screen under the prompt, so nobody puts a placeholder in the prompt for it. */
+    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document. Write the article from it, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
 
     /**
      * @param  array<string, mixed>  $material
