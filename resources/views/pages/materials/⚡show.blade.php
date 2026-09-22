@@ -11,6 +11,9 @@ use Livewire\Component;
 new #[Title('素材情報')] class extends Component {
     public Material $material;
 
+    /** Which way the material is read (UI: テキスト / JSON); the same data either way. */
+    public string $view = 'text';
+
     // Queue the extraction again (after a failure, or after the editorial policy changed).
     public function extract(): void
     {
@@ -55,19 +58,29 @@ new #[Title('素材情報')] class extends Component {
     @if ($material->data === null)
         <flux:text>{{ __('Not extracted yet.') }}</flux:text>
     @else
-        {{-- The parts of the article: the angle it would be written on, the change it rests on, and what each side gives. --}}
-        <flux:heading size="lg">{{ __('Material') }}</flux:heading>
+        {{-- The parts of the article: the angle it would be written on, the change it rests on, and what each side gives. The two tabs are the same data, read two ways. --}}
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:heading size="lg">{{ __('Material') }}</flux:heading>
+            <flux:radio.group wire:model.live="view" variant="segmented" size="sm" class="ms-auto">
+                <flux:radio value="text" :label="__('Text')" />
+                <flux:radio value="json" :label="__('JSON')" />
+            </flux:radio.group>
+        </div>
         <div class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            @foreach ($material->parts() as $part => $value)
-                <div class="space-y-1">
-                    <flux:subheading>{{ __($part) }}</flux:subheading>
-                    @if (is_array($value))
-                        <ul class="list-disc ps-5 text-sm">@foreach ($value as $line)<li>{{ $line }}</li>@endforeach</ul>
-                    @else
-                        <flux:text size="sm" @class(['font-medium' => $part === 'angle'])>{{ $value }}</flux:text>
-                    @endif
-                </div>
-            @endforeach
+            @if ($view === 'json')
+                <pre class="overflow-auto text-sm whitespace-pre-wrap">{{ json_encode($material->parts(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+            @else
+                @foreach ($material->parts() as $part => $value)
+                    <div class="space-y-1">
+                        <flux:subheading>{{ __($part) }}</flux:subheading>
+                        @if (is_array($value))
+                            <ul class="list-disc ps-5 text-sm">@foreach ($value as $line)<li>{{ $line }}</li>@endforeach</ul>
+                        @else
+                            <flux:text size="sm" @class(['font-medium' => $part === 'angle'])>{{ $value }}</flux:text>
+                        @endif
+                    </div>
+                @endforeach
+            @endif
         </div>
 
         @php $counts = $material->counts(); @endphp
@@ -78,10 +91,6 @@ new #[Title('素材情報')] class extends Component {
             {{ number_format((int) $material->latency_ms) }} ms / {{ $material->estimated_total_cost !== null ? '$'.number_format($material->estimated_total_cost, 5) : __('cost unknown') }}
         </flux:text>
 
-        <details class="rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-            <summary class="cursor-pointer text-sm text-neutral-500">JSON</summary>
-            <pre class="mt-2 max-h-[32rem] overflow-auto text-sm whitespace-pre-wrap">{{ json_encode($material->parts(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
-        </details>
     @endif
 
     @if (($material->validation ?? []) !== [])
