@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ApplyTitleFilter;
 use App\Jobs\ConfigureSource;
 use App\Livewire\PagedList;
 use App\Models\EditorialPolicy;
@@ -27,11 +28,13 @@ new #[Title('情報源')] class extends PagedList {
         $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
     }
 
-    public function saveTitleFilter(): void
+    // Saving the title filter applies it to every document already listed as well: the rules are cheap, so no document waits for the next update list.
+    public function saveTitleFilter(ApplyTitleFilter $apply): void
     {
         EditorialPolicy::query()->updateOrCreate(['layer' => 'exclude_keywords'], ['body' => $this->excludeKeywords]);
+        $result = $apply();
 
-        Flux::toast(variant: 'success', text: __('Saved.'));
+        Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :excluded documents newly excluded, :restored no longer excluded.', $result));
     }
 
     /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Source> */
@@ -94,7 +97,7 @@ new #[Title('情報源')] class extends PagedList {
     {{-- The title filter sits with the sources because it acts on the titles when their update lists are read: one setting for every source. --}}
     <form wire:submit="saveTitleFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Title filter') }}</flux:heading>
-        <flux:text>{{ __('One setting for every source, applied to the titles when an update list is read, before any document is fetched: what is listed but not fetched. The content of the documents is judged on the Documents screen.') }}</flux:text>
+        <flux:text>{{ __('One setting for every source, applied to the titles when an update list is read, before any document is fetched: what is listed but not fetched. Saving applies the rules to every document already listed as well. The content of the documents is judged on the Documents screen.') }}</flux:text>
         <flux:textarea wire:model="excludeKeywords" :label="__('Exclude keywords')" rows="8" placeholder="採用情報&#10;寄稿; 掲載&#10;株式; 取得; 子会社化" class="font-mono" />
         <flux:text size="sm">{{ __('One rule per line: a document whose title contains the word is listed but not fetched. Several words on one line, separated by semicolons, make one rule that needs all of them (掲載 alone would take real news with it; 寄稿; 掲載 does not).') }}</flux:text>
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>

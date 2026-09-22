@@ -170,10 +170,18 @@ it('does not fetch the document of an update entry whose title has an exclude ke
 
 // The title filter is one setting over every source, applied before fetching, so it lives on 情報源; the content filtering (LLM criteria) judges what was fetched, so it lives on 文書.
 it('saves the title filter from the sources screen and the content filtering from the documents screen', function () {
+    // Saving applies the rules to the documents already listed: a fetched one is marked, an earlier mark from a dropped rule is removed.
+    $fetched = Document::factory()->fetched()->create(['title' => '研究員の寄稿が日経に掲載されました']);
+    $kept = Document::factory()->fetched()->create(['title' => '新技術が学会誌に掲載']);
+    $formerly = Document::factory()->create(['title' => '水素セミナー開催のお知らせ', 'excluded_by' => 'セミナー']);
+
     Livewire::test('pages::sources.index')
         ->assertSet('excludeKeywords', '')
         ->set('excludeKeywords', "採用情報\n寄稿; 掲載")
         ->call('saveTitleFilter')->assertHasNoErrors();
+    expect($fetched->refresh()->excluded_by)->toBe('寄稿; 掲載')->and($fetched->status)->toBe('fetched')
+        ->and($kept->refresh()->excluded_by)->toBeNull()
+        ->and($formerly->refresh()->excluded_by)->toBeNull();
     Livewire::test('pages::documents.index')
         ->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
         ->call('saveContentFiltering')->assertHasNoErrors();

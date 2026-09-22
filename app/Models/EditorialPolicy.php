@@ -67,11 +67,14 @@ class EditorialPolicy extends Model
     /**
      * The first exclude rule whose words a document's title all contains
      * (case does not matter), written as "word; word", or null when the
-     * document is to be fetched.
+     * document is to be fetched. The rules are read from the policy
+     * unless given (a caller going through many titles reads them once).
+     *
+     * @param  list<list<string>>|null  $rules
      */
-    public static function excludedBy(string $title): ?string
+    public static function excludedBy(string $title, ?array $rules = null): ?string
     {
-        foreach (self::excludeKeywords() as $words) {
+        foreach ($rules ?? self::excludeKeywords() as $words) {
             if (array_all($words, fn (string $word): bool => mb_stripos($title, $word) !== false)) {
                 return implode('; ', $words);
             }
