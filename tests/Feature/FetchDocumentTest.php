@@ -167,8 +167,9 @@ it('does not fetch the document of an update entry whose title has an exclude ke
     Queue::assertPushed(FetchDocument::class, 2);
 });
 
-it('saves the selection layer from the updates screen', function () {
-    Livewire::test('pages::documents.index')
+// The selection layer is one setting over every source, so it lives on 情報源, where the update lists are read.
+it('saves the selection layer from the sources screen', function () {
+    Livewire::test('pages::sources.index')
         ->assertSet('excludeKeywords', '')
         ->set('excludeKeywords', '採用情報; セミナー')->set('fetchCriteria', '技術的な発表')->set('skipCriteria', '人事')
         ->call('saveSelection')->assertHasNoErrors();
@@ -176,7 +177,7 @@ it('saves the selection layer from the updates screen', function () {
     expect(EditorialPolicy::excludeKeywords())->toBe(['採用情報', 'セミナー'])
         ->and(EditorialPolicy::bodyFor('fetch_criteria'))->toBe('技術的な発表')
         ->and(EditorialPolicy::bodyFor('skip_criteria'))->toBe('人事');
-    $this->get(route('editorial-policy'))->assertSee('取捨選択は「文書」の画面で設定します。');
+    $this->get(route('editorial-policy'))->assertSee('取捨選択は「情報源」の画面で設定します。');
 });
 
 it('asks the agent for document settings when the source has none, verifies them on the page, and saves them for the next documents', function () {

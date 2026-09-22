@@ -1,24 +1,15 @@
 <?php
 
 use App\Livewire\PagedList;
-use App\Models\EditorialPolicy;
 use App\Models\Document;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
-use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time; and the selection layer of the editorial policy that decides which documents are fetched. A document whose fetch failed is listed on its source instead.
+// 文書 (Documents): the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format and fetched time. A document whose fetch failed is listed on its source instead; the selection that decides which documents are fetched is set on 情報源.
 new #[Title('文書')] class extends PagedList {
-    // The selection layer: exclude keywords applied deterministically, criteria kept for the LLM judge.
-    public string $excludeKeywords = '';
-
-    public string $fetchCriteria = '';
-
-    public string $skipCriteria = '';
-
     /** The sortable columns (UI 情報源 / 公開日 / 形式 / 取得日時) and the SQL each one orders by. */
     public const SORTS = ['source' => 'sources.name', 'published_at' => 'published_at', 'format' => 'format', 'fetched_at' => 'fetched_at'];
 
@@ -46,13 +37,6 @@ new #[Title('文書')] class extends PagedList {
 
     #[Url]
     public string $fetchedTo = '';
-
-    public function mount(): void
-    {
-        $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
-        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
-        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
-    }
 
     /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Document> */
     #[Computed]
@@ -105,39 +89,10 @@ new #[Title('文書')] class extends PagedList {
         }
     }
 
-    public function saveSelection(): void
-    {
-        foreach (['exclude_keywords' => $this->excludeKeywords, 'fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
-            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
-        }
-
-        Flux::toast(variant: 'success', text: __('Saved.'));
-    }
 }; ?>
 
 <section class="w-full space-y-6">
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
-
-    <form wire:submit="saveSelection" class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
-        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Selection') }}</flux:heading>
-
-        <div class="space-y-2">
-            <flux:subheading>{{ __('Deterministic screening') }}</flux:subheading>
-            <flux:input wire:model="excludeKeywords" :label="__('Exclude keywords')" placeholder="採用情報; セミナー; イベント" />
-            <flux:text size="sm">{{ __('Documents whose title contains one of these keywords are listed but not fetched. Separate several with a semicolon.') }}</flux:text>
-        </div>
-
-        <div class="space-y-2">
-            <flux:subheading>{{ __('For the LLM') }}</flux:subheading>
-            <div class="grid gap-3 md:grid-cols-2">
-                <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for fetching a document')" rows="5" />
-                <flux:textarea wire:model="skipCriteria" :label="__('Criteria for not fetching a document')" rows="5" />
-            </div>
-            <flux:text size="sm">{{ __('Used as the system prompt of the LLM that judges new documents. Not applied yet.') }}</flux:text>
-        </div>
-
-        <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
-    </form>
 
     {{-- The filters: one per sortable column, applied as soon as they change. --}}
     <div class="flex flex-wrap items-end gap-3">

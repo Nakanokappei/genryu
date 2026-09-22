@@ -59,8 +59,10 @@ the product (purpose, the five stages, stack); read it first.
   per material for now (the output languages of `docs/HANDOVER.md` §3 are
   not built yet); queued from the 記事を生成 buttons. The body is shown
   rendered from Markdown on the article screen.
-- **The selection layer (取捨選択) is set on the 文書 screen**, not on
-  編集方針: exclude keywords (semicolon separated, applied
+- **The selection layer (取捨選択) is set on the 情報源 list screen**
+  (moved from 文書 on 2026-09-22: it acts when update lists are read,
+  before any document exists, and is one setting over every source),
+  not on 編集方針: exclude keywords (semicolon separated, applied
   deterministically when the update list is read: a matching title is
   listed as 対象外 with `excluded_by` and not fetched),
   and the criteria for / against fetching, stored for an LLM judge that

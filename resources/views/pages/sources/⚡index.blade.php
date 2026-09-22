@@ -2,13 +2,14 @@
 
 use App\Jobs\ConfigureSource;
 use App\Livewire\PagedList;
+use App\Models\EditorialPolicy;
 use App\Models\Source;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 
-// 情報源 (Sources): list the sites we watch, add one by hand.
+// 情報源 (Sources): list the sites we watch, add one by hand; and the selection layer of the editorial policy, one setting over every source, applied when their update lists are read.
 new #[Title('情報源')] class extends PagedList {
     #[Validate('required|string|max:255')]
     public string $name = '';
@@ -17,6 +18,29 @@ new #[Title('情報源')] class extends PagedList {
     public string $url = '';
 
     public string $notes = '';
+
+    // The selection layer: exclude keywords applied deterministically, criteria kept for the LLM judge.
+    public string $excludeKeywords = '';
+
+    public string $fetchCriteria = '';
+
+    public string $skipCriteria = '';
+
+    public function mount(): void
+    {
+        $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
+        $this->fetchCriteria = EditorialPolicy::bodyFor('fetch_criteria');
+        $this->skipCriteria = EditorialPolicy::bodyFor('skip_criteria');
+    }
+
+    public function saveSelection(): void
+    {
+        foreach (['exclude_keywords' => $this->excludeKeywords, 'fetch_criteria' => $this->fetchCriteria, 'skip_criteria' => $this->skipCriteria] as $layer => $body) {
+            EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $body]);
+        }
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
 
     /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Source> */
     #[Computed]
@@ -51,6 +75,29 @@ new #[Title('情報源')] class extends PagedList {
         <div class="flex items-end">
             <flux:button type="submit" variant="primary">{{ __('Add') }}</flux:button>
         </div>
+    </form>
+
+    {{-- The selection layer sits with the sources because it acts when their update lists are read: one setting for every source. --}}
+    <form wire:submit="saveSelection" class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Selection') }}</flux:heading>
+        <flux:text>{{ __('One setting for every source, applied when its update list is read: what is listed but not fetched.') }}</flux:text>
+
+        <div class="space-y-2">
+            <flux:subheading>{{ __('Deterministic screening') }}</flux:subheading>
+            <flux:input wire:model="excludeKeywords" :label="__('Exclude keywords')" placeholder="採用情報; セミナー; イベント" />
+            <flux:text size="sm">{{ __('Documents whose title contains one of these keywords are listed but not fetched. Separate several with a semicolon.') }}</flux:text>
+        </div>
+
+        <div class="space-y-2">
+            <flux:subheading>{{ __('For the LLM') }}</flux:subheading>
+            <div class="grid gap-3 md:grid-cols-2">
+                <flux:textarea wire:model="fetchCriteria" :label="__('Criteria for fetching a document')" rows="5" />
+                <flux:textarea wire:model="skipCriteria" :label="__('Criteria for not fetching a document')" rows="5" />
+            </div>
+            <flux:text size="sm">{{ __('Used as the system prompt of the LLM that judges new documents. Not applied yet.') }}</flux:text>
+        </div>
+
+        <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 
     <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Failed fetches'), __('Created')]" :empty="$this->sources->isEmpty()">

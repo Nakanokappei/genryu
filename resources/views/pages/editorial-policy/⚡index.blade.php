@@ -38,7 +38,7 @@ new #[Title('編集方針')] class extends Component {
     <form wire:submit="save" class="space-y-6">
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             <flux:heading>{{ __('Selection') }}</flux:heading>
-            <flux:text>{{ __('The selection layer is set on the Documents screen.') }} <a href="{{ route('documents.index') }}" class="underline" wire:navigate>{{ __('Documents') }}</a></flux:text>
+            <flux:text>{{ __('The selection layer is set on the Sources screen.') }} <a href="{{ route('sources.index') }}" class="underline" wire:navigate>{{ __('Sources') }}</a></flux:text>
         </div>
         <div class="space-y-2 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             <flux:textarea wire:model="structuring" :label="__('Structuring')" rows="14" />
