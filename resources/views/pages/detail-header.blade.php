@@ -1,10 +1,10 @@
-{{-- Back link, the source the record came from (with its favicon) when given, and the title of a detail screen. --}}
+{{-- Back link, the source the record came from when given, and the title of a detail screen, with the source's favicon before it. --}}
 @props(['back', 'backLabel', 'title', 'source' => null])
 
 <div class="space-y-2">
     <a href="{{ $back }}" class="text-sm text-neutral-500 underline" wire:navigate>← {{ $backLabel }}</a>
     @if ($source)
-        <div class="text-sm"><x-pages::source-name :source="$source" /></div>
+        <div class="text-sm"><a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a></div>
     @endif
-    <flux:heading size="xl">{{ $title }}</flux:heading>
+    <flux:heading size="xl"><x-pages::favicon :source="$source" /> {{ $title }}</flux:heading>
 </div>

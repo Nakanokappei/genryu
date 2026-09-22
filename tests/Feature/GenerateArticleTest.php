@@ -41,7 +41,7 @@ function generateArticle(Material $material): Article
 it('has the agent write an article from an extracted material per the article generation layer', function () {
     Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer(ARTICLE_ANSWER))]);
     $material = Material::factory()->create(['data' => ['要約' => 'アンモニア燃焼器の開発事業を開始。', '発表主体' => 'NEDO']]);
-    $material->updateEntry->update(['title' => 'アンモニア燃焼器', 'url' => 'https://www.nedo.go.jp/news/press/1.html']);
+    $material->document->update(['title' => 'アンモニア燃焼器', 'url' => 'https://www.nedo.go.jp/news/press/1.html']);
 
     $article = generateArticle($material);
 
@@ -128,6 +128,6 @@ it('queues the missing and failed articles of extracted materials, and one artic
 it('shows the update title while the article is generating', function () {
     $article = Article::factory()->create(['status' => 'generating', 'title' => null, 'body' => null]);
 
-    $this->get(route('articles.index'))->assertSee($article->material->updateEntry->title)->assertSee('生成中');
-    $this->get(route('articles.show', $article))->assertSee($article->material->updateEntry->title)->assertSee('まだ生成していません');
+    $this->get(route('articles.index'))->assertSee($article->material->document->title)->assertSee('生成中');
+    $this->get(route('articles.show', $article))->assertSee($article->material->document->title)->assertSee('まだ生成していません');
 });

@@ -15,13 +15,13 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
-                {{-- The stages of docs/HANDOVER.md, in flow order; 文書 (Documents) is shown on the 更新リスト (Updates) screens. --}}
+                {{-- The stages of docs/HANDOVER.md, in flow order: documents are listed and fetched on one screen. --}}
                 <flux:sidebar.group :heading="__('Workflow')" class="grid">
                     <flux:sidebar.item icon="globe-alt" :href="route('sources.index')" :current="request()->routeIs('sources.*')" wire:navigate>
                         {{ __('Sources') }}
                     </flux:sidebar.item>
-                    <flux:sidebar.item icon="list-bullet" :href="route('updates.index')" :current="request()->routeIs('updates.*')" wire:navigate>
-                        {{ __('Updates') }}
+                    <flux:sidebar.item icon="document-text" :href="route('documents.index')" :current="request()->routeIs('documents.*')" wire:navigate>
+                        {{ __('Documents') }}
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="cube" :href="route('materials.index')" :current="request()->routeIs('materials.*')" wire:navigate>
                         {{ __('Materials') }}

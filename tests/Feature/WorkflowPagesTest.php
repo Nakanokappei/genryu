@@ -2,9 +2,9 @@
 
 use App\Jobs\ConfigureSource;
 use App\Models\Article;
+use App\Models\Document;
 use App\Models\Material;
 use App\Models\Source;
-use App\Models\UpdateEntry;
 use App\Models\User;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -19,12 +19,12 @@ beforeEach(function () {
 it('renders the list and detail screen of every stage', function () {
     $article = Article::factory()->create();
     $material = $article->material;
-    $update = $material->updateEntry;
+    $update = $material->document;
     $source = $update->source;
 
     foreach ([
         route('sources.index'), route('sources.show', $source),
-        route('updates.index'), route('updates.show', $update),
+        route('documents.index'), route('documents.show', $update),
         route('materials.index'), route('materials.show', $material),
         route('articles.index'), route('articles.show', $article),
         route('editorial-policy'),
@@ -41,10 +41,10 @@ it('renders the list and detail screen of every stage', function () {
 
 // Timestamps are stored in UTC and shown in the display timezone (JST by default).
 it('shows timestamps in the display timezone', function () {
-    $update = UpdateEntry::factory()->fetched()->create(['fetched_at' => '2026-09-21 14:37:00']);
+    $update = Document::factory()->fetched()->create(['fetched_at' => '2026-09-21 14:37:00']);
 
     expect($update->refresh()->fetched_at?->toIso8601String())->toBe('2026-09-21T14:37:00+00:00');
-    $this->get(route('updates.show', $update))->assertSee('2026-09-21 23:37');
+    $this->get(route('documents.show', $update))->assertSee('2026-09-21 23:37');
 });
 
 it('redirects guests to the login page', function () {
@@ -63,7 +63,7 @@ it('lets the user add a source by hand, and follows one record through the stage
     expect($source->status)->toBe('pending');
     Queue::assertPushed(ConfigureSource::class, fn (ConfigureSource $job): bool => $job->source->is($source));
 
-    $update = UpdateEntry::factory()->for($source)->fetched()->create(['title' => 'Press release', 'url' => 'https://www.nedo.go.jp/news/press/1.html', 'published_at' => '2026-09-17', 'markdown' => '# Press release']);
+    $update = Document::factory()->for($source)->fetched()->create(['title' => 'Press release', 'url' => 'https://www.nedo.go.jp/news/press/1.html', 'published_at' => '2026-09-17', 'markdown' => '# Press release']);
 
     $material = Material::factory()->for($update)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
 
@@ -76,11 +76,11 @@ it('lets the user add a source by hand, and follows one record through the stage
 });
 
 // The list screens are paged: 10 rows unless the user picks 25 / 50 / 100, kept in the URL.
-it('pages the sources and updates lists by the chosen rows per page', function () {
+it('pages the sources and documents lists by the chosen rows per page', function () {
     $sources = Source::factory()->count(12)->sequence(fn ($sequence) => ['name' => 'Source '.($sequence->index + 1)])->create();
-    UpdateEntry::factory()->count(12)->sequence(fn ($sequence) => ['source_id' => $sources[0]->id, 'title' => 'Update '.($sequence->index + 1)])->create();
+    Document::factory()->count(12)->sequence(fn ($sequence) => ['source_id' => $sources[0]->id, 'title' => 'Document '.($sequence->index + 1)])->create();
 
-    foreach ([['pages::sources.index', 'Source'], ['pages::updates.index', 'Update']] as [$page, $prefix]) {
+    foreach ([['pages::sources.index', 'Source'], ['pages::documents.index', 'Document']] as [$page, $prefix]) {
         Livewire::test($page)
             ->assertSee("{$prefix} 12")->assertDontSee("{$prefix} 1<")->assertSee('表示: 1 – 10 ／ 12 件')
             ->set('rowsPerPage', 25)->assertSee("{$prefix} 1<", false)
@@ -92,7 +92,7 @@ it('pages the sources and updates lists by the chosen rows per page', function (
 
 it('lets the user edit and delete a source from its detail screen', function () {
     $source = Source::factory()->create(['name' => 'DARPA - Bews']);
-    $update = UpdateEntry::factory()->for($source)->create();
+    $update = Document::factory()->for($source)->create();
 
     Livewire::test('pages::sources.show', ['source' => $source])
         ->assertSet('name', 'DARPA - Bews')
@@ -108,5 +108,5 @@ it('lets the user edit and delete a source from its detail screen', function () 
         ->call('delete')
         ->assertRedirect(route('sources.index'));
     expect(Source::query()->count())->toBe(0)
-        ->and(UpdateEntry::query()->whereKey($update->id)->exists())->toBeFalse();
+        ->and(Document::query()->whereKey($update->id)->exists())->toBeFalse();
 });

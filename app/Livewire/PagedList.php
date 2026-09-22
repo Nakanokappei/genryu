@@ -9,8 +9,8 @@ use Livewire\WithPagination;
 /**
  * A list screen paged by the user's choice of rows per page (UI: "rows
  * per page", 10 / 25 / 50 / 100, 10 until chosen), kept in the URL so a
- * reload or a shared link shows the same page. The 情報源 / 更新リスト /
- * 文書 screens extend it.
+ * reload or a shared link shows the same page. The 情報源 and 文書
+ * screens extend it.
  */
 abstract class PagedList extends Component
 {

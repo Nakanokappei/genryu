@@ -5,7 +5,7 @@ use App\Actions\RebuildMarkdown;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
 use App\Models\Source;
-use App\Models\UpdateEntry;
+use App\Models\Document;
 use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
@@ -94,13 +94,13 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Stage 2.2: queue the fetch for every update entry whose document is missing or failed, leaving the excluded ones alone.
+    // Stage 2.2: queue the fetch of every document not fetched yet or failed, leaving the excluded ones alone.
     public function fetchDocuments(): void
     {
-        $entries = $this->source->updateEntries()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'failed'))->get();
-        $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
+        $documents = $this->source->documents()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'failed'))->get();
+        $documents->each(fn (Document $document) => FetchDocument::queueFor($document));
 
-        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
+        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $documents->count()]));
     }
 
     // Read every document of the source again from the original on disk, with the current settings and Markdown rules; no request to the site.
@@ -114,10 +114,10 @@ new #[Title('情報源')] class extends Component {
     // Queue every document of the source again (after the document settings or the Markdown rules changed), except the excluded entries and those already being fetched.
     public function fetchAllDocumentsAgain(): void
     {
-        $entries = $this->source->updateEntries()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', '!=', 'fetching'))->get();
-        $entries->each(fn (UpdateEntry $entry) => FetchDocument::queueFor($entry));
+        $documents = $this->source->documents()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', '!=', 'fetching'))->get();
+        $documents->each(fn (Document $document) => FetchDocument::queueFor($document));
 
-        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $entries->count()]));
+        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $documents->count()]));
     }
 
     // The HTML list settings are saved separately from the name / URL form; an empty item means "read a feed".
@@ -146,7 +146,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Deleting a source takes its updates, documents and materials with it (cascade).
+    // Deleting a source takes its documents, materials and articles' materials with it (cascade).
     public function delete(): void
     {
         $this->source->delete();
@@ -276,21 +276,21 @@ new #[Title('情報源')] class extends Component {
             <flux:button type="submit">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="fetchDocuments" icon="document-arrow-down">{{ __('Fetch documents') }}</flux:button>
             <flux:button type="button" wire:click="rebuildMarkdown" icon="document-text">{{ __('Rebuild Markdown from the originals') }}</flux:button>
-            <flux:button type="button" wire:click="fetchAllDocumentsAgain" icon="arrow-path" wire:confirm="{{ __('Fetch all :count documents of this source again? Each page is requested from the site once more.', ['count' => $source->updateEntries()->whereNull('excluded_by')->count()]) }}">{{ __('Fetch all documents again') }}</flux:button>
+            <flux:button type="button" wire:click="fetchAllDocumentsAgain" icon="arrow-path" wire:confirm="{{ __('Fetch all :count documents of this source again? Each page is requested from the site once more.', ['count' => $source->documents()->whereNull('excluded_by')->count()]) }}">{{ __('Fetch all documents again') }}</flux:button>
         </div>
     </form>
 
-    <flux:heading size="lg">{{ __('Updates') }}</flux:heading>
-    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status')]" :empty="$source->updateEntries->isEmpty()">
-        @foreach ($source->updateEntries()->latest('published_at')->latest('id')->get() as $update)
+    <flux:heading size="lg">{{ __('Documents') }}</flux:heading>
+    <x-pages::table :columns="[__('Title'), __('Published at'), __('Status')]" :empty="$source->documents->isEmpty()">
+        @foreach ($source->documents()->latest('published_at')->latest('id')->get() as $document)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('updates.show', $update) }}" class="underline" wire:navigate>{{ $update->title }}</a></td>
-                <td class="px-3 py-2 text-neutral-500">{{ $update->published_at?->format('Y-m-d') }}</td>
+                <td class="px-3 py-2"><a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
+                <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
                 <td class="px-3 py-2">
-                    @if ($update->excluded_by !== null)
-                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $update->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
-                    @elseif ($update->status !== null)
-                        <x-pages::status :status="$update->status" />
+                    @if ($document->excluded_by !== null)
+                        <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
+                    @elseif ($document->status !== null)
+                        <x-pages::status :status="$document->status" />
                     @else
                         —
                     @endif

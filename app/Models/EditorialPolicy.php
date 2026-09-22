@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
  * of text per layer (docs/HANDOVER.md §1). The selection layer (UI:
- * 取捨選択, set on the 更新リスト screen) is three bodies: the exclude
+ * 取捨選択, set on the 文書 screen) is three bodies: the exclude
  * keywords that keep a document from being fetched, and the criteria
  * for / against fetching, meant for an LLM judge that is not built yet.
  * The structuring layer is the prompt that turns a document into a
@@ -55,8 +55,8 @@ class EditorialPolicy extends Model
     }
 
     /**
-     * The first exclude keyword an update entry's title contains (case
-     * does not matter), or null when the entry is to be fetched.
+     * The first exclude keyword a document's title contains (case does
+     * not matter), or null when the document is to be fetched.
      */
     public static function excludedBy(string $title): ?string
     {

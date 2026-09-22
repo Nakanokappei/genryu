@@ -2,7 +2,7 @@
 
 use App\Jobs\ExtractMaterial;
 use App\Models\Material;
-use App\Models\UpdateEntry;
+use App\Models\Document;
 use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
@@ -14,17 +14,17 @@ new #[Title('素材情報')] class extends Component {
     #[Computed]
     public function materials()
     {
-        return Material::query()->with('updateEntry.source')->withCount('articles')->latest()->get();
+        return Material::query()->with('document.source')->withCount('articles')->latest()->get();
     }
 
     // Stage 2.3: queue the extraction for every fetched document whose material is missing or failed.
     public function extract(): void
     {
-        $entries = UpdateEntry::query()->where('status', 'fetched')->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
-        $entries->each(fn (UpdateEntry $entry) => ExtractMaterial::queueFor($entry));
+        $documents = Document::query()->where('status', 'fetched')->whereDoesntHave('material', fn ($query) => $query->whereIn('status', ['extracting', 'extracted']))->get();
+        $documents->each(fn (Document $document) => ExtractMaterial::queueFor($document));
         unset($this->materials);
 
-        Flux::toast(variant: 'success', text: __(':count materials queued.', ['count' => $entries->count()]));
+        Flux::toast(variant: 'success', text: __(':count materials queued.', ['count' => $documents->count()]));
     }
 }; ?>
 
@@ -34,11 +34,11 @@ new #[Title('素材情報')] class extends Component {
         <flux:button wire:click="extract" class="ms-auto" icon="cube">{{ __('Extract materials') }}</flux:button>
     </div>
 
-    <x-pages::table :columns="[__('Update'), __('Source'), __('Status'), __('Data'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
+    <x-pages::table :columns="[__('Document'), __('Source'), __('Status'), __('Data'), __('Articles'), __('Created')]" :empty="$this->materials->isEmpty()">
         @foreach ($this->materials as $material)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ $material->updateEntry->title }}</a></td>
-                <td class="px-3 py-2"><x-pages::source-name :source="$material->updateEntry->source" /></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$material->document->source" /> <a href="{{ route('materials.show', $material) }}" class="underline" wire:navigate>{{ $material->document->title }}</a></td>
+                <td class="px-3 py-2"><a href="{{ route('sources.show', $material->document->source) }}" class="underline" wire:navigate>{{ $material->document->source->name }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$material->status" /></td>
                 <td class="max-w-xl truncate px-3 py-2 text-neutral-500">{{ $material->data !== null ? json_encode($material->dataInPolicyOrder(), JSON_UNESCAPED_UNICODE) : ($material->status_message ?? '—') }}</td>
                 <td class="px-3 py-2">{{ $material->articles_count }}</td>

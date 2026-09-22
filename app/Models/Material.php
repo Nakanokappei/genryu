@@ -9,8 +9,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * 素材情報 (UI: "Materials"): the structure extracted from the document of
- * an update entry per the editorial policy, stored as JSON so the shape
+ * 素材情報 (UI: "Materials"): the structure extracted from a document per
+ * the editorial policy, stored as JSON so the shape
  * can evolve. Extracted in the background by App\Jobs\ExtractMaterial;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗).
  *
@@ -21,7 +21,7 @@ class Material extends Model
     /** @use HasFactory<MaterialFactory> */
     use HasFactory;
 
-    protected $fillable = ['update_entry_id', 'data', 'status', 'status_message'];
+    protected $fillable = ['document_id', 'data', 'status', 'status_message'];
 
     protected function casts(): array
     {
@@ -52,10 +52,10 @@ class Material extends Model
         return [...$ordered, ...$this->data];
     }
 
-    /** @return BelongsTo<UpdateEntry, $this> */
-    public function updateEntry(): BelongsTo
+    /** @return BelongsTo<Document, $this> */
+    public function document(): BelongsTo
     {
-        return $this->belongsTo(UpdateEntry::class);
+        return $this->belongsTo(Document::class);
     }
 
     /** @return HasMany<Article, $this> */

@@ -14,7 +14,7 @@ new #[Title('記事')] class extends Component {
     #[Computed]
     public function articles()
     {
-        return Article::query()->with('material.updateEntry.source')->latest()->get();
+        return Article::query()->with('material.document.source')->latest()->get();
     }
 
     // Stage 2.4: queue the generation for every extracted material whose article is missing or failed.
@@ -37,8 +37,8 @@ new #[Title('記事')] class extends Component {
     <x-pages::table :columns="[__('Title'), __('Source'), __('Status'), __('Body'), __('Published at'), __('Created')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
-                <td class="px-3 py-2">@if ($article->material)<x-pages::source-name :source="$article->material->updateEntry->source" />@endif</td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2">@if ($article->material)<a href="{{ route('sources.show', $article->material->document->source) }}" class="underline" wire:navigate>{{ $article->material->document->source->name }}</a>@endif</td>
                 <td class="px-3 py-2"><x-pages::status :status="$article->status" /></td>
                 <td class="max-w-xl truncate px-3 py-2 text-neutral-500">{{ $article->body ?? $article->status_message ?? '—' }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>

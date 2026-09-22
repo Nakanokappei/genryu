@@ -4,9 +4,9 @@ namespace App\Actions;
 
 use App\Exceptions\RobotsForbidden;
 use App\Jobs\FetchDocument;
+use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Source;
-use App\Models\UpdateEntry;
 use Carbon\CarbonImmutable;
 use Dom\Element;
 use Dom\HTMLDocument;
@@ -340,10 +340,10 @@ class FetchUpdates
     }
 
     /**
-     * Keep the entries; each new one has its document fetched in the
-     * background (stage 2.2) without anyone asking, unless its title has
-     * an exclude keyword of the editorial policy: it is then listed as
-     * 対象外 with the keyword, and nothing is fetched for it.
+     * Keep the documents listed; each new one is fetched in the background
+     * (stage 2.2) without anyone asking, unless its title has an exclude
+     * keyword of the editorial policy: it is then listed as 対象外 with the
+     * keyword, and not fetched.
      *
      * @param  list<array{title: string, url: string, published_at: ?string}>  $entries
      * @return array{added: int, existing: int}
@@ -354,7 +354,7 @@ class FetchUpdates
         $existing = 0;
 
         foreach ($entries as $entry) {
-            $created = UpdateEntry::query()->firstOrCreate(
+            $created = Document::query()->firstOrCreate(
                 ['source_id' => $source->id, 'url' => $entry['url']],
                 ['title' => $entry['title'], 'published_at' => $entry['published_at'], 'excluded_by' => EditorialPolicy::excludedBy($entry['title'])],
             );

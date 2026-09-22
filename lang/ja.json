@@ -124,14 +124,11 @@
     "Fixed text": "固定テキスト",
     "Deterministic screening": "決定論的スクリーニング",
     "Exclude keywords": "除外キーワード",
-    "Updates whose title contains one of these keywords are listed but their document is not fetched. Separate several with a semicolon.": "タイトルにこのキーワードを含む更新情報は、リストには載せますが文書は取得しません。複数はセミコロン（;）で区切ります。",
     "For the LLM": "LLM 用",
     "Criteria for fetching a document": "文書を取得すべき基準",
     "Criteria for not fetching a document": "文書を取得すべきでない基準",
-    "Used as the system prompt of the LLM that judges new updates. Not applied yet.": "新しい更新情報を判定する LLM のシステムプロンプトに使います。判定はまだ動いていません。",
     "excluded": "対象外",
     "Excluded by keyword: :keyword": "除外キーワード「:keyword」に一致",
-    "The selection layer is set on the Updates screen.": "取捨選択は「更新リスト」の画面で設定します。",
     "rows per page": "行 / ページ",
     "Showing": "表示:",
     "to": "–",
@@ -142,5 +139,8 @@
     "Rebuild Markdown from the originals": "原本から Markdown を作り直す",
     "Markdown rebuilt from the original.": "原本から Markdown を作り直しました。",
     ":rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).": ":rebuilt 件の Markdown を作り直しました。:failed 件は現在の設定では読めません（取得をやり直してください）。",
-    "Sources → Updates → Materials → Articles": "情報源 → 更新リスト → 素材情報 → 記事"
+    "Sources → Documents → Materials → Articles": "情報源 → 文書 → 素材情報 → 記事",
+    "The selection layer is set on the Documents screen.": "取捨選択は「文書」の画面で設定します。",
+    "Documents whose title contains one of these keywords are listed but not fetched. Separate several with a semicolon.": "タイトルにこのキーワードを含む文書は、リストには載せますが取得しません。複数はセミコロン（;）で区切ります。",
+    "Used as the system prompt of the LLM that judges new documents. Not applied yet.": "新しい文書を判定する LLM のシステムプロンプトに使います。判定はまだ動いていません。"
 }

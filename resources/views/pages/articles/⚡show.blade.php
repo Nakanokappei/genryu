@@ -27,11 +27,11 @@ new #[Title('記事')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($article->status === 'generating') wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('articles.index')" :back-label="__('Articles')" :source="$article->material?->updateEntry->source" :title="$article->displayTitle()" />
+    <x-pages::detail-header :back="route('articles.index')" :back-label="__('Articles')" :source="$article->material?->document->source" :title="$article->displayTitle()" />
 
     <x-pages::fields :fields="[
-        __('Update') => $article->material?->updateEntry->title,
-        __('URL') => $article->material?->updateEntry->url,
+        __('Document') => $article->material?->document->title,
+        __('URL') => $article->material?->document->url,
         __('Published at') => $article->published_at?->display() ?? __('Not published.'),
         __('Created') => $article->created_at->display(),
     ]" />

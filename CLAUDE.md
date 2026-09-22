@@ -18,12 +18,13 @@ the product (purpose, the five stages, stack); read it first.
 
 - **Skeleton first, then one feature at a time, each checked in the browser
   by the user before the next.** Do not build ahead of what has been seen.
-- The stages are screens in the sidebar: 情報源 (Sources), 更新リスト
-  (Updates), 素材情報 (Materials), 記事 (Articles). 文書 (Documents, stage
-  2.2) has no screen of its own since 2026-09-22: the fetched document
-  (original, Markdown, format, status) lives on the update entry and is
-  shown on the 更新リスト screens. Identifiers follow the English UI label
-  (see `../CLAUDE.md`): tables `sources`, `update_entries`, `materials`,
+- The stages are screens in the sidebar: 情報源 (Sources), 文書
+  (Documents), 素材情報 (Materials), 記事 (Articles). There is no "update
+  entry" entity (decided 2026-09-22): the rows of a source's update list
+  are the documents themselves, fetched from the source, kept as the
+  original and read into Markdown, all on one row of `documents` (stages
+  2.1 and 2.2 of `docs/HANDOVER.md`). Identifiers follow the English UI
+  label (see `../CLAUDE.md`): tables `sources`, `documents`, `materials`,
   `articles`.
 - Editorial policy is defined per layer (selection, structuring, article
   generation); where it lives in the app is still open.
@@ -36,9 +37,10 @@ the product (purpose, the five stages, stack); read it first.
   reading) never call a model; an agent proposal is verified on the page
   before it is saved.
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
-  2026-09-21): documents are fetched by `App\Jobs\FetchDocument` onto the
-  update entry (`status` null → fetching → fetched | failed), queued for
-  every new update entry and from the 文書を取得 buttons. The original is
+  2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
+  更新リストを取得 on the source) and fetched by `App\Jobs\FetchDocument`
+  (`status` null → fetching → fetched | failed), queued for every newly
+  listed document and from the 文書を取得 buttons. The original is
   kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;
   Markdown comes from `App\Actions\ReadDocument` with the source's document
   settings (content / remove CSS selectors). When those are missing or no
@@ -57,10 +59,10 @@ the product (purpose, the five stages, stack); read it first.
   per material for now (the output languages of `docs/HANDOVER.md` §3 are
   not built yet); queued from the 記事を生成 buttons. The body is shown
   rendered from Markdown on the article screen.
-- **The selection layer (取捨選択) is set on the 更新リスト screen**, not
-  on 編集方針: exclude keywords (semicolon separated, applied
+- **The selection layer (取捨選択) is set on the 文書 screen**, not on
+  編集方針: exclude keywords (semicolon separated, applied
   deterministically when the update list is read: a matching title is
-  listed as 対象外 with `excluded_by` and no document is queued for it),
+  listed as 対象外 with `excluded_by` and not fetched),
   and the criteria for / against fetching, stored for an LLM judge that
   is not built yet. `EditorialPolicy::LAYERS` has five layers.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
@@ -73,17 +75,18 @@ the product (purpose, the five stages, stack); read it first.
 - **Re-reading documents per source** (情報源 detail): 原本から Markdown を
   作り直す (`App\Actions\RebuildMarkdown`, from the originals on disk, no
   network, synchronous) and 文書をすべて取り直す (queues `FetchDocument`
-  for every non-excluded entry). A proposed selector that names a page
+  for every non-excluded document). A proposed selector that names a page
   number (日立 `#content-17863846`) is generalised to `[id^="content-"]`
   by `FetchDocument::generalise` before it is verified and saved.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
-  base class of 情報源 / 更新リスト; `?rowsPerPage=` in the URL,
+  base class of 情報源 / 文書; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).
 - **Favicons** are fetched by `App\Actions\FetchFavicon` the first time a
   page of the site is in hand and the source has none (configuring it,
   reading its update list, fetching a document), served from the local
-  disk by the `sources.favicon` route, and shown by the
-  `pages::source-name` component wherever a source is named.
+  disk by the `sources.favicon` route, and shown by the `pages::favicon`
+  component before the title of every document, material and article
+  (and before the source's own name on 情報源).
 - **Restart the worker after changing code or `lang/ja.json`**: a running
   `queue:work` keeps the old classes and translations, so a status message
   saved by the job would stay in English.

@@ -4,8 +4,8 @@ use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeListSettings;
 use App\Jobs\ConfigureSource;
+use App\Models\Document;
 use App\Models\Source;
-use App\Models\UpdateEntry;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -78,7 +78,7 @@ it('finds a feed deterministically, without asking the agent, and reads it', fun
 
     expect($source)->toMatchArray(['status' => 'ready', 'feed_url' => 'https://www.example.org/rss.xml', 'list_config' => null])
         ->and($source->status_message)->toContain('フィードを見つけました')
-        ->and(UpdateEntry::query()->count())->toBe(1);
+        ->and(Document::query()->count())->toBe(1);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
@@ -99,7 +99,7 @@ it('finds the JSON list a page draws its entries from, without asking the agent,
         ->and($source->json_config)->toEqual(['url' => 'https://www.example.org/global/common/news-data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 50])
         ->and($source->list_config)->toBeNull()
         ->and($source->status_message)->toContain('JSON 一覧を見つけました')->toContain('3 件')
-        ->and(UpdateEntry::query()->orderBy('id')->pluck('title')->all())->toBe(['One', 'Two', 'Three']);
+        ->and(Document::query()->orderBy('id')->pluck('title')->all())->toBe(['One', 'Two', 'Three']);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
 });
 
@@ -114,7 +114,7 @@ it('asks the agent for HTML list settings when there is no feed, verifies them, 
     expect($source->status)->toBe('ready')
         ->and($source->list_config)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => '', 'max_pages' => 3])
         ->and($source->status_message)->toContain('3 件')
-        ->and(UpdateEntry::query()->count())->toBe(3);
+        ->and(Document::query()->count())->toBe(3);
     // The agent receives the page, without scripts, and must answer JSON.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com')
         && $request['response_format']['type'] === 'json_object'
@@ -160,8 +160,8 @@ it('falls back to generic title and date selectors when the proposed ones find n
 
     expect($source->status)->toBe('ready')
         ->and($source->list_config)->toMatchArray(['item' => 'div.views-row', 'title' => 'h1, h2, h3, h4', 'date' => 'time.datetime'])
-        ->and(UpdateEntry::query()->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
-        ->and(UpdateEntry::query()->where('title', 'Item 2')->sole()->published_at?->toDateString())->toBe('2026-09-02');
+        ->and(Document::query()->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
+        ->and(Document::query()->where('title', 'Item 2')->sole()->published_at?->toDateString())->toBe('2026-09-02');
 });
 
 it('does not save a proposal that matches too little on the page', function () {
@@ -175,7 +175,7 @@ it('does not save a proposal that matches too little on the page', function () {
     expect($source->status)->toBe('failed')
         ->and($source->status_message)->toContain('0 件')
         ->and($source->list_config)->toBeNull()
-        ->and(UpdateEntry::query()->count())->toBe(0);
+        ->and(Document::query()->count())->toBe(0);
 });
 
 it('records a failure instead of throwing when the page cannot be fetched', function () {

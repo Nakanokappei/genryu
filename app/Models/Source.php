@@ -26,9 +26,9 @@ class Source extends Model
         return ['fetched_at' => 'datetime', 'list_config' => 'array', 'json_config' => 'array', 'document_config' => 'array', 'read_as_html' => 'boolean'];
     }
 
-    /** @return HasMany<UpdateEntry, $this> */
-    public function updateEntries(): HasMany
+    /** @return HasMany<Document, $this> */
+    public function documents(): HasMany
     {
-        return $this->hasMany(UpdateEntry::class);
+        return $this->hasMany(Document::class);
     }
 }

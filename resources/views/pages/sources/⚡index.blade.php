@@ -22,7 +22,7 @@ new #[Title('情報源')] class extends PagedList {
     #[Computed]
     public function sources()
     {
-        return Source::query()->withCount('updateEntries')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
+        return Source::query()->withCount('documents')->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
     // A new source is configured in the background (feed or agent-proposed HTML list settings).
@@ -50,12 +50,13 @@ new #[Title('情報源')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Name'), __('Status'), __('Updates'), __('Created')]" :empty="$this->sources->isEmpty()">
+    <x-pages::table :columns="[__('Name'), __('Status'), __('Documents'), __('Created')]" :empty="$this->sources->isEmpty()">
         @foreach ($this->sources as $source)
             <tr>
                 <td class="px-3 py-2">
                     <span class="inline-flex items-center gap-2">
-                        <x-pages::source-name :source="$source" />
+                        <x-pages::favicon :source="$source" />
+                        <a href="{{ route('sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
                         {{-- The site itself: the address is the tooltip, not a column. --}}
                         <flux:tooltip :content="$source->url">
                             <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
@@ -63,7 +64,7 @@ new #[Title('情報源')] class extends PagedList {
                     </span>
                 </td>
                 <td class="px-3 py-2"><x-pages::status :status="$source->status" /></td>
-                <td class="px-3 py-2">{{ $source->update_entries_count }}</td>
+                <td class="px-3 py-2">{{ $source->documents_count }}</td>
                 <td class="px-3 py-2 text-neutral-500">{{ $source->created_at->format('Y-m-d') }}</td>
             </tr>
         @endforeach

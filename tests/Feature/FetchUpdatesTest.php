@@ -1,8 +1,8 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Models\Document;
 use App\Models\Source;
-use App\Models\UpdateEntry;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -43,8 +43,8 @@ it('reads an RSS feed given directly as the source URL', function () {
     $result = app(FetchUpdates::class)($source);
 
     expect($result)->toMatchArray(['feed_url' => 'https://www.example.org/rss.xml', 'added' => 2, 'existing' => 0])
-        ->and(UpdateEntry::query()->where('url', 'https://www.example.org/news/first')->sole())->toMatchArray(['title' => 'First release'])
-        ->and(UpdateEntry::query()->where('url', 'https://www.example.org/news/first')->sole()->published_at?->toDateString())->toBe('2026-09-21')
+        ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole())->toMatchArray(['title' => 'First release'])
+        ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole()->published_at?->toDateString())->toBe('2026-09-21')
         ->and($source->refresh()->feed_url)->toBe('https://www.example.org/rss.xml')
         ->and($source->fetched_at)->not->toBeNull();
 });
@@ -59,7 +59,7 @@ it('finds the feed an HTML page advertises and reads it', function () {
     $result = app(FetchUpdates::class)($source);
 
     expect($result)->toMatchArray(['feed_url' => 'https://www.example.org/feed.atom', 'added' => 1])
-        ->and(UpdateEntry::query()->sole()->title)->toBe('Atom release');
+        ->and(Document::query()->sole()->title)->toBe('Atom release');
 });
 
 // DARPA: no <link rel="alternate"> on /news, but /rss.xml exists.
@@ -81,7 +81,7 @@ it('stops with a clear message when a page has no feed and no HTML list settings
     $source = Source::factory()->create(['url' => 'https://www.example.org/list']);
 
     expect(fn () => app(FetchUpdates::class)($source))->toThrow(RuntimeException::class, 'RSS / Atom フィードが見つかりません');
-    expect(UpdateEntry::query()->count())->toBe(0)->and($source->refresh()->fetched_at)->toBeNull();
+    expect(Document::query()->count())->toBe(0)->and($source->refresh()->fetched_at)->toBeNull();
 });
 
 /**
@@ -109,9 +109,9 @@ it('reads an HTML list with the source settings, page by page, within the page b
 
     // Two pages read (max_pages 2), the header row skipped, dates from datetime= or from Japanese text.
     expect($result)->toMatchArray(['feed_url' => null, 'pages' => 2, 'added' => 3, 'existing' => 0])
-        ->and(UpdateEntry::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/news/1.html', 'https://www.example.org/news/2.html', 'https://www.example.org/news/3.html'])
-        ->and(UpdateEntry::query()->where('title', 'First')->sole()->published_at?->toDateString())->toBe('2026-09-17')
-        ->and(UpdateEntry::query()->where('title', 'Second')->sole()->published_at?->toDateString())->toBe('2026-09-08');
+        ->and(Document::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/news/1.html', 'https://www.example.org/news/2.html', 'https://www.example.org/news/3.html'])
+        ->and(Document::query()->where('title', 'First')->sole()->published_at?->toDateString())->toBe('2026-09-17')
+        ->and(Document::query()->where('title', 'Second')->sole()->published_at?->toDateString())->toBe('2026-09-08');
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'p=3'));
 });
 
@@ -126,7 +126,7 @@ it('resolves query-only and relative next links against the page', function () {
     $result = app(FetchUpdates::class)($source);
 
     expect($result)->toMatchArray(['pages' => 2, 'added' => 2])
-        ->and(UpdateEntry::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/a', 'https://www.example.org/fr/presse/b']);
+        ->and(Document::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/a', 'https://www.example.org/fr/presse/b']);
 });
 
 it('stops paging at the first page with nothing new', function () {
@@ -163,8 +163,8 @@ it('reads a JSON list with the source settings, newest first, up to max_items', 
     $result = app(FetchUpdates::class)($source);
 
     expect($result)->toMatchArray(['feed_url' => null, 'pages' => 1, 'added' => 3, 'existing' => 0])
-        ->and(UpdateEntry::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/ja/pr/2026/0917_rd/', 'https://www.example.org/ja/pr/2026/0917_fa/', 'https://www.example.org/ja/pr/2026/0915_ds/'])
-        ->and(UpdateEntry::query()->where('url', 'like', '%0915_ds%')->sole()->published_at?->toDateString())->toBe('2026-09-15');
+        ->and(Document::query()->orderBy('id')->pluck('url')->all())->toBe(['https://www.example.org/ja/pr/2026/0917_rd/', 'https://www.example.org/ja/pr/2026/0917_fa/', 'https://www.example.org/ja/pr/2026/0915_ds/'])
+        ->and(Document::query()->where('url', 'like', '%0915_ds%')->sole()->published_at?->toDateString())->toBe('2026-09-15');
 });
 
 it('reports JSON list settings that match nothing', function () {
@@ -221,7 +221,7 @@ it('does not list the same URL twice for a source', function () {
     $second = app(FetchUpdates::class)($source);
 
     expect($second)->toMatchArray(['added' => 0, 'existing' => 2])
-        ->and(UpdateEntry::query()->count())->toBe(2);
+        ->and(Document::query()->count())->toBe(2);
     Http::assertSent(fn (Request $request): bool => $request->hasHeader('User-Agent', FetchUpdates::USER_AGENT));
 });
 
@@ -234,5 +234,5 @@ it('runs from the source detail screen', function () {
         ->assertHasNoErrors()
         ->assertSee('First release');
 
-    expect($source->refresh()->updateEntries()->count())->toBe(2);
+    expect($source->refresh()->documents()->count())->toBe(2);
 });
