@@ -27,7 +27,6 @@ it('renders the list and detail screen of every stage', function () {
         route('documents.index'), route('documents.show', $update),
         route('materials.index'), route('materials.show', $material),
         route('articles.index'), route('articles.show', $article),
-        route('editorial-policy'),
         route('dashboard'),
     ] as $url) {
         $this->get($url)->assertOk();

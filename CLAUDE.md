@@ -53,9 +53,11 @@ the product (purpose, the five stages, stack); read it first.
   settings (content / remove CSS selectors). When those are missing or no
   longer match, `App\Actions\ProposeDocumentSettings` (OpenAI) proposes new
   ones, which are verified on the page before being saved to the source.
-- **Editorial policy lives in the app** (`EditorialPolicy`, screen 編集方針,
-  one body per layer: selection / structuring / article; defaults in the
-  model).
+- **Editorial policy lives in the app** (`EditorialPolicy`, one body per
+  layer with its model, defaults in the model). **Each layer is set on the
+  screen it governs**, not on a page of its own: the title filter on 情報源,
+  the content filtering on 文書, the structuring on 素材情報, the article
+  generation and the translation on 記事.
 - **素材情報 is the parts an article is made of** (stage 2.3, settled
   2026-09-23 after two shapes were tried and rejected the same day).
   `App\Jobs\ExtractMaterial` has `App\Actions\ProposeMaterial` (OpenAI
@@ -97,29 +99,41 @@ the product (purpose, the five stages, stack); read it first.
   what they make, as the content filtering is on 文書; 編集方針 keeps the
   article layer and points at the other two. The material is written in
   the language of its primary source and is never translated here: the
-  articles go out in 16–24 languages (`docs/HANDOVER.md` §3), so pinning
-  the material to one of them would put a translation in front of all
-  the others. Two shapes were tried first and are
+  article is written from it in that language and translated afterwards
+  (`docs/HANDOVER.md` §3), so pinning the material to one language would
+  put a translation in front of the writing itself. Two shapes were tried first and are
   not to be revived: the policy's items each quoted with line numbers
   (a summary in disguise, and the quote checking went with it), and
   ChatGPT's eight-lens dossier with claims, confidence, strength and
   recommended angles (notes about the answer rather than material to
   write with, and five times the cost: ~14k in / ~5k out and two minutes
   against ~3k in / ~1k out and twenty seconds).
-- **Articles are generated the same way** (stage 2.4): the article layer
-  of the editorial policy is the prompt of `App\Jobs\GenerateArticle`
-  (agent `App\Actions\ProposeArticle`, OpenAI **Responses API**, the
-  policy cached with an explicit breakpoint, the material and its
-  document after it, structured output), which asks for a title and
-  a Markdown body and saves them only when both came back. One article
-  per material for now (the output languages of `docs/HANDOVER.md` §3 are
-  not built yet); queued from the 記事を生成 buttons. The body is shown
-  rendered from Markdown on the article screen. The article pins its
-  prompt version and its model (編集方針 chooses it, 記事生成のモデル) and
-  keeps the usage, as a screening and a material do (aligned 2026-09-23;
-  until then it ran on `OPENAI_MODEL` through chat/completions and kept
-  nothing, so two articles could not be compared). What a run cost is
-  shown on the article screen, and needs `services.openai.prices`.
+- **記事 is written once and translated** (stage 2.4, decided 2026-09-23).
+  `App\Jobs\GenerateArticle` (agent `App\Actions\ProposeArticle`, OpenAI
+  **Responses API**, the policy cached with an explicit breakpoint, the
+  material and its document after it, structured output) writes one
+  article **in the language of the material, and so of the primary
+  source**, and says which language that was; `App\Jobs\TranslateArticle`
+  (agent `App\Actions\ProposeTranslation`) then renders it in each of
+  `Article::LANGUAGES` — ja / en / zh-Hant / zh-Hans — that it is not
+  already in, queued on its own as soon as the article exists. **A
+  translation translates the article, never writes the piece again from
+  the material**: what the reporter found in the source survives into
+  every language, and one writing plus three translations costs less
+  than four writings. So a French source yields a Japanese article and a
+  Japanese source does not yield a French one. The translator is handed
+  the primary source and the material **as context**, because a
+  translator without them mistranslates the terms — a shipping AI
+  translator once rendered LLM as 法学修士 — and that context settles
+  terms, names and numbers only, never adding to the article or
+  correcting it. A material therefore has several `articles` rows: the
+  original (`translated_from_id` null, `language` the source's) and its
+  translations, each pinning its own prompt version, model and usage.
+  **Both prompts and both models are set on the 記事 screen**, above what
+  they make, as the content filtering is on 文書 and the structuring on
+  素材情報; **the 編集方針 screen is gone** (2026-09-23) — every layer now
+  lives with what it governs. The article screen is one page per piece,
+  with the languages as tabs over it.
 - **The selection layer (取捨選択) is set in two places, not on 編集方針**
   (decided 2026-09-22). The **title filter** (タイトルフィルタ) is on the
   情報源 list screen: when an update list is read only the titles are in
@@ -168,8 +182,8 @@ the product (purpose, the five stages, stack); read it first.
   / reject with `human_reason`, recorded on the document screen) outranks
   the screening's everywhere (`Document::decision()`); it is kept to
   become a few-shot example for the screening (`docs/TODO.md`). The eight
-  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has four layers: exclude_keywords,
-  content_filtering, structuring, article.
+  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has five layers: exclude_keywords,
+  content_filtering, structuring, article, translation.
 - **A bet is a signal too** (prompt v2, 2026-09-22): the gate rejected
   DARPA's $1M D2 Sprint as EVENT_PR because a prize competition reports
   no results — but a funder putting money, a deadline and a measure

@@ -7,31 +7,36 @@ use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
- * The agent behind 記事 (UI: "Articles", stage 2.4 of docs/HANDOVER.md):
- * given the article generation layer of the editorial policy and a
- * material (the JSON extracted from one document), a model proposes the
- * article as a title, a Markdown body and the language it wrote them in,
- * which is the language of the material and so of the primary source;
- * the other languages are translated from it. The call goes to the Responses
- * API like the screening's and the material's: the policy as the
+ * The agent behind 翻訳 (stage 2.4 of docs/HANDOVER.md, the other
+ * languages): given the translation layer of the editorial policy and an
+ * article as it was written, a model renders it in another language. It
+ * is handed the primary source and the material as well, because a
+ * translator without the context mistranslates the terms — LLM becomes
+ * a master of laws when nobody said the article was about language
+ * models. The context is there to settle terms, names and numbers, never
+ * to add or correct anything.
+ *
+ * The call goes to the Responses API like the others: the policy as the
  * developer message carrying an explicit prompt-cache breakpoint, so the
- * policy, the same for every article, is served from the cache, then
- * what changes per article after it. The usage the API reports comes
- * back with the proposal. It only proposes; App\Jobs\GenerateArticle
- * checks a title and a body are there before anything is saved.
+ * policy, the same for every translation, is served from the cache, then
+ * what changes per translation after it. It only proposes;
+ * App\Jobs\TranslateArticle checks a title and a body are there before
+ * anything is saved.
  */
-class ProposeArticle
+class ProposeTranslation
 {
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
-    /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. */
-    private const INSTRUCTIONS = 'The material below was drawn from one primary-source document. Write the article from it, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
+    private const MAX_MARKDOWN_CHARS = 60000;
+
+    /** What the model is told after the cached policy: which language to write, and what the context is for. */
+    private const INSTRUCTIONS = 'Translate the article below into %s. The primary source and the material follow it as context for terms, names and numbers only: never translate them instead of the article, and never let them add to it or correct it. Return the title and the body in the target language.';
 
     /**
-     * @param  array<string, mixed>  $material
+     * @param  array<string, mixed>  $material  the material the article was written from, as context
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, array $material, string $documentTitle, string $url): array
+    public function __invoke(string $policy, string $model, Article $article, string $language, array $material, string $documentTitle, string $url): array
     {
         $key = (string) config('services.openai.key');
 
@@ -43,7 +48,7 @@ class ProposeArticle
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $documentTitle, $url))
+            ->post(self::ENDPOINT, self::request($policy, $model, $article, $language, $material, $documentTitle, $url))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -67,15 +72,20 @@ class ProposeArticle
 
     /**
      * The request: the policy first, as the developer message, with the
-     * cache breakpoint on it; the instructions after it; the material
-     * with the document it came from last; the answer constrained to a
-     * title and a Markdown body.
+     * cache breakpoint on it; the target language after it; then the
+     * article to translate, and the source and material as context.
      *
      * @param  array<string, mixed>  $material
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, array $material, string $documentTitle, string $url): array
+    public static function request(string $policy, string $model, Article $article, string $language, array $material, string $documentTitle, string $url): array
     {
+        $name = Article::LANGUAGE_NAMES[$language] ?? $language;
+        $input = 'Article to translate (written in '.(Article::LANGUAGE_NAMES[(string) $article->language] ?? (string) $article->language)."):\n\n"
+            ."# {$article->title}\n\n".mb_substr((string) $article->body, 0, self::MAX_MARKDOWN_CHARS)
+            ."\n\n---\n\nContext, not to be translated in place of the article.\n\nPrimary source: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n"
+            .json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
         return [
             'model' => $model,
             'prompt_cache_options' => ['mode' => 'explicit'],
@@ -86,23 +96,21 @@ class ProposeArticle
                         ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
-                ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-                ['role' => 'user', 'content' => "Source document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+                ['role' => 'developer', 'content' => sprintf(self::INSTRUCTIONS, "{$name} ({$language})")],
+                ['role' => 'user', 'content' => $input],
             ],
             'text' => [
                 'format' => [
                     'type' => 'json_schema',
-                    'name' => 'article',
+                    'name' => 'translation',
                     'strict' => true,
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
                             'title' => ['type' => 'string'],
                             'body' => ['type' => 'string'],
-                            // Which language it wrote in, so the job knows what is left to translate into.
-                            'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
                         ],
-                        'required' => ['title', 'body', 'language'],
+                        'required' => ['title', 'body'],
                         'additionalProperties' => false,
                     ],
                 ],

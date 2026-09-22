@@ -6,14 +6,22 @@ use Database\Factories\ArticleFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * 記事 (UI: "Articles"): generated from a material per the editorial
- * policy by App\Jobs\GenerateArticle; a draft until it is published.
+ * 記事 (UI: "Articles"): written from a material by App\Jobs\GenerateArticle
+ * in the language of its primary source, then translated into the other
+ * languages we publish in by App\Jobs\TranslateArticle — a translation of
+ * the article, never the same piece written again from the material, so
+ * that what the reporter found in the source survives into every language.
+ * A material therefore has several articles: the original, whose
+ * translated_from_id is null, and its translations, each pointing at it.
  * Status generating / draft / failed / published (UI: 生成中 / 下書き /
  * 失敗 / 公開済み). Pinned, like a screening and a material, to the
  * prompt version and the model it was written with, with the usage of
  * the call, so articles written under different policies can be compared.
+ *
+ * @property string|null $language
  */
 class Article extends Model
 {
@@ -22,8 +30,29 @@ class Article extends Model
 
     public const STATUSES = ['generating', 'draft', 'failed', 'published'];
 
+    /**
+     * The languages every article is published in, whatever it was
+     * written in (docs/HANDOVER.md §3). A source in another language
+     * keeps its own article as well; a source in one of these is not
+     * translated into itself.
+     */
+    public const LANGUAGES = ['ja', 'en', 'zh-Hant', 'zh-Hans'];
+
+    /** The languages a primary source may be in, which an original article may therefore be written in. */
+    public const SOURCE_LANGUAGES = ['ja', 'en', 'de', 'fr', 'zh-Hans', 'zh-Hant'];
+
+    /** What each language is called on the screens. */
+    public const LANGUAGE_NAMES = [
+        'ja' => '日本語',
+        'en' => 'English',
+        'de' => 'Deutsch',
+        'fr' => 'Français',
+        'zh-Hans' => '简体中文',
+        'zh-Hant' => '繁體中文',
+    ];
+
     protected $fillable = [
-        'material_id', 'prompt_id', 'model', 'title', 'body', 'status', 'status_message', 'published_at',
+        'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'status', 'status_message', 'published_at',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
 
@@ -33,12 +62,35 @@ class Article extends Model
     }
 
     /**
-     * What the screens call the article: its title once generated, the
+     * What the screens call the article: its title once written, the
      * document's title until then.
      */
     public function displayTitle(): string
     {
         return $this->title ?? (string) $this->material?->document->title;
+    }
+
+    /** What the screens call its language. */
+    public function languageName(): string
+    {
+        return self::LANGUAGE_NAMES[$this->language] ?? (string) $this->language;
+    }
+
+    /** Whether this is the article as written, rather than a translation of one. */
+    public function isOriginal(): bool
+    {
+        return $this->translated_from_id === null;
+    }
+
+    /**
+     * The languages this article is still to be translated into: the ones
+     * we publish in, less the one it is written in.
+     *
+     * @return list<string>
+     */
+    public function translationLanguages(): array
+    {
+        return array_values(array_diff(self::LANGUAGES, [(string) $this->language]));
     }
 
     /** @return BelongsTo<Material, $this> */
@@ -47,9 +99,21 @@ class Article extends Model
         return $this->belongsTo(Material::class);
     }
 
-    /** @return BelongsTo<Prompt, $this> the version of the article generation layer it was written with */
+    /** @return BelongsTo<Prompt, $this> the version of the layer it was written or translated with */
     public function prompt(): BelongsTo
     {
         return $this->belongsTo(Prompt::class);
+    }
+
+    /** @return BelongsTo<Article, $this> the article this one was translated from */
+    public function translatedFrom(): BelongsTo
+    {
+        return $this->belongsTo(Article::class, 'translated_from_id');
+    }
+
+    /** @return HasMany<Article, $this> the translations made from this article */
+    public function translations(): HasMany
+    {
+        return $this->hasMany(Article::class, 'translated_from_id');
     }
 }

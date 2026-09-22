@@ -13,14 +13,16 @@ use Illuminate\Database\Eloquent\Model;
  * screen). The prompts are written in English and answer in the language
  * of the document they read; the screens around them are Japanese.
  * The structuring layer is the prompt that turns a document into a
- * material (stage 2.3, set on the 素材情報 screen): what changed, seen
- * through the editorial lenses that hold. The article layer turns a
- * material into an article (stage 2.4).
+ * material (stage 2.3, set on the 素材情報 screen): the parts an article
+ * is made of. The article layer turns a material into an article in the
+ * language of its primary source, and the translation layer turns that
+ * article into the other languages we publish in (stage 2.4); both are
+ * set on the 記事 screen.
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 記事生成. */
-    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article'];
+    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 記事生成 / 翻訳. */
+    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article', 'translation'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
@@ -28,6 +30,7 @@ class EditorialPolicy extends Model
         'content_filtering' => '',
         'structuring' => '',
         'article' => '',
+        'translation' => '',
     ];
 
     /**

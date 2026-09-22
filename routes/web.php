@@ -25,7 +25,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('articles/{article}', 'pages::articles.show')->name('articles.show');
 
     // 編集方針 (Editorial policy): one screen, one body of text per layer.
-    Route::livewire('editorial-policy', 'pages::editorial-policy.index')->name('editorial-policy');
 });
 
 require __DIR__.'/settings.php';

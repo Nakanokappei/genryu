@@ -32,9 +32,6 @@
                 </flux:sidebar.group>
 
                 {{-- What the stages decide by (docs/HANDOVER.md §1), one layer per stage. --}}
-                <flux:sidebar.item icon="book-open" :href="route('editorial-policy')" :current="request()->routeIs('editorial-policy')" wire:navigate>
-                    {{ __('Editorial policy') }}
-                </flux:sidebar.item>
             </flux:sidebar.nav>
 
             <flux:spacer />
