@@ -97,12 +97,15 @@ class ProposeArticle
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
+                            // The title is reached in three steps, and a model writes the properties in the order the schema names them: fix the word, summarise with it, then rewrite the summary into the gap between now and what could be. Only the last of the three is kept.
+                            'topic_word' => ['type' => 'string'],
+                            'title_draft' => ['type' => 'string'],
                             'title' => ['type' => 'string'],
                             'body' => ['type' => 'string'],
                             // Which language it wrote in, so the job knows what is left to translate into.
                             'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
                         ],
-                        'required' => ['title', 'body', 'language'],
+                        'required' => ['topic_word', 'title_draft', 'title', 'body', 'language'],
                         'additionalProperties' => false,
                     ],
                 ],

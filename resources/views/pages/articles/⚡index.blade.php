@@ -79,7 +79,7 @@ new #[Title('記事')] class extends PagedList {
         @if ($layer === 'translation')
             <flux:text>{{ __('The developer prompt and the model of the translator: the article is translated into the languages we publish in, never written again from the material, so the nuance of the primary source survives. The source and the material go along as context, because a translator without them mistranslates the terms.') }} {{ implode(' / ', array_map(fn ($code) => \App\Models\Article::LANGUAGE_NAMES[$code], \App\Models\Article::LANGUAGES)) }}</flux:text>
             <flux:textarea wire:model="translation" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
-            <x-pages::fixed-prompts :instruction="str_replace('%s', __('the target language'), \App\Actions\ProposeTranslation::INSTRUCTIONS)" :input="__('The article as written, then the primary source and the material as context.')" />
+            <x-pages::fixed-prompts :instruction="str_replace('%s', __('the target language'), \App\Actions\ProposeTranslation::INSTRUCTIONS)" :input="[__('The article as written'), __('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
             <flux:select wire:model="translationModel" :label="__('Model of the translation')" class="max-w-xl">
                 @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                     <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
@@ -88,7 +88,7 @@ new #[Title('記事')] class extends PagedList {
         @else
             <flux:text>{{ __('The developer prompt and the model of the writer: an LLM turns a material into one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
             <flux:textarea wire:model="article" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
-            <x-pages::fixed-prompts :instruction="\App\Actions\ProposeArticle::INSTRUCTIONS" :input="__('The title and the URL of the primary source, then the material as JSON.')" />
+            <x-pages::fixed-prompts :instruction="\App\Actions\ProposeArticle::INSTRUCTIONS" :input="[__('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
             <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
                 @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                     <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>

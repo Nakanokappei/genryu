@@ -18,7 +18,7 @@ const ARTICLE_POLICY = "素材情報から記事を書く。\n\n- 形式: Markdo
 
 const TRANSLATION_POLICY = "記事を対象言語へ翻訳する。一次情報と素材情報は文脈として使う。\n";
 
-const ARTICLE_ANSWER = ['title' => 'NEDO、アンモニア燃焼器の開発事業を開始', 'body' => "## 発表の概要\n\nNEDO は…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html", 'language' => 'ja'];
+const ARTICLE_ANSWER = ['title' => 'NEDO、アンモニア燃焼器の開発事業を開始', 'body' => "## 発表の概要\n\nNEDO は…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html", 'language' => 'ja', 'topic_word' => 'アンモニア燃焼', 'title_draft' => 'NEDO がアンモニア燃焼器の開発事業を始めた'];
 
 /**
  * What the agent would answer, as the Responses API wire format.
@@ -75,7 +75,8 @@ it('has the agent write an article from an extracted material per the article ge
         && $request['model'] === 'gpt-5.6-luna'
         && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
         && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
-        && $request['text']['format']['schema']['required'] === ['title', 'body', 'language']
+        // The title is reached in three steps, in the order the schema names them.
+        && $request['text']['format']['schema']['required'] === ['topic_word', 'title_draft', 'title', 'body', 'language']
         && str_contains($request['input'][2]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
         && str_contains($request['input'][2]['content'], 'アンモニア燃焼器')
         && str_contains($request['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
