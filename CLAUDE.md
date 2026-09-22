@@ -140,10 +140,12 @@ the product (purpose, the five stages, stack); read it first.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
   base class of 情報源 / 文書; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).
-- **Favicons** are fetched by `App\Actions\FetchFavicon` the first time a
-  page of the site is in hand and the source has none (configuring it,
-  reading its update list, fetching a document), served from the local
-  disk by the `sources.favicon` route, and shown by the `pages::favicon`
+- **Favicons** are fetched by `App\Actions\FetchFavicon` when a page of
+  the site is in hand (configuring it, reading its update list, fetching
+  a document); every update list checks the icon again at the URL it came
+  from with `If-Modified-Since` (`favicon_url`, `favicon_modified_at`:
+  304 keeps it, 200 replaces it, 404 forgets the URL). Served from the
+  local disk by the `sources.favicon` route, and shown by the `pages::favicon`
   component before the title of every document, material and article
   (and before the source's own name on 情報源).
 - **Restart the worker after changing code or `lang/ja.json`**: a running

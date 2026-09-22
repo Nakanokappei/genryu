@@ -69,6 +69,33 @@ it('keeps the favicon the page advertises, or /favicon.ico, and serves it next t
     expect(configure(Source::factory()->create(['url' => 'https://www.example.net/news']))->favicon_path)->toBeNull();
 });
 
+// Every update list checks the icon again with If-Modified-Since: 304 keeps it, 200 with an icon replaces it, 404 forgets the URL so it is looked for afresh next time.
+it('checks the favicon for a change on every update list', function () {
+    Storage::fake('local');
+    Http::fake([
+        'www.example.org/news' => Http::response('<html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"><link rel="icon" href="/img/icon.png"></head></html>', 200, ['Content-Type' => 'text/html']),
+        'www.example.org/rss.xml' => Http::response(CONFIGURE_RSS, 200, ['Content-Type' => 'application/rss+xml']),
+        'www.example.org/img/icon.png' => Http::sequence()
+            ->push('PNGBYTES', 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 01 Sep 2026 10:00:00 GMT'])
+            ->push('', 304)
+            ->push('NEWPNG', 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 22 Sep 2026 09:00:00 GMT'])
+            ->push('gone', 404),
+    ]);
+    // Configuring takes the icon, then reads the list, which checks it again: 304, nothing changes.
+    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/news']));
+    expect($source->favicon_url)->toBe('https://www.example.org/img/icon.png')->and($source->favicon_modified_at?->toIso8601String())->toBe('2026-09-01T10:00:00+00:00')
+        ->and(Storage::disk('local')->get($source->favicon_path))->toBe('PNGBYTES');
+    Http::assertSent(fn (Request $request): bool => $request->url() === 'https://www.example.org/img/icon.png' && $request->header('If-Modified-Since') === ['Tue, 01 Sep 2026 10:00:00 GMT']);
+
+    // 200 with a new icon: replaced, with its Last-Modified.
+    app(FetchUpdates::class)($source);
+    expect(Storage::disk('local')->get($source->refresh()->favicon_path))->toBe('NEWPNG')->and($source->favicon_modified_at?->toIso8601String())->toBe('2026-09-22T09:00:00+00:00');
+
+    // 404: the URL is forgotten; the icon stays until a new one is found.
+    app(FetchUpdates::class)($source);
+    expect($source->refresh()->favicon_url)->toBeNull()->and($source->favicon_path)->not->toBeNull();
+});
+
 it('finds a feed deterministically, without asking the agent, and reads it', function () {
     Http::fake([
         'www.example.org/news' => Http::response('<html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"></head></html>', 200, ['Content-Type' => 'text/html']),

@@ -76,8 +76,8 @@ class FetchUpdates
             default => $this->fromFeed($source),
         };
 
-        // A source still without its icon gets it while we are at the site anyway.
-        ($this->favicon)($source, $this->pageHtml);
+        // The icon is taken, or checked for a change with If-Modified-Since, while we are at the site anyway.
+        ($this->favicon)($source, $this->pageHtml, checkAgain: true);
 
         return $result;
     }

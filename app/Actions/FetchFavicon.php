@@ -3,18 +3,22 @@
 namespace App\Actions;
 
 use App\Models\Source;
+use Carbon\CarbonImmutable;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
  * The favicon of a source, shown next to its name on every screen. Fetched
- * the first time a page of the site is in hand and the source has none yet
- * (configuring it, reading its update list, fetching a document): the icons
- * the page advertises with <link rel="icon"> are tried in order, then
- * /favicon.ico. Kept on the local disk under favicons/{source}.{ext}.
- * Decorative, so a site without one (or one that cannot be fetched) is
- * simply left blank and tried again next time.
+ * when a page of the site is in hand (configuring the source, reading its
+ * update list, fetching a document): the icons the page advertises with
+ * <link rel="icon"> are tried in order, then /favicon.ico. Kept on the
+ * local disk under favicons/{source}.{ext}, with the URL it came from and
+ * its Last-Modified; a source that has one is checked again on every
+ * update list with If-Modified-Since, so a changed icon is taken and an
+ * unchanged one costs a 304. Decorative, so a site without one (or one
+ * that cannot be fetched) is simply left blank and tried again next time.
  */
 class FetchFavicon
 {
@@ -30,14 +34,20 @@ class FetchFavicon
     ];
 
     /**
-     * Fetch the icon unless the source already has one. Without a page of
-     * the site in hand, the source page is fetched for the icons it
-     * advertises.
+     * Fetch the icon of a source that has none; a source that has one is
+     * asked about only when told to check again (the update list), with
+     * If-Modified-Since. Without a page of the site in hand, the source
+     * page is fetched for the icons it advertises.
      */
-    public function __invoke(Source $source, ?string $html = null): ?string
+    public function __invoke(Source $source, ?string $html = null, bool $checkAgain = false): ?string
     {
-        if ($source->favicon_path !== null) {
+        if ($source->favicon_path !== null && ! $checkAgain) {
             return $source->favicon_path;
+        }
+
+        // An icon already in hand: ask its URL whether it changed, and take it again only when it did.
+        if ($source->favicon_path !== null && $source->favicon_url !== null) {
+            return $this->refresh($source);
         }
 
         $html ??= $this->pageOrNothing($source->url);
@@ -52,20 +62,69 @@ class FetchFavicon
                 continue;
             }
 
-            $extension = self::extension($url, (string) $response->header('Content-Type'));
-
-            if (! $response->successful() || $extension === null || $response->body() === '') {
-                continue;
+            if ($this->keep($source, $url, $response)) {
+                return $source->favicon_path;
             }
-
-            $path = "favicons/{$source->id}.{$extension}";
-            Storage::disk('local')->put($path, $response->body());
-            $source->update(['favicon_path' => $path]);
-
-            return $path;
         }
 
         return null;
+    }
+
+    /**
+     * Ask the icon's URL whether it changed since the icon was taken: a
+     * 304 keeps what is there, a 200 with an icon replaces it, and a URL
+     * that is gone (404) has the icon looked for afresh next time.
+     */
+    private function refresh(Source $source): ?string
+    {
+        try {
+            $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(10)
+                ->withHeaders($source->favicon_modified_at !== null ? ['If-Modified-Since' => $source->favicon_modified_at->toRfc7231String()] : [])
+                ->get((string) $source->favicon_url);
+        } catch (Throwable) {
+            return $source->favicon_path;
+        }
+
+        if ($response->status() === 304) {
+            return $source->favicon_path;
+        }
+
+        if ($response->status() === 404 || $response->status() === 410) {
+            $source->update(['favicon_url' => null, 'favicon_modified_at' => null]);
+
+            return $source->favicon_path;
+        }
+
+        $this->keep($source, (string) $source->favicon_url, $response);
+
+        return $source->favicon_path;
+    }
+
+    /**
+     * Keep a response as the source's icon when it is one: the file on
+     * disk, the URL, and its Last-Modified (or now, for a site that does
+     * not say) for the next check.
+     */
+    private function keep(Source $source, string $url, Response $response): bool
+    {
+        $extension = self::extension($url, (string) $response->header('Content-Type'));
+
+        if (! $response->successful() || $extension === null || $response->body() === '') {
+            return false;
+        }
+
+        $path = "favicons/{$source->id}.{$extension}";
+
+        if ($source->favicon_path !== null && $source->favicon_path !== $path) {
+            Storage::disk('local')->delete($source->favicon_path);
+        }
+
+        Storage::disk('local')->put($path, $response->body());
+
+        $modified = rescue(fn () => CarbonImmutable::parse((string) $response->header('Last-Modified')), report: false);
+        $source->update(['favicon_path' => $path, 'favicon_url' => $url, 'favicon_modified_at' => $response->hasHeader('Last-Modified') && $modified !== null ? $modified : now()]);
+
+        return true;
     }
 
     private function pageOrNothing(string $url): string
