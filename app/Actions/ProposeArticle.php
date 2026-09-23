@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\Article;
+use App\Models\LanguageSetting;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -33,7 +34,7 @@ class ProposeArticle
      * @param  array{body: string, problem: string}|null  $revision  a body already written and what is wrong with it, when it is to be written again
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null): array
+    public function __invoke(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null, ?string $language = null): array
     {
         $key = (string) config('services.openai.key');
 
@@ -45,7 +46,7 @@ class ProposeArticle
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $headline, $documentTitle, $url, $revision))
+            ->post(self::ENDPOINT, self::request($policy, $model, $material, $headline, $documentTitle, $url, $revision, $language))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -78,7 +79,7 @@ class ProposeArticle
      * @param  array{body: string, problem: string}|null  $revision
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null): array
+    public static function request(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null, ?string $language = null): array
     {
         $input = [
             [
@@ -87,6 +88,8 @@ class ProposeArticle
                     ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                 ],
             ],
+            // What belongs to the language the body is written in (言語別の追加プロンプト), then the fixed instruction.
+            ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS],
             ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
         ];

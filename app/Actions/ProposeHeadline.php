@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\LanguageSetting;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -30,7 +31,7 @@ class ProposeHeadline
      * @param  list<string>  $tried  the headlines already scored
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, array $material, ?array $review = null, array $tried = []): array
+    public function __invoke(string $policy, string $model, array $material, ?array $review = null, array $tried = [], ?string $language = null): array
     {
         $key = (string) config('services.openai.key');
 
@@ -42,7 +43,7 @@ class ProposeHeadline
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $review, $tried))
+            ->post(self::ENDPOINT, self::request($policy, $model, $material, $review, $tried, $language))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -76,7 +77,7 @@ class ProposeHeadline
      * @param  list<string>  $tried
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, array $material, ?array $review, array $tried): array
+    public static function request(string $policy, string $model, array $material, ?array $review, array $tried, ?string $language = null): array
     {
         $input = '';
 
@@ -107,6 +108,8 @@ class ProposeHeadline
                         ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
+                // What belongs to the language the headline is written in (言語別の追加プロンプト), then the fixed instruction.
+                ...LanguageSetting::messages($language),
                 ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".ScoreHeadline::rubric()],
                 ['role' => 'user', 'content' => $input],
             ],

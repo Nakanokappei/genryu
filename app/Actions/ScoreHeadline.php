@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\LanguageSetting;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -43,7 +44,7 @@ class ScoreHeadline
 
     /**
      * The one must counted here rather than judged by the model: a
-     * headline in Chinese or Japanese takes at most MAX_CHARACTERS
+     * headline in Chinese, Japanese or Korean takes at most MAX_CHARACTERS
      * characters, one in any other language at most MAX_WORDS words.
      * Added 2026-09-23, when a headline of 36 characters passed on 82, at
      * 25 characters; raised to 30 the same day, because a line that
@@ -125,7 +126,7 @@ class ScoreHeadline
      * @param  array<string, mixed>  $material
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, string $headline, array $material): array
+    public function __invoke(string $policy, string $model, string $headline, array $material, ?string $language = null): array
     {
         $key = (string) config('services.openai.key');
 
@@ -137,7 +138,7 @@ class ScoreHeadline
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $headline, $material))
+            ->post(self::ENDPOINT, self::request($policy, $model, $headline, $material, $language))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -167,7 +168,7 @@ class ScoreHeadline
      * @param  array<string, mixed>  $material
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, string $headline, array $material): array
+    public static function request(string $policy, string $model, string $headline, array $material, ?string $language = null): array
     {
         return [
             'model' => $model,
@@ -179,6 +180,8 @@ class ScoreHeadline
                         ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
+                // The judge knows the rules of the language too, so it does not score a headline down for keeping them.
+                ...LanguageSetting::messages($language),
                 ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".self::rubric()],
                 ['role' => 'user', 'content' => "Headline:\n{$headline}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
             ],
@@ -202,7 +205,7 @@ class ScoreHeadline
             $lines[] = "- {$key}: {$about}";
         }
 
-        $lines[] = '- short_enough (counted by code, not scored): at most '.self::MAX_CHARACTERS.' characters in Chinese or Japanese, at most '.self::MAX_WORDS.' words in any other language.';
+        $lines[] = '- short_enough (counted by code, not scored): at most '.self::MAX_CHARACTERS.' characters in Chinese, Japanese or Korean, at most '.self::MAX_WORDS.' words in any other language.';
 
         $lines[] = '';
         $lines[] = 'Scored on every headline, 80 points between them:';

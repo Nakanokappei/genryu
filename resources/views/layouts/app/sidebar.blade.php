@@ -36,6 +36,15 @@
                     <flux:sidebar.item icon="check-badge" :href="route('production.quality.index')" :current="request()->routeIs('production.quality.*')" wire:navigate>
                         {{ __('Quality check') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="calendar-days" :href="route('production.schedule.index')" :current="request()->routeIs('production.schedule.*')" wire:navigate>
+                        {{ __('Schedule') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="photo" :href="route('production.images.index')" :current="request()->routeIs('production.images.*')" wire:navigate>
+                        {{ __('Images') }}
+                    </flux:sidebar.item>
+                    <flux:sidebar.item icon="newspaper" :href="route('production.articles.index')" :current="request()->routeIs('production.articles.*')" wire:navigate>
+                        {{ __('Articles') }}
+                    </flux:sidebar.item>
                 </flux:sidebar.group>
 
                 {{-- What the stages decide by (docs/HANDOVER.md §1), one layer per stage. --}}

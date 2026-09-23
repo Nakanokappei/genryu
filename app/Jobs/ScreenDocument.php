@@ -143,7 +143,8 @@ class ScreenDocument implements ShouldQueue
      */
     public static function estimatedCost(string $model, array $usage): array
     {
-        $prices = config("services.openai.prices.{$model}");
+        // Looked up by key, not by dot path: the model ids have dots in them (gpt-5.6-luna).
+        $prices = ((array) config('services.openai.prices'))[$model] ?? null;
 
         if (! is_array($prices) || ! is_numeric($prices['input'] ?? null) || ! is_numeric($prices['output'] ?? null) || $usage['input_tokens'] === null || $usage['output_tokens'] === null) {
             return ['estimated_input_cost' => null, 'estimated_output_cost' => null, 'estimated_total_cost' => null];

@@ -19,14 +19,14 @@ namespace App\Actions;
  */
 class ValidateArticle
 {
-    /** How long a body may be, not counting its sources: characters in Chinese or Japanese, words otherwise. */
+    /** How long a body may be, not counting its sources: characters in Chinese, Japanese or Korean, words otherwise. */
     public const LENGTHS = ['characters' => [800, 1200], 'words' => [500, 800]];
 
     /** How many ## headings come between the opening and the sources: 承, 転 and 結. */
     public const SECTIONS = 3;
 
     /** The heading of the sources section, in the languages an article is written in. */
-    private const SOURCES_HEADING = '/^(出典|出处|出處|Sources?|Quellen)$/iu';
+    private const SOURCES_HEADING = '/^(出典|出处|出處|출처|Sources?|Quellen)$/iu';
 
     /**
      * The problems of a body, none when it passes.
@@ -137,8 +137,8 @@ class ValidateArticle
     /**
      * The length of a body as the policy counts it: the sources section
      * (the heading that names 出典 or Sources, and what follows) and the
-     * Markdown marks left out; characters without spaces in Chinese or
-     * Japanese (by the language the agent named, else by the script),
+     * Markdown marks left out; characters without spaces in Chinese,
+     * Japanese or Korean (by the language the agent named, else by the script),
      * words otherwise. `off` is how far outside the range it is, negative
      * when short, 0 when inside.
      *
@@ -146,9 +146,9 @@ class ValidateArticle
      */
     public static function lengthOf(string $body, ?string $language): array
     {
-        $text = preg_replace('/^#{1,6}\s*(出典|出处|出處|Sources?|Quellen)\b.*\z/imsu', '', $body) ?? $body;
+        $text = preg_replace('/^#{1,6}\s*(出典|出处|出處|출처|Sources?|Quellen)\b.*\z/imsu', '', $body) ?? $body;
         $text = preg_replace('/^#{1,6}\s*|\[([^\]]*)\]\([^)]*\)|[*_`>]/mu', '$1', $text) ?? $text;
-        $isCjk = $language === null ? preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}]/u', $text) === 1 : in_array($language, ['ja', 'zh-Hans', 'zh-Hant'], true);
+        $isCjk = $language === null ? preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $text) === 1 : in_array($language, ['ja', 'ko', 'zh-Hans', 'zh-Hant'], true);
         $unit = $isCjk ? 'characters' : 'words';
         $count = $unit === 'characters'
             ? mb_strlen(preg_replace('/\s+/u', '', $text) ?? $text)

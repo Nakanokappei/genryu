@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\ArticleImage;
 use App\Models\Document;
 use App\Models\Source;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +30,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // 編成 (Production): the stages that take the written articles on to their publication.
     Route::prefix('production')->name('production.')->group(function () {
         Route::livewire('quality', 'pages::production.quality.index')->name('quality.index');
+        Route::livewire('schedule', 'pages::production.schedule.index')->name('schedule.index');
+        Route::livewire('images', 'pages::production.images.index')->name('images.index');
+        // A top image as it was drawn, from the local disk.
+        Route::get('images/{image}/file', fn (ArticleImage $image) => Storage::disk('local')->response((string) $image->path))->name('images.file');
+        Route::livewire('articles', 'pages::production.articles.index')->name('articles.index');
     });
 
     // 編集方針 (Editorial policy): one screen, one body of text per layer.

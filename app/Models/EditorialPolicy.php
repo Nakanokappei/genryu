@@ -22,8 +22,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック. */
-    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality'];
+    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック and 画像. */
+    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
@@ -33,6 +33,7 @@ class EditorialPolicy extends Model
         'headline' => '',
         'article' => '',
         'quality' => '',
+        'image' => '',
         'translation' => '',
     ];
 
@@ -49,6 +50,18 @@ class EditorialPolicy extends Model
         'gpt-5.6-sol' => ['name' => 'GPT-5.6 Sol', 'description' => 'For complex specialist work; gpt-5.6 is an alias of this model'],
         'gpt-6-astra' => ['name' => 'GPT-6 Astra', 'description' => 'For work that needs especially hard reasoning'],
     ];
+
+    /**
+     * The models that draw a top image (UI 画像モデル), by the id the Images
+     * API takes: the name shown and what each one is for.
+     */
+    public const IMAGE_MODELS = [
+        'gpt-image-2.5-flare' => ['name' => 'GPT Image 2.5 Flare', 'description' => 'Fast, high-quality everyday image generation'],
+        'gpt-image-2.5-sunburst' => ['name' => 'GPT Image 2.5 Sunburst', 'description' => 'The most capable, where precision matters most'],
+    ];
+
+    /** The image model until one is chosen. */
+    public const DEFAULT_IMAGE_MODEL = 'gpt-image-2.5-flare';
 
     /** The model the content filtering runs on until one is chosen. */
     public const DEFAULT_MODEL = 'gpt-5.6-terra';
@@ -76,7 +89,13 @@ class EditorialPolicy extends Model
         return $ids[min(count($ids) - 1, ($index === false ? 0 : $index) + 1)];
     }
 
-    protected $fillable = ['layer', 'body', 'model'];
+    protected $fillable = ['layer', 'body', 'model', 'image_model'];
+
+    /** The model that draws the top images: what was chosen on 画像, or the default. */
+    public static function imageModel(): string
+    {
+        return (string) (static::query()->where('layer', 'image')->value('image_model') ?? self::DEFAULT_IMAGE_MODEL);
+    }
 
     /**
      * The model a layer runs on: what was chosen, or the default.

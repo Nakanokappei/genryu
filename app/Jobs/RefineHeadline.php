@@ -75,6 +75,8 @@ class RefineHeadline implements ShouldQueue
             }
 
             $data = (array) $material->data;
+            // The headline is written in the source's language, with what belongs to that language.
+            $language = $material->document->language;
             $model = (string) $article->headline_model;
             $attempts = [];
             $review = null;
@@ -82,13 +84,13 @@ class RefineHeadline implements ShouldQueue
 
             for ($attempt = 1; $attempt <= self::ATTEMPTS; $attempt++) {
                 // The first headline comes from the material alone; each one after it also from the review of the last.
-                $headline = trim((string) ($propose($policy, $model, $data, $review, array_column($attempts, 'headline'))['json']['headline'] ?? ''));
+                $headline = trim((string) ($propose($policy, $model, $data, $review, array_column($attempts, 'headline'), $language)['json']['headline'] ?? ''));
 
                 if ($headline === '') {
                     break;
                 }
 
-                $review = ScoreHeadline::review($score($policy, $model, $headline, $data)['json'], $headline);
+                $review = ScoreHeadline::review($score($policy, $model, $headline, $data, $language)['json'], $headline);
                 $attempts[] = ['headline' => $headline, 'total' => $review['total'], 'passed' => $review['passed'], 'musts_failed' => $review['musts_failed']];
 
                 // The best is the one that passed, else one that failed no must, else the highest total; a tie keeps the earlier.

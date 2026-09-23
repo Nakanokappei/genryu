@@ -116,7 +116,8 @@ it('keeps document revisions and screens the pinned one', function () {
 
 // The cost comes from the prices per million tokens configured for the model: cached input at the cached price.
 it('estimates the cost of a screening from the configured prices', function () {
-    config(['services.openai.prices.gpt-5.6-terra' => ['input' => 2.0, 'cached' => 0.5, 'output' => 8.0]]);
+    // Keyed by model id; the ids have dots in them, so the prices are set as one array, not by dot path.
+    config(['services.openai.prices' => ['gpt-5.6-terra' => ['input' => 2.0, 'cached' => 0.5, 'output' => 8.0]]]);
 
     expect(ScreenDocument::estimatedCost('gpt-5.6-terra', ['input_tokens' => 1_000_000, 'cached_tokens' => 500_000, 'output_tokens' => 100_000]))
         ->toBe(['estimated_input_cost' => 1.25, 'estimated_output_cost' => 0.8, 'estimated_total_cost' => 2.05])

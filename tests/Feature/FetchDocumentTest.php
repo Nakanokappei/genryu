@@ -63,6 +63,8 @@ it('reads an HTML page into Markdown with the document settings of the source an
 
     expect($document)->toMatchArray(['status' => 'fetched', 'format' => 'html', 'original_path' => "documents/{$source->id}/{$entry->id}.html", 'status_message' => null])
         ->and($document->fetched_at)->not->toBeNull()
+        // The language is told from the text as soon as it is read (言語).
+        ->and($document->language)->toBe('en')
         // Heading, date, body; the body's headings sit one level under the document heading.
         ->and($document->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\nThe agency announced")
         ->toContain('## Background')

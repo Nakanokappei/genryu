@@ -39,6 +39,11 @@ return [
             'gpt-5.6-sol' => ['input' => env('OPENAI_PRICE_SOL_INPUT'), 'cached' => env('OPENAI_PRICE_SOL_CACHED'), 'output' => env('OPENAI_PRICE_SOL_OUTPUT')],
             'gpt-6-astra' => ['input' => env('OPENAI_PRICE_ASTRA_INPUT'), 'cached' => env('OPENAI_PRICE_ASTRA_CACHED'), 'output' => env('OPENAI_PRICE_ASTRA_OUTPUT')],
         ],
+        // USD per million tokens for the image models (text input / image output), from the pricing page as of 2026-09-23.
+        'image_prices' => [
+            'gpt-image-2.5-flare' => ['input' => 5.00, 'output' => 30.00],
+            'gpt-image-2.5-sunburst' => ['input' => 5.00, 'output' => 30.00],
+        ],
     ],
 
     'slack' => [

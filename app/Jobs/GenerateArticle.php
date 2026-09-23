@@ -92,7 +92,7 @@ class GenerateArticle implements ShouldQueue
             $document = $material->document;
             $model = (string) $article->model;
             // A first write, or a rewrite of a body with what is wrong with it.
-            $write = fn (?string $previous = null, string $problems = ''): array => $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url, $previous === null ? null : ['body' => $previous, 'problem' => $problems]);
+            $write = fn (?string $previous = null, string $problems = ''): array => $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url, $previous === null ? null : ['body' => $previous, 'problem' => $problems], $document->language);
             // A written body with what the checks found in it, and how to rank it: fewer problems first, then a length nearer the range.
             $check = function (array $result) use ($validate, $article, $document): array {
                 $body = trim((string) ($result['json']['body'] ?? ''));

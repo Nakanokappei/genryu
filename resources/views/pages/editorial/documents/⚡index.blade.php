@@ -178,6 +178,14 @@ new #[Title('文書')] class extends PagedList {
         $this->resetPage();
     }
 
+    // 言語: a person sets right the language a document was guessed to be in; it decides which languages its article is published in.
+    public function setLanguage(int $documentId, string $language): void
+    {
+        abort_unless(in_array($language, \App\Models\Article::LANGUAGES, true), 422);
+        Document::query()->whereKey($documentId)->firstOrFail()->update(['language' => $language]);
+        unset($this->documents);
+    }
+
     // A changed filter starts again from the first page.
     public function updated(string $property): void
     {
@@ -291,11 +299,11 @@ new #[Title('文書')] class extends PagedList {
 
     {{-- Two rows per document: the title on its own line (whole, it has the width now), the rest beneath it, so the table is not cramped. --}}
     <x-pages::table
-        :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published on'), 'sort' => 'published_at'], __('Status'), __('Decision'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
+        :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published on'), 'sort' => 'published_at'], __('Status'), __('Decision'), __('Language'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
             <tr class="border-b-0" wire:key="title-{{ $document->id }}">
-                <td colspan="7" class="px-3 pt-2 pb-0"><x-pages::favicon :source="$document->source" /> <a href="{{ route('editorial.documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
+                <td colspan="8" class="px-3 pt-2 pb-0"><x-pages::favicon :source="$document->source" /> <a href="{{ route('editorial.documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
             </tr>
             <tr wire:key="details-{{ $document->id }}">
                 <td class="px-3 pt-1 pb-2 text-neutral-500"><a href="{{ route('editorial.sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
@@ -315,6 +323,16 @@ new #[Title('文書')] class extends PagedList {
                     @endif
                 </td>
                 <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" /></td>
+                <td class="px-3 pt-1 pb-2">
+                    <select wire:change="setLanguage({{ $document->id }}, $event.target.value)" aria-label="{{ __('Language') }}" class="rounded-md border border-neutral-200 bg-transparent px-1 py-0.5 text-sm dark:border-neutral-700">
+                        @if ($document->language === null)
+                            <option value="" selected>—</option>
+                        @endif
+                        @foreach (\App\Models\Article::LANGUAGE_NAMES as $code => $name)
+                            <option value="{{ $code }}" @selected($document->language === $code)>{{ $name }}</option>
+                        @endforeach
+                    </select>
+                </td>
                 <td class="px-3 pt-1 pb-2 uppercase">{{ $document->format }}</td>
                 <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
                 <td class="px-3 pt-1 pb-2">

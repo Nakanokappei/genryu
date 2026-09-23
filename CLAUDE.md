@@ -221,6 +221,64 @@ the product (purpose, the five stages, stack); read it first.
   queues the unchecked / failed ones, or all again after the policy
   changes. Translations are not checked. No pass mark yet: it comes with
   the next stage (starting the publication of articles that clear it).
+- **スケジュール is the second screen of 編成** (built 2026-09-23,
+  `production/schedule`). `App\Actions\ScheduleArticles` (deterministic,
+  no model) gives the checked, unpublished originals whose primary source
+  was published within the period (対象期間, 7 days; the article's own
+  date when the source gave none) the slots of the coming weekdays, best
+  quality first, earliest slot first. A slot is a date and a local time of
+  day (公開時刻, 07:00 / 09:00 / 12:00 / 15:00 / 18:00, the first
+  平日の公開本数 = 5 of them): **every language version goes out at that
+  local date and time in its own zone** (`Article::TIMEZONES`: English by
+  New York, the rest by their capitals — Tokyo, Beijing as Asia/Shanghai,
+  Taipei, Berlin, Paris), stored per row as `articles.scheduled_at` (UTC),
+  and a slot is used only when it is still ahead in every zone. A
+  translation written later takes its original's slot (`TranslateArticle`,
+  and on every run). The settings are one `schedule_settings` row, set on
+  the screen; スケジュールを組み直す takes the unpublished articles off first.
+  It only sets the times: publishing at them, the top image and topping up
+  thin days from below the pass mark come later.
+- **Languages are chosen, not fixed** (decided 2026-09-23). We publish
+  in seven (`Article::LANGUAGES`, in the order of the countries' 2023 R&D
+  spending by UNESCO: en, zh-Hant, ja, de, ko, fr, zh-Hans). A document
+  has the language it is written in (`documents.language`), told from
+  its text without a model (`App\Actions\DetectLanguage`) when it is
+  first read and set right on 文書. **言語設定** at the top of 記事 says,
+  per language, whether it takes every source (all), only its own (own)
+  or none (`LanguageSetting`); the original is written in the source's
+  language whenever some language wants it — as a working copy only when
+  its own language does not publish it (`Article::isPublishable`) — and
+  translated into every other language that takes all. **言語別の追加
+  プロンプト** (same table) holds what belongs to a language rather than
+  the article (だ・である調 moved there from the three layers); it is sent
+  between the cached policy and the fixed instruction to the headline
+  writer and judge, the body writer and the translator alike, the order
+  the 記事 screen shows it in. It is read when the call is made, not
+  pinned.
+- **編成 › 記事** lists the originals on their way out and those out. An
+  article moves 公開日時未定 → 画像作成中 → スケジュール済み → 公開済み,
+  worked out from what it holds (`Article::publicationStatus`: a time
+  from スケジュール, then a top image `image_path`, then `published_at`),
+  never kept as a column of its own.
+- **画像 draws the top images** (built 2026-09-23, `production/images`).
+  `App\Jobs\MakeImage` gives a scheduled original its top image in two
+  steps: `App\Actions\ProposeScene` (the `image` layer, Responses API)
+  chooses one scene from the world the article says becomes possible,
+  fitting the theme of the hour, and `App\Actions\DrawImage` (Images
+  API, `EditorialPolicy::imageModel`, default gpt-image-2.5-flare,
+  1536×864) draws it with the style of the time band the slot falls in
+  and `DrawImage::NEVER` (no text, logos, real people, nothing that
+  passes for a photograph). **The style changes with the hour, not the
+  score** (decided 2026-09-23: a score-linked look would tell readers
+  which articles we rated lower): seven bands (`ImageStyle`: 始業前 06:00
+  graphic, お昼休み前 pop, お昼休み中 picture book, 午後 realist painting,
+  終業前 abstract, 終業後 retro, 深夜帯 anime), edited on the screen. One
+  image serves every language, which go out at the same local time; the
+  article keeps the time it was made for (`image_time`), so a slot moved
+  to another hour is 画像作成中 again. The source's figures are not given
+  to the writer. Every drawing is an `article_images` row with the scene
+  and the prompt. Prices are looked up by key (`config('…prices')[$model]`):
+  the model ids have dots, which a dot path splits.
 - **The selection layer (取捨選択) is set in two places, not on 編集方針**
   (decided 2026-09-22). The **title filter** (タイトルフィルタ) is on the
   情報源 list screen: when an update list is read only the titles are in

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Actions\DetectLanguage;
 use Carbon\CarbonImmutable;
 use Database\Factories\DocumentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -25,6 +26,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  *
  * @property CarbonImmutable|null $published_at
  * @property bool $published_has_time
+ * @property string|null $language the language the document is written in (言語), one of Article::LANGUAGES
  * @property CarbonImmutable|null $human_decided_at
  */
 class Document extends Model
@@ -37,7 +39,7 @@ class Document extends Model
     /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'format', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
@@ -95,10 +97,19 @@ class Document extends Model
 
     /**
      * Every Markdown written to the document is kept as a revision, so
-     * what a screening or a material was made from stays as it was.
+     * what a screening or a material was made from stays as it was. The
+     * language is guessed the first time there is text to guess it from
+     * (App\Actions\DetectLanguage); once set, by the guess or by a
+     * person, it is left alone.
      */
     protected static function booted(): void
     {
+        static::saving(function (Document $document): void {
+            if ($document->language === null && $document->markdown !== null && $document->markdown !== '') {
+                $document->language = DetectLanguage::of($document->title."\n".$document->markdown);
+            }
+        });
+
         static::saved(function (Document $document): void {
             if (($document->wasRecentlyCreated || $document->wasChanged('markdown')) && $document->markdown !== null && $document->markdown !== '') {
                 $document->recordRevision();

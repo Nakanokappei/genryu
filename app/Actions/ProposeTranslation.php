@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Models\Article;
+use App\Models\LanguageSetting;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
@@ -96,6 +97,8 @@ class ProposeTranslation
                         ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
                     ],
                 ],
+                // What belongs to the language translated into (言語別の追加プロンプト), then the fixed instruction.
+                ...LanguageSetting::messages($language),
                 ['role' => 'developer', 'content' => sprintf(self::INSTRUCTIONS, "{$name} ({$language})")],
                 ['role' => 'user', 'content' => $input],
             ],

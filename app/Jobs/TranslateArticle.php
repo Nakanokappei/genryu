@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Actions\ProposeTranslation;
+use App\Actions\ScheduleArticles;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
@@ -86,6 +87,8 @@ class TranslateArticle implements ShouldQueue
             $translation->update([
                 'title' => $title,
                 'body' => Article::separateBlocks($body),
+                // Written after its original was scheduled, it goes out in the original's slot, in its own zone.
+                'scheduled_at' => $original->scheduled_at === null || ! $translation->isPublishable() ? $translation->scheduled_at : ScheduleArticles::timeFor($original, (string) $translation->language),
                 'status' => 'draft',
                 'status_message' => __('Translated by :model.', ['model' => $model]),
                 ...$result['usage'],
