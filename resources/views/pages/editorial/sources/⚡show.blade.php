@@ -208,7 +208,7 @@ new #[Title('情報源')] class extends Component {
     {
         $this->source->delete();
 
-        $this->redirectRoute('sources.index', navigate: true);
+        $this->redirectRoute('editorial.sources.index', navigate: true);
     }
 
     // The tab chosen is remembered as the choice to skip feeds (read_as_html, which ConfigureSource honours); the other settings stay until one is saved.
@@ -264,7 +264,7 @@ new #[Title('情報源')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6">
-    <x-pages::detail-header :back="route('sources.index')" :back-label="__('Sources')" :title="$source->name" />
+    <x-pages::detail-header :back="route('editorial.sources.index')" :back-label="__('Sources')" :title="$source->name" />
 
     <form wire:submit="save" class="grid gap-3 rounded-xl border border-neutral-200 p-4 md:grid-cols-3 dark:border-neutral-700">
         <flux:input wire:model="name" :label="__('Name')" />
@@ -357,7 +357,7 @@ new #[Title('情報源')] class extends Component {
                 <flux:callout.text>
                     {{ __('The content selector may catch a teaser or a header instead of the body. Check one, then fix the selectors above and rebuild the Markdown, or have the agent propose settings again from the original of a short document:') }}
                     @foreach ($this->shortDocuments->take(3) as $short)
-                        <a href="{{ route('documents.show', $short) }}" class="underline" wire:navigate>{{ mb_strimwidth($short->title, 0, 40, '…') }}</a>（{{ mb_strlen((string) $short->markdown) }}）@if (! $loop->last)、@endif
+                        <a href="{{ route('editorial.documents.show', $short) }}" class="underline" wire:navigate>{{ mb_strimwidth($short->title, 0, 40, '…') }}</a>（{{ mb_strlen((string) $short->markdown) }}）@if (! $loop->last)、@endif
                     @endforeach
                 </flux:callout.text>
                 <x-slot name="actions">
@@ -379,7 +379,7 @@ new #[Title('情報源')] class extends Component {
     <x-pages::table :columns="[__('Title'), __('Published on'), __('Status'), __('Reason')]" :empty="$notFetched->isEmpty()">
         @foreach ($notFetched as $document)
             <tr>
-                <td class="px-3 py-2"><x-pages::short-title :title="$document->title" :href="route('documents.show', $document)" /></td>
+                <td class="px-3 py-2"><x-pages::short-title :title="$document->title" :href="route('editorial.documents.show', $document)" /></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
                 @if ($document->excluded_by !== null)
                     <td class="px-3 py-2"><x-pages::status status="excluded" /></td>

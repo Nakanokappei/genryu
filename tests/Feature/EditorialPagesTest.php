@@ -23,10 +23,10 @@ it('renders the list and detail screen of every stage', function () {
     $source = $update->source;
 
     foreach ([
-        route('sources.index'), route('sources.show', $source),
-        route('documents.index'), route('documents.show', $update),
-        route('materials.index'), route('materials.show', $material),
-        route('articles.index'), route('articles.show', $article),
+        route('editorial.sources.index'), route('editorial.sources.show', $source),
+        route('editorial.documents.index'), route('editorial.documents.show', $update),
+        route('editorial.materials.index'), route('editorial.materials.show', $material),
+        route('editorial.articles.index'), route('editorial.articles.show', $article),
         route('dashboard'),
     ] as $url) {
         $this->get($url)->assertOk();
@@ -35,14 +35,14 @@ it('renders the list and detail screen of every stage', function () {
     // The source's detail lists only the documents not fetched (excluded, or failed with the reason), the title cut at 31 characters (the whole title is the tooltip); the fetched ones are on 文書 (a fetched one with a full body is not named on the source).
     $update->update(['markdown' => str_repeat('本文。', 400)]);
     Document::factory()->for($source)->create(['title' => str_repeat('あ', 40), 'status' => 'failed', 'status_message' => 'HTTP request returned status code 404']);
-    $this->get(route('sources.show', $source))->assertSee($source->name)->assertDontSee($update->title)
+    $this->get(route('editorial.sources.show', $source))->assertSee($source->name)->assertDontSee($update->title)
         ->assertSee(str_repeat('あ', 31).'…')->assertSee('HTTP request returned status code 404');
     // The list counts those failures per source.
-    $sources = Livewire::test('pages::sources.index')->assertSee('取得失敗数')->instance()->sources;
+    $sources = Livewire::test('pages::editorial.sources.index')->assertSee('取得失敗数')->instance()->sources;
     expect($sources->firstWhere('id', $source->id)->failed_documents_count)->toBe(1);
     // The source's address is a tooltip on the link icon, not a column.
-    $this->get(route('sources.index'))->assertSee($source->name)->assertSee(e($source->url), false);
-    $this->get(route('articles.show', $article))->assertSee($article->title)->assertSee($update->title);
+    $this->get(route('editorial.sources.index'))->assertSee($source->name)->assertSee(e($source->url), false);
+    $this->get(route('editorial.articles.show', $article))->assertSee($article->title)->assertSee($update->title);
 });
 
 // Timestamps are stored in UTC and shown in the display timezone (JST by default).
@@ -50,19 +50,19 @@ it('shows timestamps in the display timezone', function () {
     $update = Document::factory()->fetched()->create(['fetched_at' => '2026-09-21 14:37:00']);
 
     expect($update->refresh()->fetched_at?->toIso8601String())->toBe('2026-09-21T14:37:00+00:00');
-    $this->get(route('documents.show', $update))->assertSee('2026-09-21 23:37');
+    $this->get(route('editorial.documents.show', $update))->assertSee('2026-09-21 23:37');
 });
 
 it('redirects guests to the login page', function () {
     auth()->logout();
 
-    $this->get(route('sources.index'))->assertRedirect(route('login'));
+    $this->get(route('editorial.sources.index'))->assertRedirect(route('login'));
 });
 
 // Only a source is added by hand; everything under it follows from background jobs
 // (FetchUpdatesTest, FetchDocumentTest, ExtractMaterialTest, GenerateArticleTest).
 it('lets the user add a source by hand, and follows one record through the stages', function () {
-    Livewire::test('pages::sources.index')
+    Livewire::test('pages::editorial.sources.index')
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
         ->call('add')->assertHasNoErrors();
     $source = Source::query()->sole();
@@ -86,14 +86,14 @@ it('pages the sources and documents lists by the chosen rows per page', function
     $sources = Source::factory()->count(12)->sequence(fn ($sequence) => ['name' => 'Source '.($sequence->index + 1)])->create();
     Document::factory()->fetched()->count(12)->sequence(fn ($sequence) => ['source_id' => $sources[0]->id, 'title' => 'Document '.($sequence->index + 1)])->create();
 
-    foreach ([['pages::sources.index', 'Source'], ['pages::documents.index', 'Document']] as [$page, $prefix]) {
+    foreach ([['pages::editorial.sources.index', 'Source'], ['pages::editorial.documents.index', 'Document']] as [$page, $prefix]) {
         Livewire::test($page)
             ->assertSee("{$prefix} 12")->assertDontSee("{$prefix} 1<")->assertSee('表示: 1 – 10 ／ 12 件')
             ->set('rowsPerPage', 25)->assertSee("{$prefix} 1<", false)
             ->set('rowsPerPage', 10)->call('gotoPage', 2)->assertSee("{$prefix} 2<", false)->assertDontSee("{$prefix} 12");
     }
 
-    $this->get(route('sources.index', ['rowsPerPage' => 25]))->assertSee('Source 1<', false);
+    $this->get(route('editorial.sources.index', ['rowsPerPage' => 25]))->assertSee('Source 1<', false);
 });
 
 // 文書 lists every document with its state, sorted and filtered by source, published date, format and fetched time.
@@ -108,7 +108,7 @@ it('lists documents with their state, sorted and filtered by the chosen column',
     $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
 
     // Fetched first (newest fetch), then the ones without a fetch time; the failed one carries its reason, the excluded one its rule.
-    $component = Livewire::test('pages::documents.index')->assertSee('Not fetched yet')->assertSee('失敗')->assertSee('HTTP 404')->assertSee('対象外')->assertSee('除外キーワード「寄稿; 掲載」に一致');
+    $component = Livewire::test('pages::editorial.documents.index')->assertSee('Not fetched yet')->assertSee('失敗')->assertSee('HTTP 404')->assertSee('対象外')->assertSee('除外キーワード「寄稿; 掲載」に一致');
     expect($titles($component))->toBe(['New PDF', 'Old HTML', 'Excluded one', 'Failed one', 'Not fetched yet']);
     expect($titles($component->call('sortBy', 'fetched_at')))->toBe(['Old HTML', 'New PDF', 'Not fetched yet', 'Failed one', 'Excluded one']);
     // By source, and by title within the source.
@@ -130,19 +130,19 @@ it('lets the user edit and delete a source from its detail screen', function () 
     $source = Source::factory()->create(['name' => 'DARPA - Bews']);
     $update = Document::factory()->for($source)->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('name', 'DARPA - Bews')
         ->set('name', 'DARPA - News')
         ->call('save')->assertHasNoErrors();
     expect($source->refresh()->name)->toBe('DARPA - News');
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('url', 'not a url')
         ->call('save')->assertHasErrors(['url']);
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->call('delete')
-        ->assertRedirect(route('sources.index'));
+        ->assertRedirect(route('editorial.sources.index'));
     expect(Source::query()->count())->toBe(0)
         ->and(Document::query()->whereKey($update->id)->exists())->toBeFalse();
 });

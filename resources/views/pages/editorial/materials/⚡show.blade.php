@@ -40,7 +40,7 @@ new #[Title('素材情報')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($material->status === 'extracting' || $material->articles->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('materials.index')" :back-label="__('Materials')" :source="$material->document->source" :title="$material->document->title" />
+    <x-pages::detail-header :back="route('editorial.materials.index')" :back-label="__('Materials')" :source="$material->document->source" :title="$material->document->title" />
 
     <x-pages::fields :fields="[
         __('Document') => $material->document->title,
@@ -51,7 +51,7 @@ new #[Title('素材情報')] class extends Component {
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <x-pages::status :status="$material->status" />
         <flux:text class="flex-1">{{ $material->status_message ?? '—' }}</flux:text>
-        <a href="{{ route('documents.show', $material->document) }}" class="text-sm underline" wire:navigate>{{ __('Document') }}</a>
+        <a href="{{ route('editorial.documents.show', $material->document) }}" class="text-sm underline" wire:navigate>{{ __('Document') }}</a>
         <flux:button wire:click="extract" size="sm" icon="arrow-path">{{ __('Extract again') }}</flux:button>
     </div>
 
@@ -68,7 +68,7 @@ new #[Title('素材情報')] class extends Component {
         </div>
         <div class="space-y-4 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             @if ($view === 'json')
-                <pre class="overflow-auto text-sm whitespace-pre-wrap">{{ json_encode($material->parts(), JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
+                <pre class="overflow-auto text-sm whitespace-pre-wrap">{{ json_encode([...$material->parts(), ...($material->figures() === [] ? [] : ['figures' => $material->figures()])], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</pre>
             @else
                 @foreach ($material->parts() as $part => $value)
                     <div class="space-y-1">
@@ -80,6 +80,21 @@ new #[Title('素材情報')] class extends Component {
                         @endif
                     </div>
                 @endforeach
+
+                {{-- The figures of the source, as the source shows them, each linking to the image itself. --}}
+                @if ($material->figures() !== [])
+                    <div class="space-y-2">
+                        <flux:subheading>{{ __('figures') }}</flux:subheading>
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            @foreach ($material->figures() as $figure)
+                                <a href="{{ $figure['url'] }}" target="_blank" rel="noopener noreferrer" class="space-y-1 text-xs">
+                                    <img src="{{ $figure['url'] }}" alt="{{ $figure['alt'] }}" loading="lazy" referrerpolicy="no-referrer" class="aspect-video w-full rounded-md border border-neutral-200 object-contain dark:border-neutral-700">
+                                    <span class="block text-neutral-500">{{ $figure['caption'] ?? $figure['alt'] }}</span>
+                                </a>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             @endif
         </div>
 
@@ -107,7 +122,7 @@ new #[Title('素材情報')] class extends Component {
     <x-pages::table :columns="[__('Title'), __('Status'), __('Published at')]" :empty="$material->articles->isEmpty()">
         @foreach ($material->articles as $article)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$article->status" /> <span class="text-neutral-500">{{ $article->status_message }}</span></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>
             </tr>

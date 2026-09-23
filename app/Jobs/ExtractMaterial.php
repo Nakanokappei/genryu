@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Actions\CollectFigures;
 use App\Actions\ProposeMaterial;
 use App\Actions\ValidateMaterial;
 use App\Models\Document;
@@ -101,8 +102,11 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The material did not pass the checks: :errors', ['errors' => implode(' / ', array_slice($errors, 0, 5))]));
             }
 
+            // The figures of the source are gathered from its Markdown, not asked of the model; a document without any leaves the part out.
+            $figures = CollectFigures::from($material->revision->markdown);
+
             $material->update([
-                'data' => $result['json'],
+                'data' => $figures === [] ? $result['json'] : [...$result['json'], 'figures' => $figures],
                 'validation' => [],
                 'status' => 'extracted',
                 'status_message' => __('Extracted by :model.', ['model' => $model]),

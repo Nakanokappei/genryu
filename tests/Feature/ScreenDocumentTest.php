@@ -130,7 +130,7 @@ it('numbers the prompt versions as the prompt changes', function () {
     $first = screenDocument(Document::factory()->fetched()->create());
     $second = screenDocument(Document::factory()->fetched()->create());
 
-    Livewire::test('pages::documents.index')->set('contentFiltering', SCREENING_PROMPT.' 改訂。')->call('saveContentFiltering')->assertHasNoErrors();
+    Livewire::test('pages::editorial.documents.index')->set('contentFiltering', SCREENING_PROMPT.' 改訂。')->call('saveContentFiltering')->assertHasNoErrors();
     $third = screenDocument(Document::factory()->fetched()->create());
 
     expect($first->prompt->version)->toBe(1)->and($second->prompt->id)->toBe($first->prompt->id)
@@ -222,7 +222,7 @@ it('records a human decision that outranks the screening', function () {
     $document = Document::factory()->fetched()->create(['title' => 'Overruled doc']);
     Screening::factory()->for($document)->rejected()->create();
 
-    Livewire::test('pages::documents.show', ['document' => $document->refresh()])->assertSet('humanDecision', '')
+    Livewire::test('pages::editorial.documents.show', ['document' => $document->refresh()])->assertSet('humanDecision', '')
         ->call('decide')->assertHasErrors(['humanDecision'])
         ->set('humanDecision', 'adopt')->set('humanReason', '量産ラインの建設が本文にある')->call('decide')->assertHasNoErrors();
 
@@ -232,17 +232,17 @@ it('records a human decision that outranks the screening', function () {
 
     // The lists follow the decision that stands.
     $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
-    $component = Livewire::test('pages::documents.index')->assertSee('人の判定：量産ラインの建設が本文にある');
+    $component = Livewire::test('pages::editorial.documents.index')->assertSee('人の判定：量産ラインの建設が本文にある');
     expect($titles($component->set('decision', 'adopt')))->toBe(['Overruled doc'])
         ->and($titles($component->set('decision', 'reject')))->toBe([]);
 
     // The material goes on for a document a person adopted, screening notwithstanding; the bulk extraction takes it too.
     Queue::fake();
-    Livewire::test('pages::materials.index')->call('extract');
+    Livewire::test('pages::editorial.materials.index')->call('extract');
     Queue::assertPushed(ExtractMaterial::class, fn (ExtractMaterial $job): bool => $job->material->document->is($document));
 
     // Withdrawn, the screening's reject stands again.
-    Livewire::test('pages::documents.show', ['document' => $document->refresh()])->call('undecide');
+    Livewire::test('pages::editorial.documents.show', ['document' => $document->refresh()])->call('undecide');
     expect($document->refresh()->human_decision)->toBeNull()->and($document->isRejected())->toBeTrue();
 });
 
@@ -271,26 +271,26 @@ it('queues screenings from the screens and shows the decisions', function () {
     Document::factory()->fetched()->create(['title' => 'Excluded doc', 'excluded_by' => '発売']);
     Document::factory()->create(['title' => 'Unfetched doc']);
 
-    Livewire::test('pages::documents.index')->call('screenDocuments');
+    Livewire::test('pages::editorial.documents.index')->call('screenDocuments');
     Queue::assertPushed(ScreenDocument::class, 1);
     expect($fresh->refresh()->screening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-5.6-terra']);
 
     $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
-    $component = Livewire::test('pages::documents.index')->assertSee('採用')->assertSee('要確認')->assertSee('判定中')->assertSee('実環境での実証');
+    $component = Livewire::test('pages::editorial.documents.index')->assertSee('採用')->assertSee('要確認')->assertSee('判定中')->assertSee('実環境での実証');
     expect($titles($component->set('decision', 'adopt')))->toBe(['Adopted doc'])
         ->and($titles($component->set('decision', 'review')))->toBe(['Reviewed doc'])
         ->and($titles($component->set('decision', 'none')))->toBe(['Excluded doc', 'Unfetched doc']);
 
     // Review with a higher model from the document's screen: the next model up is proposed for a 要確認 document.
-    Livewire::test('pages::documents.show', ['document' => $adopted->refresh()])->assertSet('screeningModel', 'gpt-5.6-terra');
-    Livewire::test('pages::documents.show', ['document' => $reviewed->refresh()])->assertSet('screeningModel', 'gpt-5.6-sol')->assertSee('INSUFFICIENT_EVIDENCE')
+    Livewire::test('pages::editorial.documents.show', ['document' => $adopted->refresh()])->assertSet('screeningModel', 'gpt-5.6-terra');
+    Livewire::test('pages::editorial.documents.show', ['document' => $reviewed->refresh()])->assertSet('screeningModel', 'gpt-5.6-sol')->assertSee('INSUFFICIENT_EVIDENCE')
         ->set('screeningModel', 'gpt-6-astra')->call('screen')->assertHasNoErrors();
     Queue::assertPushed(ScreenDocument::class, 2);
     expect($reviewed->refresh()->screening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-6-astra'])
         ->and($reviewed->screenings()->count())->toBe(2);
 
     // The figures per prompt version on the list.
-    $figures = Livewire::test('pages::documents.index')->assertSee('プロンプト版')->instance()->screeningFigures;
+    $figures = Livewire::test('pages::editorial.documents.index')->assertSee('プロンプト版')->instance()->screeningFigures;
     expect($figures['versions'][0])->toMatchArray(['screened' => 2, 'adopted' => 1, 'rejected' => 0, 'reviewed' => 1])
         ->and(round($figures['versions'][0]['cache_hit_rate'], 3))->toBe(round(4000 / 6000, 3))
         // The reasons count the latest screening of each document: the reviewed one is being screened again, so its reason is out for now.

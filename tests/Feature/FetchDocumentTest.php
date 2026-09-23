@@ -162,14 +162,14 @@ it('does not fetch the document of an update entry whose title has an exclude ke
     expect($excluded->excluded_by)->toBe('開催; セミナー')->and($excluded->status)->toBeNull()
         ->and(Document::query()->where('url', 'https://www.example.org/news/1')->sole()->excluded_by)->toBeNull();
     // The excluded entry is listed as 対象外 on 文書 and on its source, next to the failed ones; its own screen says why it was excluded.
-    $this->get(route('documents.index'))->assertSee($excluded->title)->assertSee('対象外');
-    $this->get(route('sources.show', $source))->assertSee($excluded->title)->assertSee('除外キーワード「開催; セミナー」に一致');
-    $this->get(route('documents.show', $excluded))->assertSee('除外キーワード「開催; セミナー」に一致');
+    $this->get(route('editorial.documents.index'))->assertSee($excluded->title)->assertSee('対象外');
+    $this->get(route('editorial.sources.show', $source))->assertSee($excluded->title)->assertSee('除外キーワード「開催; セミナー」に一致');
+    $this->get(route('editorial.documents.show', $excluded))->assertSee('除外キーワード「開催; セミナー」に一致');
 
     // The source's "fetch documents" leaves excluded entries alone; the entry's own button still fetches it.
-    Livewire::test('pages::sources.show', ['source' => $source])->call('fetchDocuments');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('fetchDocuments');
     Queue::assertPushed(FetchDocument::class, 1);
-    Livewire::test('pages::documents.show', ['document' => $excluded])->call('fetchDocument');
+    Livewire::test('pages::editorial.documents.show', ['document' => $excluded])->call('fetchDocument');
     Queue::assertPushed(FetchDocument::class, 2);
 });
 
@@ -180,20 +180,20 @@ it('saves the title filter from the sources screen and the content filtering fro
     $kept = Document::factory()->fetched()->create(['title' => '新技術が学会誌に掲載']);
     $formerly = Document::factory()->create(['title' => '水素セミナー開催のお知らせ', 'excluded_by' => 'セミナー']);
 
-    Livewire::test('pages::sources.index')
+    Livewire::test('pages::editorial.sources.index')
         ->assertSet('excludeKeywords', '')
         ->set('excludeKeywords', "採用情報\n寄稿; 掲載")
         ->call('saveTitleFilter')->assertHasNoErrors();
     expect($fetched->refresh()->excluded_by)->toBe('寄稿; 掲載')->and($fetched->status)->toBe('fetched')
         ->and($kept->refresh()->excluded_by)->toBeNull()
         ->and($formerly->refresh()->excluded_by)->toBeNull();
-    Livewire::test('pages::documents.index')
+    Livewire::test('pages::editorial.documents.index')
         ->assertSet('contentFilteringModel', 'gpt-5.6-terra')
         ->set('contentFiltering', '技術的な発表を採用し、人事は採用しない')->set('contentFilteringModel', 'gpt-5.6-sol')
         ->call('saveContentFiltering')->assertHasNoErrors();
     // The strongest model is kept for reviewing and cannot be the screening's model.
-    Livewire::test('pages::documents.index')->set('contentFilteringModel', 'gpt-2')->call('saveContentFiltering')->assertHasErrors(['contentFilteringModel']);
-    Livewire::test('pages::documents.index')->set('contentFilteringModel', 'gpt-6-astra')->call('saveContentFiltering')->assertHasErrors(['contentFilteringModel']);
+    Livewire::test('pages::editorial.documents.index')->set('contentFilteringModel', 'gpt-2')->call('saveContentFiltering')->assertHasErrors(['contentFilteringModel']);
+    Livewire::test('pages::editorial.documents.index')->set('contentFilteringModel', 'gpt-6-astra')->call('saveContentFiltering')->assertHasErrors(['contentFilteringModel']);
 
     expect(EditorialPolicy::excludeKeywords())->toBe([['採用情報'], ['寄稿', '掲載']])
         ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました'))->toBe('寄稿; 掲載')
@@ -242,21 +242,21 @@ it('warns of short bodies and lets the agent propose the document settings again
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Ammonia burner programme']));
 
     expect($document->hasShortBody())->toBeTrue();
-    $this->get(route('documents.index'))->assertSee('本文が短い');
-    $this->get(route('documents.show', $document))->assertSee('字しかありません')->assertSee($source->name.' の文書の設定');
-    $this->get(route('sources.index'))->assertSee('本文が短い');
+    $this->get(route('editorial.documents.index'))->assertSee('本文が短い');
+    $this->get(route('editorial.documents.show', $document))->assertSee('字しかありません')->assertSee($source->name.' の文書の設定');
+    $this->get(route('editorial.sources.index'))->assertSee('本文が短い');
 
-    Livewire::test('pages::sources.show', ['source' => $source])->assertSee('本文が短い（1000 字未満）')->call('proposeDocumentSettings')->assertHasNoErrors();
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSee('本文が短い（1000 字未満）')->call('proposeDocumentSettings')->assertHasNoErrors();
 
     expect($source->refresh()->document_config)->toEqual(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => ''])
         ->and($document->refresh()->hasShortBody())->toBeFalse()
         ->and($document->markdown)->toContain('The long body of the release.')->not->toContain('A short teaser');
-    $this->get(route('documents.show', $document))->assertDontSee('字しかありません');
+    $this->get(route('editorial.documents.show', $document))->assertDontSee('字しかありません');
 
     // A proposal that yields no more than now is not kept.
     $source->update(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
     $document->update(['markdown' => '# Ammonia burner programme'.str_repeat("\n\nA short teaser.", 10)]);
-    Livewire::test('pages::sources.show', ['source' => $source])->call('proposeDocumentSettings')->assertHasNoErrors();
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('proposeDocumentSettings')->assertHasNoErrors();
     expect($source->refresh()->document_config['content'])->toBe('header');
 });
 
@@ -401,14 +401,14 @@ it('queues the missing and failed documents of a source, and one document again,
     $failed = Document::factory()->for($source)->create(['status' => 'failed']);
     $fetched = Document::factory()->for($source)->fetched()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->call('fetchDocuments');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('fetchDocuments');
 
     Queue::assertPushed(FetchDocument::class, 2);
     expect($missing->refresh()->status)->toBe('fetching')
         ->and($failed->refresh()->status)->toBe('fetching')
         ->and($fetched->refresh()->status)->toBe('fetched');
 
-    Livewire::test('pages::documents.show', ['document' => $fetched])->call('fetchDocument');
+    Livewire::test('pages::editorial.documents.show', ['document' => $fetched])->call('fetchDocument');
 
     Queue::assertPushed(FetchDocument::class, 3);
     expect($fetched->refresh()->status)->toBe('fetching');
@@ -424,7 +424,7 @@ it('queues every document of a source again from its screen, except the excluded
     Document::factory()->for($source)->create(['excluded_by' => 'セミナー']);
     Document::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->call('fetchAllDocumentsAgain');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('fetchAllDocumentsAgain');
 
     Queue::assertPushed(FetchDocument::class, 2);
     expect($fetched->refresh()->status)->toBe('fetching')
@@ -440,7 +440,7 @@ it('rebuilds the Markdown of every document of a source from the originals, with
     Storage::disk('local')->put("documents/{$source->id}/2.html", '<html><body><div class="x"><p>No article element here.</p></div></body></html>');
     $elsewhere = Document::factory()->fetched()->create(['markdown' => 'old']);
 
-    Livewire::test('pages::sources.show', ['source' => $source])->call('rebuildMarkdown');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('rebuildMarkdown');
 
     expect($entry->refresh()->markdown)->toStartWith("# Ammonia burner programme\n\n2026-09-17\n\n")
         ->and($entry->status)->toBe('fetched')
@@ -453,13 +453,13 @@ it('rebuilds the Markdown of every document of a source from the originals, with
 it('saves the document settings from the source detail screen', function () {
     $source = Source::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('documentSettings.content', 'article')->set('documentSettings.remove', '.share')->set('documentSettings.fixed_text', '.notice')
         ->call('saveDocumentSettings')->assertHasNoErrors();
     expect($source->refresh()->document_config)->toEqual(['content' => 'article', 'date' => '', 'remove' => '.share', 'fixed_text' => '.notice']);
 
     // Clearing the content selector hands the settings back to the agent.
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('documentSettings.content', 'article')
         ->set('documentSettings.content', '')
         ->call('saveDocumentSettings')->assertHasNoErrors();
@@ -470,5 +470,5 @@ it('serves the original file', function () {
     Storage::disk('local')->put('documents/1/1.html', DOCUMENT_PAGE);
     $entry = Document::factory()->fetched()->create(['original_path' => 'documents/1/1.html']);
 
-    $this->get(route('documents.original', $entry))->assertOk()->assertDownload('1.html');
+    $this->get(route('editorial.documents.original', $entry))->assertOk()->assertDownload('1.html');
 });

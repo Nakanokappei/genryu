@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\CollectFigures;
 use App\Actions\ProposeMaterial;
 use App\Actions\ValidateMaterial;
 use App\Jobs\ExtractMaterial;
@@ -79,7 +80,9 @@ it('writes the parts of an article and counts what came from each side', functio
         ->and(array_keys($material->parts()))->toBe(ProposeMaterial::PARTS)
         ->and($material->data['angle'])->toBe('アンモニア燃焼の課題は「燃やせるか」から「分解炉全体を回せるか」へ移った')
         ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 1, 'inference' => 3])
-        ->and($material->input_tokens)->toBe(2000)->and($material->cached_tokens)->toBe(1500);
+        ->and($material->input_tokens)->toBe(2000)->and($material->cached_tokens)->toBe(1500)
+        // A document without figures leaves the part out.
+        ->and($material->data)->not->toHaveKey('figures');
 
     // The policy is the cached block, the document follows as material to analyse, and the schema asks for the six parts and nothing about the answer itself.
     Http::assertSent(function (Request $request): bool {
@@ -93,8 +96,8 @@ it('writes the parts of an article and counts what came from each side', functio
     });
 
     // The detail screen shows each part and how many lines came from each side; the list shows the document and its state.
-    $this->get(route('materials.show', $material))->assertSee('「燃やせるか」から「分解炉全体を回せるか」へ移った')->assertSee('予算は 20 億円')->assertSee('事実（一次情報）')->assertSee('背景（一般知識）')->assertSee('一次情報 3 / 一般知識 1 / 推論 3');
-    $this->get(route('materials.index'))->assertSee('アンモニア燃焼器の開発を開始')->assertSee('抽出済み')->assertSee(__('rows per page'));
+    $this->get(route('editorial.materials.show', $material))->assertSee('「燃やせるか」から「分解炉全体を回せるか」へ移った')->assertSee('予算は 20 億円')->assertSee('事実（一次情報）')->assertSee('背景（一般知識）')->assertSee('一次情報 3 / 一般知識 1 / 推論 3');
+    $this->get(route('editorial.materials.index'))->assertSee('アンモニア燃焼器の開発を開始')->assertSee('抽出済み')->assertSee(__('rows per page'));
 });
 
 // A part the model could not write is dropped rather than kept as an empty or hedged value.
@@ -131,7 +134,7 @@ it('fails with the report when the checks do not pass twice', function () {
         ->and($material->status_message)->toContain('素材情報が検査を通りませんでした')
         ->and($material->validation)->toContain('change: missing; an article cannot be written without it')
         ->and($material->data)->toBeNull();
-    $this->get(route('materials.show', $material))->assertSee('直近の抽出が通らなかった検査');
+    $this->get(route('editorial.materials.show', $material))->assertSee('直近の抽出が通らなかった検査');
 });
 
 it('does not ask the agent about a document that has not been fetched', function () {
@@ -147,7 +150,7 @@ it('reads the structuring layer and its model from the materials screen', functi
     expect(EditorialPolicy::bodyFor('structuring'))->toContain('- angle:')
         ->and(EditorialPolicy::modelFor('structuring'))->toBe(EditorialPolicy::DEFAULT_MODEL);
 
-    Livewire::test('pages::materials.index')
+    Livewire::test('pages::editorial.materials.index')
         ->set('structuring', MATERIAL_POLICY)->set('structuringModel', 'gpt-6-astra')
         ->call('saveStructuring')->assertHasNoErrors();
 
@@ -175,20 +178,39 @@ it('queues the missing and failed materials of adopted documents, and one materi
     $rejected = Document::factory()->fetched()->create();
     Screening::factory()->for($rejected)->rejected()->create();
 
-    Livewire::test('pages::materials.index')->call('extract');
+    Livewire::test('pages::editorial.materials.index')->call('extract');
 
     Queue::assertPushed(ExtractMaterial::class, 2);
     expect($unscreened->refresh()->material)->toBeNull()->and($rejected->refresh()->material)->toBeNull();
-    $this->get(route('documents.show', $rejected))->assertSee('スクリーニングで不採用になった文書です。');
+    $this->get(route('editorial.documents.show', $rejected))->assertSee('スクリーニングで不採用になった文書です。');
     expect($missing->material?->status)->toBe('extracting')
         ->and($failed->material()->sole()->status)->toBe('extracting')
         ->and($extracted->material()->sole()->status)->toBe('extracted')
         ->and(Material::query()->count())->toBe(3);
 
-    Livewire::test('pages::documents.show', ['document' => $extracted])->call('extract');
-    Livewire::test('pages::materials.show', ['material' => $extracted->material()->sole()])->call('extract');
+    Livewire::test('pages::editorial.documents.show', ['document' => $extracted])->call('extract');
+    Livewire::test('pages::editorial.materials.show', ['material' => $extracted->material()->sole()])->call('extract');
 
     Queue::assertPushed(ExtractMaterial::class, 4);
     expect($extracted->material()->sole()->status)->toBe('extracting')
         ->and(Material::query()->count())->toBe(3);
+});
+
+// The figures are gathered from the document's Markdown, not asked of the model: each with its alt text and caption, icons and logos left out, one shown twice kept once.
+it('gathers the figures of the source into the material', function () {
+    $markdown = MATERIAL_MARKDOWN."\n\n![](https://example.jp/fig1.jpg#lz:xlarge)\n\n本文の続き。\n\n![図1 燃焼器の構造](https://example.jp/fig1.jpg)\n\n図1 燃焼器の構造\n\n- ![図2 試験炉](https://example.jp/fig2.png)図2 試験炉の全景\n\n[PDF ![](https://example.jp/common/icon_pdf.png)](https://example.jp/a.pdf)\n\n- ![ロゴ](https://example.jp/800068828.jpg)";
+
+    expect(CollectFigures::from($markdown))->toBe([
+        ['url' => 'https://example.jp/fig1.jpg', 'alt' => '図1 燃焼器の構造', 'caption' => '図1 燃焼器の構造'],
+        ['url' => 'https://example.jp/fig2.png', 'alt' => '図2 試験炉', 'caption' => '図2 試験炉の全景'],
+    ]);
+
+    Http::fake(['api.openai.com/v1/responses' => Http::response(materialAnswer(materialParts()))]);
+    $material = extractMaterial(Document::factory()->fetched()->create(['markdown' => $markdown]));
+
+    expect($material->status)->toBe('extracted')
+        ->and($material->figures())->toHaveCount(2)
+        // The figures sit beside the parts, not among them.
+        ->and(array_keys($material->parts()))->toBe(ProposeMaterial::PARTS);
+    $this->get(route('editorial.materials.show', $material))->assertSee('図版')->assertSee('図2 試験炉の全景')->assertSee('https://example.jp/fig2.png');
 });

@@ -93,7 +93,7 @@ class ProposeArticle
 
         // A body to be written again is shown with what is wrong with it, so the rewrite fixes that and keeps the rest.
         if ($revision !== null) {
-            $input[] = ['role' => 'user', 'content' => "The body you wrote:\n\n{$revision['body']}\n\nWhat is wrong with it: {$revision['problem']}\n\nWrite it again, fixing that and keeping the headline, the four parts and everything else."];
+            $input[] = ['role' => 'user', 'content' => "The body you wrote:\n\n{$revision['body']}\n\nWhat is wrong with it:\n{$revision['problem']}\n\nWrite it again, fixing that and keeping everything else."];
         }
 
         return [

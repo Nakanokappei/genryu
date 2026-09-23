@@ -183,13 +183,13 @@ it('reports JSON list settings that match nothing', function () {
 it('saves the JSON list settings from the source detail screen', function () {
     $source = Source::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('json.url', 'https://www.example.org/data/news-article.json')->set('json.items', 'news')->set('json.date', 'date')->set('json.max_items', '20')
         ->call('saveJson')->assertHasNoErrors();
     expect($source->refresh()->json_config)->toEqual(['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 20]);
 
     // Clearing the URL stops reading from JSON.
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('json.items', 'news')
         ->set('json.url', '')
         ->call('saveJson')->assertHasNoErrors();
@@ -206,13 +206,13 @@ it('reports HTML list settings that match nothing', function () {
 it('saves the HTML list settings from the source detail screen', function () {
     $source = Source::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('list.item', 'table.table1 tr')->set('list.title', 'td a')->set('list.date', 'time')->set('list.next', 'a[title="next page"]')->set('list.max_pages', '4')
         ->call('saveList')->assertHasNoErrors();
     expect($source->refresh()->list_config)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => 'a[title="next page"]', 'max_pages' => 4]);
 
     // Clearing the item selector goes back to reading a feed.
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('list.item', 'table.table1 tr')
         ->set('list.item', '')
         ->call('saveList')->assertHasNoErrors();
@@ -236,7 +236,7 @@ it('runs from the source detail screen', function () {
     $source = Source::factory()->create(['url' => 'https://www.example.org/rss.xml']);
 
     // The listed documents are queued for fetching, not shown on the source (its list holds the failed ones only).
-    Livewire::test('pages::sources.show', ['source' => $source])
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->call('fetchUpdates')
         ->assertHasNoErrors()
         ->assertDontSee('First release');

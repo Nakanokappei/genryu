@@ -58,8 +58,8 @@ it('keeps the favicon the page advertises, or /favicon.ico, and serves it next t
     expect($source->favicon_path)->toBe("favicons/{$source->id}.png");
     Storage::disk('local')->assertExists("favicons/{$source->id}.png");
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'favicon.ico'));
-    $this->get(route('sources.favicon', $source))->assertOk()->assertHeader('Content-Type', 'image/png');
-    $this->get(route('sources.index'))->assertSee(route('sources.favicon', $source));
+    $this->get(route('editorial.sources.favicon', $source))->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get(route('editorial.sources.index'))->assertSee(route('editorial.sources.favicon', $source));
 
     // A page that advertises no icon falls back to /favicon.ico; a site without any leaves the source blank.
     $plain = configure(Source::factory()->create(['url' => 'https://www.example.org/rss.xml']));
@@ -170,15 +170,15 @@ it('reports how many feed entries the page links to, and skips feeds when told t
 it('remembers the list method chosen on the source detail screen', function () {
     $source = Source::factory()->create();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'feed')->set('method', 'html');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'feed')->set('method', 'html');
     expect($source->refresh()->read_as_html)->toBeTrue();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'html')
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'html')
         ->set('list.item', 'li')->set('list.title', 'a')->call('saveList')->assertHasNoErrors()
         ->set('method', 'json')->set('json.url', 'https://www.example.org/news.json')->call('saveJson')->assertHasNoErrors();
     expect($source->refresh()->list_config)->toBeNull()->and($source->json_config['url'])->toBe('https://www.example.org/news.json')->and($source->read_as_html)->toBeFalse();
 
-    Livewire::test('pages::sources.show', ['source' => $source])->assertSet('method', 'json');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'json');
 });
 
 // CNRS: <a href><h2 class="article__title">…</h2></a>; the agent proposed "h2.article__title a", which is inside out.
@@ -223,7 +223,7 @@ it('can be queued again from the source detail screen', function () {
     Queue::fake();
     $source = Source::factory()->create(['status' => 'failed', 'status_message' => 'boom']);
 
-    Livewire::test('pages::sources.show', ['source' => $source])->call('configure');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('configure');
 
     expect($source->refresh()->status)->toBe('pending');
     Queue::assertPushed(ConfigureSource::class);

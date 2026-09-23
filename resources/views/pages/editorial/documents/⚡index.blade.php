@@ -295,10 +295,10 @@ new #[Title('文書')] class extends PagedList {
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">
         @foreach ($this->documents as $document)
             <tr class="border-b-0" wire:key="title-{{ $document->id }}">
-                <td colspan="7" class="px-3 pt-2 pb-0"><x-pages::favicon :source="$document->source" /> <a href="{{ route('documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
+                <td colspan="7" class="px-3 pt-2 pb-0"><x-pages::favicon :source="$document->source" /> <a href="{{ route('editorial.documents.show', $document) }}" class="underline" wire:navigate>{{ $document->title }}</a></td>
             </tr>
             <tr wire:key="details-{{ $document->id }}">
-                <td class="px-3 pt-1 pb-2 text-neutral-500"><a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
+                <td class="px-3 pt-1 pb-2 text-neutral-500"><a href="{{ route('editorial.sources.show', $document->source) }}" class="underline" wire:navigate>{{ $document->source->name }}</a></td>
                 <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->published_at?->format('Y-m-d') }}</td>
                 <td class="px-3 pt-1 pb-2">
                     @if ($document->excluded_by !== null)
@@ -319,7 +319,7 @@ new #[Title('文書')] class extends PagedList {
                 <td class="whitespace-nowrap px-3 pt-1 pb-2 text-neutral-500">{{ $document->fetched_at?->display() ?? '—' }}</td>
                 <td class="px-3 pt-1 pb-2">
                     @if ($document->material)
-                        <a href="{{ route('materials.show', $document->material) }}" wire:navigate><x-pages::status :status="$document->material->status" /></a>
+                        <a href="{{ route('editorial.materials.show', $document->material) }}" wire:navigate><x-pages::status :status="$document->material->status" /></a>
                     @else
                         —
                     @endif

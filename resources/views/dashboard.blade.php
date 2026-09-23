@@ -6,10 +6,10 @@
 
         <div class="grid gap-4 md:grid-cols-4">
             @foreach ([
-                ['Sources', \App\Models\Source::count(), route('sources.index')],
-                ['Documents', \App\Models\Document::count(), route('documents.index')],
-                ['Materials', \App\Models\Material::count(), route('materials.index')],
-                ['Articles', \App\Models\Article::count(), route('articles.index')],
+                ['Sources', \App\Models\Source::count(), route('editorial.sources.index')],
+                ['Documents', \App\Models\Document::count(), route('editorial.documents.index')],
+                ['Materials', \App\Models\Material::count(), route('editorial.materials.index')],
+                ['Articles', \App\Models\Article::count(), route('editorial.articles.index')],
             ] as [$label, $count, $href])
                 <a href="{{ $href }}" wire:navigate class="rounded-xl border border-neutral-200 p-4 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-900">
                     <flux:text>{{ __($label) }}</flux:text>

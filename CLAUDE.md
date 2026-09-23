@@ -25,8 +25,16 @@ the product (purpose, the five stages, stack); read it first.
   a verdict recorded on a document (人の判定) that overrides and later
   teaches. Otherwise the hours a person puts in would have to grow with
   what the AI processes. Never add a step that blocks on human input.
-- The stages are screens in the sidebar: 情報源 (Sources), 文書
-  (Documents), 素材情報 (Materials), 記事 (Articles). There is no "update
+- The stages are screens in the sidebar, in two groups (decided
+  2026-09-23): **編集 (Editorial)** — 情報源 (Sources), 文書 (Documents),
+  素材情報 (Materials), 記事 (Articles) — makes an article; **編成
+  (Production)** takes the articles on to publication (quality check and
+  score against the media's policy, publishing, top image, publication
+  time per language, topping up thin days from the best of the rest,
+  comments). Each group is a directory under `resources/views/pages`, a
+  URL prefix and a route-name prefix (`editorial/…`, `editorial.…`), so
+  記事 can be a screen in both. Reading the comments and the audience
+  figures may later be a third group, Audience. There is no "update
   entry" entity (decided 2026-09-22): the rows of a source's update list
   are the documents themselves, fetched from the source, kept as the
   original and read into Markdown, all on one row of `documents` (stages
@@ -67,7 +75,10 @@ the product (purpose, the five stages, stack); read it first.
   written on), `before` / `change` / `after` (以前はこうだった → 今回ここが
   変わった → この変化が続けばこうなりうる), `facts` (lines the primary
   source gives), `background` (lines from the model's own general
-  knowledge) and the inference — `winners` (誰が得をするか), `losers`
+  knowledge), `figures` (図版: the source's images with alt text and
+  caption, gathered by `App\Actions\CollectFigures` from the Markdown —
+  no model, icons and logos left out by name, absent for a PDF or a page
+  without any; added 2026-09-23) and the inference — `winners` (誰が得をするか), `losers`
   (誰が損をするか: not who loses a job, but what is scarce, intermediary
   or incumbent today and is replaced) and `future_society` (どんな未来社会
   が訪れるか, with the conditions it needs). **Every value is a
@@ -158,12 +169,17 @@ the product (purpose, the five stages, stack); read it first.
   結 under `##`, and `## 出典` with the source as a link; every line is
   set apart by a blank line when it is kept (`Article::separateBlocks`),
   because models write paragraphs one newline apart and Markdown runs
-  them together. **The body's length is counted in code**
-  (`GenerateArticle::lengthOf`, `LENGTHS`: 800–1,200 characters in
-  Chinese or Japanese, 500–800 words otherwise, the sources section and
-  the Markdown marks left out): a body outside it is written once more
-  with its count in hand, the nearer of the two is kept, and one still
-  outside is kept with its count in the status message. **The topic word
+  them together. **The shape and the length are checked in code**
+  (`App\Actions\ValidateArticle`): the lead and the opening before the
+  first `##`, exactly three `##` sections, no label headings (起…) or
+  other levels, text under every heading, and a final 出典 linking the
+  source's URL; the length is 800–1,200 characters in Chinese or
+  Japanese, 500–800 words otherwise, the sources and the Markdown marks
+  left out. A body with problems is written again with them in hand, up
+  to `GenerateArticle::MAX_REWRITES` (2) times; the one with the fewest
+  problems, then the nearest length, is kept, and what is left is shown
+  in its status message. The opening swallowing 承 was the first
+  problem it caught. **The topic word
   is the field's own big noun** (decided 2026-09-23): the must once asked
   for a word the reader already knows, which fought the policy and
   failed デジタルツイン and 分解炉; the body's 承 explains the word.

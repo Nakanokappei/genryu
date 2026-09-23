@@ -2,6 +2,7 @@
 
 use App\Actions\ProposeArticle;
 use App\Actions\ProposeTranslation;
+use App\Actions\ValidateArticle;
 use App\Jobs\GenerateArticle;
 use App\Jobs\RefineHeadline;
 use App\Jobs\TranslateArticle;
@@ -21,10 +22,17 @@ const TRANSLATION_POLICY = "記事を対象言語へ翻訳する。一次情報�
 
 const ARTICLE_HEADLINE = '工業炉の炎はアンモニアでも燃える';
 
-/** A body inside the length the policy asks for: 900 characters before its sources. */
+const ARTICLE_URL = 'https://www.nedo.go.jp/news/press/1.html';
+
+/**
+ * A body in the shape the policy asks for — the lead, the opening with no
+ * heading, three ## sections and the sources — that counts the given
+ * number of characters before its sources.
+ */
 function articleBody(int $characters = 900): string
 {
-    return "## 工業炉はまだ化石燃料で燃えている\n\n".str_repeat('炉', $characters - mb_strlen('工業炉はまだ化石燃料で燃えている'))."\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html";
+    // リード。起の段落。承の見出し 承。転の見出し 転。結の見出し: 28 characters before the filler.
+    return "リード。\n\n起の段落。\n\n## 承の見出し\n\n承。\n\n## 転の見出し\n\n転。\n\n## 結の見出し\n\n".str_repeat('炉', $characters - 28)."\n\n## 出典\n\n[NEDO「アンモニア燃焼器」](".ARTICLE_URL.')';
 }
 
 define('ARTICLE_ANSWER', ['body' => articleBody(), 'language' => 'ja']);
@@ -54,7 +62,8 @@ function generateArticle(Material $material): Article
     // Queued as the screens queue it, so the article pins the prompt version and the model; the headline loop that runs first has settled the headline.
     $article = GenerateArticle::queueFor($material);
     $article->update(['title' => ARTICLE_HEADLINE]);
-    (new GenerateArticle($article))->handle(app(ProposeArticle::class));
+    $material->document->update(['url' => ARTICLE_URL]);
+    (new GenerateArticle($article))->handle(app(ProposeArticle::class), app(ValidateArticle::class));
 
     return $article->refresh();
 }
@@ -128,8 +137,8 @@ it('translates the article into the languages we publish in, with the source as 
     });
 
     // The article and its translations are one page, read by language.
-    $this->get(route('articles.show', $original))->assertSee('日本語')->assertSee('English')->assertSee('原文');
-    $this->get(route('articles.index'))->assertSee('日本語 / English');
+    $this->get(route('editorial.articles.show', $original))->assertSee('日本語')->assertSee('English')->assertSee('原文');
+    $this->get(route('editorial.articles.index'))->assertSee('日本語 / English');
 });
 
 it('fails when the agent leaves out the body', function () {
@@ -144,7 +153,7 @@ it('fails when the agent leaves out the body', function () {
 
 it('does not write a body before the headline is settled', function () {
     $article = GenerateArticle::queueFor(Material::factory()->create());
-    (new GenerateArticle($article))->handle(app(ProposeArticle::class));
+    (new GenerateArticle($article))->handle(app(ProposeArticle::class), app(ValidateArticle::class));
 
     expect($article->refresh()->status)->toBe('failed')->and($article->status_message)->toContain('見出しがまだ');
     Http::assertNothingSent();
@@ -169,7 +178,7 @@ it('reads the article generation layer from the articles screen, with a default 
     EditorialPolicy::query()->delete();
     expect(EditorialPolicy::bodyFor('article'))->toContain('- Format: Markdown');
 
-    Livewire::test('pages::articles.index')
+    Livewire::test('pages::editorial.articles.index')
         ->assertSet('article', EditorialPolicy::DEFAULTS['article'])
         ->set('article', '- 長さ: 300 字')
         ->call('savePolicy')->assertHasNoErrors();
@@ -190,7 +199,7 @@ it('queues the missing and failed articles of extracted materials, and one artic
     Article::factory()->for($generated)->create();
     Material::factory()->create(['status' => 'extracting', 'data' => null]);
 
-    Livewire::test('pages::articles.index')->call('generate');
+    Livewire::test('pages::editorial.articles.index')->call('generate');
 
     // Each article begins with its headline; the body follows the loop.
     Queue::assertPushed(RefineHeadline::class, 2);
@@ -199,8 +208,8 @@ it('queues the missing and failed articles of extracted materials, and one artic
         ->and($generated->articles()->sole()->status)->toBe('draft')
         ->and(Article::query()->count())->toBe(3);
 
-    Livewire::test('pages::materials.show', ['material' => $generated])->call('generate');
-    Livewire::test('pages::articles.show', ['article' => $generated->articles()->sole()])->call('generate');
+    Livewire::test('pages::editorial.materials.show', ['material' => $generated])->call('generate');
+    Livewire::test('pages::editorial.articles.show', ['article' => $generated->articles()->sole()])->call('generate');
 
     Queue::assertPushed(RefineHeadline::class, 4);
     expect($generated->articles()->sole()->status)->toBe('generating')
@@ -211,16 +220,16 @@ it('queues the missing and failed articles of extracted materials, and one artic
 it('shows the update title while the article is generating', function () {
     $article = Article::factory()->create(['status' => 'generating', 'title' => null, 'body' => null]);
 
-    $this->get(route('articles.index'))->assertSee($article->material->document->title)->assertSee('生成中');
-    $this->get(route('articles.show', $article))->assertSee($article->material->document->title)->assertSee('まだ生成していません');
+    $this->get(route('editorial.articles.index'))->assertSee($article->material->document->title)->assertSee('生成中');
+    $this->get(route('editorial.articles.show', $article))->assertSee($article->material->document->title)->assertSee('まだ生成していません');
 });
 
 // The length is counted in code: the sources and the Markdown marks are left out, characters for Chinese or Japanese, words otherwise.
 it('counts the length of a body as the policy does', function () {
-    expect(GenerateArticle::lengthOf(articleBody(), 'ja'))->toMatchArray(['count' => 900, 'unit' => 'characters', 'off' => 0])
-        ->and(GenerateArticle::lengthOf(articleBody(1300), 'ja')['off'])->toBe(100)
-        ->and(GenerateArticle::lengthOf(articleBody(700), null)['off'])->toBe(-100)
-        ->and(GenerateArticle::lengthOf("## Why\n\n".str_repeat('word ', 600)."\n\n## Sources\n\n[NEDO](https://example.com)", 'en'))->toMatchArray(['count' => 601, 'unit' => 'words', 'off' => 0]);
+    expect(ValidateArticle::lengthOf(articleBody(), 'ja'))->toMatchArray(['count' => 900, 'unit' => 'characters', 'off' => 0])
+        ->and(ValidateArticle::lengthOf(articleBody(1300), 'ja')['off'])->toBe(100)
+        ->and(ValidateArticle::lengthOf(articleBody(700), null)['off'])->toBe(-100)
+        ->and(ValidateArticle::lengthOf("## Why\n\n".str_repeat('word ', 600)."\n\n## Sources\n\n[NEDO](https://example.com)", 'en'))->toMatchArray(['count' => 601, 'unit' => 'words', 'off' => 0]);
 });
 
 // A body outside the range is written once more with its count in hand, and the one nearer the range is kept.
@@ -232,24 +241,27 @@ it('writes a body again when it is too long and keeps the nearer one', function 
     $article = generateArticle(Material::factory()->create());
 
     expect($article->status)->toBe('draft')
-        ->and(GenerateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1100)
-        ->and($article->status_message)->not->toContain('範囲外')
+        ->and(ValidateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1100)
+        ->and($article->status_message)->not->toContain('検査を通りませんでした')
         // Both calls are paid for, so both are counted.
         ->and($article->input_tokens)->toBe(6000);
     Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), 'It is 1400 characters long'));
 });
 
 // A rewrite that is no nearer is dropped, and the count is shown rather than anything waiting on a person.
-it('keeps the first body when the rewrite is no nearer, and says so', function () {
+it('keeps the first body when no rewrite is nearer, and says so', function () {
     Http::fake(['api.openai.com/*' => Http::sequence()
         ->push(articleAgentAnswer(['body' => articleBody(1300), 'language' => 'ja']))
-        ->push(articleAgentAnswer(['body' => articleBody(1500), 'language' => 'ja']))]);
+        ->push(articleAgentAnswer(['body' => articleBody(1500), 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1400), 'language' => 'ja']))]);
 
     $article = generateArticle(Material::factory()->create());
 
     expect($article->status)->toBe('draft')
-        ->and(GenerateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1300)
-        ->and($article->status_message)->toContain('1300 字')->toContain('範囲外');
+        ->and(ValidateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1300)
+        ->and($article->status_message)->toContain('検査を通りませんでした')->toContain('It is 1300 characters long');
+    // The first write and both rewrites.
+    expect(Http::recorded())->toHaveCount(1 + GenerateArticle::MAX_REWRITES);
     Queue::assertPushed(TranslateArticle::class, 3);
 });
 
@@ -257,4 +269,35 @@ it('keeps the first body when the rewrite is no nearer, and says so', function (
 it('sets every line of a body apart as its own block', function () {
     expect(Article::separateBlocks("リード。\n起の段落。\n## 承\n承の段落。\n\n\n## 出典\n[NEDO](https://example.com)\n"))
         ->toBe("リード。\n\n起の段落。\n\n## 承\n\n承の段落。\n\n## 出典\n\n[NEDO](https://example.com)");
+});
+
+// The shape is counted, not judged: each way a body can come apart is found, one line the agent can act on.
+it('finds where the shape of a body comes apart', function () {
+    $problems = fn (string $body): array => ValidateArticle::shapeProblems($body, ARTICLE_HEADLINE, ARTICLE_URL);
+
+    expect($problems(articleBody()))->toBe([])
+        // Opens on a heading, so the lead is gone.
+        ->and($problems("## 始まり\n\n".articleBody()))->toContain('The body starts with a heading; it must start with the lead, one paragraph with no heading.')
+        // The opening swallowed 承: only two sections before the sources.
+        ->and(implode(' ', $problems(str_replace("## 承の見出し\n\n", '', articleBody()))))->toContain('exactly 3 ## headings')
+        // A heading that is only the name of its part, a heading other than ##, and a section with nothing under it.
+        ->and(implode(' ', $problems(str_replace('## 転の見出し', '## 転', articleBody()))))->toContain('is a label')
+        ->and(implode(' ', $problems(str_replace('## 結の見出し', '### 結の見出し', articleBody()))))->toContain('Only ## headings')
+        ->and(implode(' ', $problems(str_replace("承。\n\n", '', articleBody()))))->toContain('has no text under it')
+        // The sources: missing, or not linking to the primary source.
+        ->and(implode(' ', $problems(preg_replace('/\n\n## 出典.*\z/s', '', articleBody()))))->toContain('must end with a ## 出典 section')
+        ->and(implode(' ', $problems(str_replace(ARTICLE_URL, 'https://example.com', articleBody()))))->toContain('must link to the primary source');
+});
+
+// A body that came apart is written again with its problems in hand, and the one that holds together is kept.
+it('writes a body again when its shape comes apart', function () {
+    Http::fake(['api.openai.com/*' => Http::sequence()
+        ->push(articleAgentAnswer(['body' => "## 始まり\n\n".str_repeat('炉', 900)."\n\n## 出典\n\n[NEDO](".ARTICLE_URL.')', 'language' => 'ja']))
+        ->push(articleAgentAnswer(ARTICLE_ANSWER))]);
+
+    $article = generateArticle(Material::factory()->create());
+
+    expect($article->body)->toBe(ARTICLE_ANSWER['body'])
+        ->and($article->status_message)->not->toContain('検査を通りませんでした');
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), '- The body starts with a heading'));
 });

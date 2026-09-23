@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Actions\ProposeArticle;
+use App\Actions\ValidateArticle;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
@@ -23,11 +24,13 @@ use Throwable;
  * body's call, as a screening and a material do. The outcome lands on the
  * article (status 生成中 / 下書き / 失敗) so the screens can show it.
  *
- * The length is counted here, not trusted to the model (added
- * 2026-09-23, when bodies of 1,300 characters came back against a limit
- * of 1,200): a body outside LENGTHS is written once more with its count
- * in hand, and the one nearer the range is kept. Nothing waits for a
- * person, so a body still outside it is kept and its count shown.
+ * The shape and the length of the body are checked here, not trusted
+ * to the model (App\Actions\ValidateArticle, 2026-09-23: an opening that
+ * swallowed 承, a missing sources section): a body with problems is
+ * written again with them in hand, up to MAX_REWRITES times, and the one
+ * with the fewest problems, then the nearest length, is kept. Nothing
+ * waits for a person, so a body that still has problems is kept and
+ * they are shown in its status message.
  */
 class GenerateArticle implements ShouldQueue
 {
@@ -37,8 +40,8 @@ class GenerateArticle implements ShouldQueue
 
     public int $timeout = 600;
 
-    /** How long a body may be, not counting its sources: characters in Chinese or Japanese, words otherwise. */
-    public const LENGTHS = ['characters' => [800, 1200], 'words' => [500, 800]];
+    /** How many times a body with problems is written again. */
+    public const MAX_REWRITES = 2;
 
     public function __construct(public Article $article) {}
 
@@ -65,7 +68,7 @@ class GenerateArticle implements ShouldQueue
         return RefineHeadline::queueFor($article);
     }
 
-    public function handle(ProposeArticle $propose): void
+    public function handle(ProposeArticle $propose, ValidateArticle $validate): void
     {
         $article = $this->article;
         $material = $article->material;
@@ -89,35 +92,48 @@ class GenerateArticle implements ShouldQueue
             $document = $material->document;
             $model = (string) $article->model;
             $write = fn (?array $revision = null): array => $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url, $revision);
-            $result = $write();
-            $body = trim((string) ($result['json']['body'] ?? ''));
+            // A written body with what the checks found in it, and how to rank it: fewer problems first, then a length nearer the range.
+            $check = function (array $result) use ($validate, $article, $document): array {
+                $body = trim((string) ($result['json']['body'] ?? ''));
+                $language = $result['json']['language'] ?? null;
 
-            if ($body === '') {
+                return [
+                    'result' => $result,
+                    'body' => $body,
+                    'problems' => $validate($body, $language, (string) $article->title, $document->url),
+                    'off' => abs(ValidateArticle::lengthOf($body, $language)['off']),
+                ];
+            };
+            $written = $check($write());
+
+            if ($written['body'] === '') {
                 throw new RuntimeException(__('The agent did not return a body.'));
             }
 
-            // A body outside the range is written once more with its count in hand; the one nearer the range is kept.
-            $length = self::lengthOf($body, $result['json']['language'] ?? null);
+            $best = $written;
+            $usages = [$written['result']['usage']];
 
-            if ($length['off'] !== 0) {
-                $problem = "It is {$length['count']} {$length['unit']} long, not counting the sources; it must be {$length['min']}–{$length['max']} {$length['unit']}.";
-                $retry = $write(['body' => $body, 'problem' => $problem]);
-                $retryBody = trim((string) ($retry['json']['body'] ?? ''));
-                $retryLength = self::lengthOf($retryBody, $retry['json']['language'] ?? null);
-                // Both calls are paid for, so both are counted.
-                $usage = array_map(fn ($first, $second) => $first === null && $second === null ? null : (int) $first + (int) $second, $result['usage'], $retry['usage']);
-                $result = $retryBody !== '' && abs($retryLength['off']) < abs($length['off']) ? $retry : $result;
-                $result['usage'] = array_combine(array_keys($retry['usage']), $usage);
-                $body = trim((string) $result['json']['body']);
-                $length = self::lengthOf($body, $result['json']['language'] ?? null);
+            // A body with problems is written again with them in hand, from the last one written.
+            for ($rewrite = 1; $rewrite <= self::MAX_REWRITES && $written['problems'] !== []; $rewrite++) {
+                $written = $check($write(['body' => $written['body'], 'problem' => implode("\n", array_map(fn (string $problem): string => "- {$problem}", $written['problems']))]));
+                $usages[] = $written['result']['usage'];
+
+                if ($written['body'] !== '' && [count($written['problems']), $written['off']] < [count($best['problems']), $best['off']]) {
+                    $best = $written;
+                }
             }
+
+            $result = $best['result'];
+            $body = $best['body'];
+            // Every call is paid for, so every call is counted.
+            $result['usage'] = self::sumUsage($usages);
 
             $article->update([
                 'body' => Article::separateBlocks($body),
                 // The language the agent says it wrote in, which is the material's and so the primary source's.
                 'language' => in_array($result['json']['language'] ?? null, Article::SOURCE_LANGUAGES, true) ? $result['json']['language'] : null,
                 'status' => 'draft',
-                'status_message' => __('Generated by :model.', ['model' => $model]).($length['off'] === 0 ? '' : ' '.__('The body is :count :unit, outside :min–:max.', ['count' => $length['count'], 'unit' => __($length['unit']), 'min' => $length['min'], 'max' => $length['max']])),
+                'status_message' => __('Generated by :model.', ['model' => $model]).($best['problems'] === [] ? '' : ' '.__('The article did not pass the checks: :errors', ['errors' => implode(' ', $best['problems'])])),
                 ...$result['usage'],
                 'estimated_total_cost' => ScreenDocument::estimatedCost($model, $result['usage'])['estimated_total_cost'],
             ]);
@@ -134,26 +150,21 @@ class GenerateArticle implements ShouldQueue
     }
 
     /**
-     * The length of a body as the policy counts it: the sources section
-     * (the heading that names 出典 or Sources, and what follows) and the
-     * Markdown marks left out; characters without spaces in Chinese or
-     * Japanese (by the language the agent named, else by the script),
-     * words otherwise. `off` is how far outside the range it
-     * is, negative when short, 0 when inside.
+     * The usage of several calls added up, key by key; a figure no call
+     * reported stays unknown.
      *
-     * @return array{count: int, unit: string, min: int, max: int, off: int}
+     * @param  list<array<string, ?int>>  $usages
+     * @return array<string, ?int>
      */
-    public static function lengthOf(string $body, ?string $language): array
+    private static function sumUsage(array $usages): array
     {
-        $text = preg_replace('/^#{1,6}\s*(出典|出处|出處|Sources?|Quellen)\b.*\z/imsu', '', $body) ?? $body;
-        $text = preg_replace('/^#{1,6}\s*|\[([^\]]*)\]\([^)]*\)|[*_`>]/mu', '$1', $text) ?? $text;
-        $isCjk = $language === null ? preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}]/u', $text) === 1 : in_array($language, ['ja', 'zh-Hans', 'zh-Hant'], true);
-        $unit = $isCjk ? 'characters' : 'words';
-        $count = $unit === 'characters'
-            ? mb_strlen(preg_replace('/\s+/u', '', $text) ?? $text)
-            : count(preg_split('/\s+/u', trim($text), -1, PREG_SPLIT_NO_EMPTY) ?: []);
-        [$min, $max] = self::LENGTHS[$unit];
+        $sum = [];
 
-        return ['count' => $count, 'unit' => $unit, 'min' => $min, 'max' => $max, 'off' => $count < $min ? $count - $min : max(0, $count - $max)];
+        foreach (array_keys($usages[0]) as $key) {
+            $values = array_filter(array_column($usages, $key), fn ($value) => $value !== null);
+            $sum[$key] = $values === [] ? null : (int) array_sum($values);
+        }
+
+        return $sum;
     }
 }

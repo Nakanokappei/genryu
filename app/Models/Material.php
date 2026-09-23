@@ -17,7 +17,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * what this document changes, what may follow, the facts the primary
  * source gives, the background the model fills in from its own general
  * knowledge, and what it infers from both: who gains, who loses, what
- * everyday life looks like if this holds. Nothing about itself: a part
+ * everyday life looks like if this holds. Beside them, the figures of the
+ * source (図版, `figures`: URL, alt text and caption), gathered by
+ * App\Actions\CollectFigures from its Markdown rather than by the model. Nothing about itself: a part
  * the model cannot write plainly is absent rather than hedged. Pinned to the
  * document revision it was made from, the prompt version and the model;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
@@ -77,6 +79,16 @@ class Material extends Model
         }
 
         return $counts;
+    }
+
+    /**
+     * The figures of the source, in the order they appear there.
+     *
+     * @return list<array{url: string, alt: string, caption: ?string}>
+     */
+    public function figures(): array
+    {
+        return array_values((array) ($this->data['figures'] ?? []));
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */

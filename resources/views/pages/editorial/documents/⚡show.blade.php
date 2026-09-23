@@ -84,7 +84,7 @@ new #[Title('文書')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($document->status === 'fetching' || $document->screening?->status === 'screening' || $document->material?->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('documents.index')" :back-label="__('Documents')" :source="$document->source" :title="$document->title" />
+    <x-pages::detail-header :back="route('editorial.documents.index')" :back-label="__('Documents')" :source="$document->source" :title="$document->title" />
 
     {{-- What the document is and where it came from, then its three times. The URL opens the primary source itself, in a window of its own. --}}
     <div class="space-y-2 rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-700">
@@ -122,7 +122,7 @@ new #[Title('文書')] class extends Component {
             <flux:text class="flex-1">{{ __('Not fetched yet.') }}</flux:text>
         @endif
         @if ($document->original_path)
-            <a href="{{ route('documents.original', $document) }}" class="text-sm underline">{{ __('Original') }} ↓</a>
+            <a href="{{ route('editorial.documents.original', $document) }}" class="text-sm underline">{{ __('Original') }} ↓</a>
         @endif
         <flux:button wire:click="fetchDocument" size="sm" icon="arrow-path">{{ $document->status === null ? __('Fetch document') : __('Fetch again') }}</flux:button>
     </div>
@@ -130,7 +130,7 @@ new #[Title('文書')] class extends Component {
     @if ($document->hasShortBody())
         <flux:callout variant="warning" icon="exclamation-triangle">
             <flux:callout.heading>{{ __('The body has only :count characters', ['count' => mb_strlen((string) $document->markdown)]) }}</flux:callout.heading>
-            <flux:callout.text>{{ __('The document settings of the source may catch a teaser or a header instead of the body. Compare with the original, then fix the settings on the source and rebuild the Markdown.') }} <a href="{{ route('sources.show', $document->source) }}" class="underline" wire:navigate>{{ __('Document settings of :source', ['source' => $document->source->name]) }}</a></flux:callout.text>
+            <flux:callout.text>{{ __('The document settings of the source may catch a teaser or a header instead of the body. Compare with the original, then fix the settings on the source and rebuild the Markdown.') }} <a href="{{ route('editorial.sources.show', $document->source) }}" class="underline" wire:navigate>{{ __('Document settings of :source', ['source' => $document->source->name]) }}</a></flux:callout.text>
         </flux:callout>
     @endif
 
@@ -194,7 +194,7 @@ new #[Title('文書')] class extends Component {
         @if ($document->material)
             <x-pages::status :status="$document->material->status" />
             <flux:text class="flex-1">
-                <a href="{{ route('materials.show', $document->material) }}" class="underline" wire:navigate>{{ __('Open') }}</a>
+                <a href="{{ route('editorial.materials.show', $document->material) }}" class="underline" wire:navigate>{{ __('Open') }}</a>
                 @if ($document->material->status_message)
                     — {{ $document->material->status_message }}
                 @endif

@@ -87,7 +87,7 @@ new #[Title('記事')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($this->versions->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->inUiLanguage->displayTitle()" />
+    <x-pages::detail-header :back="route('editorial.articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->inUiLanguage->displayTitle()" />
 
     <x-pages::fields :fields="[
         __('Document') => $this->original()->material?->document->title,
@@ -109,7 +109,7 @@ new #[Title('記事')] class extends Component {
         <x-pages::status :status="$this->reading->status" />
         <flux:text class="flex-1">{{ $this->reading->status_message ?? '—' }}</flux:text>
         @if ($this->original()->material)
-            <a href="{{ route('materials.show', $this->original()->material) }}" class="text-sm underline" wire:navigate>{{ __('Material') }}</a>
+            <a href="{{ route('editorial.materials.show', $this->original()->material) }}" class="text-sm underline" wire:navigate>{{ __('Material') }}</a>
             @if ($this->reading->isOriginal())
                 <flux:button wire:click="generate" size="sm" icon="arrow-path">{{ __('Generate again') }}</flux:button>
             @else
