@@ -99,9 +99,7 @@ class GenerateArticle implements ShouldQueue
             return;
         }
 
-        // Nothing waits for a person: the languages we publish in follow the article as soon as it exists.
-        foreach ($article->refresh()->translationLanguages() as $language) {
-            TranslateArticle::queueFor($article, $language);
-        }
+        // The headline is scored and written again before anything is translated, so the translations carry the final one.
+        RefineHeadline::queueFor($article->refresh());
     }
 }

@@ -22,6 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * the call, so articles written under different policies can be compared.
  *
  * @property string|null $language
+ * @property array<string, mixed>|null $headline_review what the headline scored against the rubric, with every attempt
  */
 class Article extends Model
 {
@@ -53,12 +54,13 @@ class Article extends Model
 
     protected $fillable = [
         'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'status', 'status_message', 'published_at',
+        'headline_prompt_id', 'headline_model', 'headline_review',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
 
     protected function casts(): array
     {
-        return ['published_at' => 'datetime', 'estimated_total_cost' => 'float'];
+        return ['published_at' => 'datetime', 'estimated_total_cost' => 'float', 'headline_review' => 'array'];
     }
 
     /**
@@ -103,6 +105,12 @@ class Article extends Model
     public function prompt(): BelongsTo
     {
         return $this->belongsTo(Prompt::class);
+    }
+
+    /** @return BelongsTo<Prompt, $this> the version of the headline layer the loop scored it with */
+    public function headlinePrompt(): BelongsTo
+    {
+        return $this->belongsTo(Prompt::class, 'headline_prompt_id');
     }
 
     /** @return BelongsTo<Article, $this> the article this one was translated from */

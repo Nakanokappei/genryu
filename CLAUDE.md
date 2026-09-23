@@ -134,6 +134,33 @@ the product (purpose, the five stages, stack); read it first.
   素材情報; **the 編集方針 screen is gone** (2026-09-23) — every layer now
   lives with what it governs. The article screen is one page per piece,
   with the languages as tabs over it.
+- **見出しは採点して書き直すループ** (stage 2.4, built 2026-09-23). The
+  headline is the hook the whole article rests on and the cheapest thing
+  to write again, so it is the one loop in the pipeline, and it is
+  bounded: `App\Jobs\RefineHeadline` scores the headline the writer gave
+  (`App\Actions\ScoreHeadline`), and when it does not pass has another
+  written with the review in hand (`App\Actions\ProposeHeadline`) and
+  scores that, up to `RefineHeadline::ATTEMPTS` (3) headlines. The
+  best-scoring one is kept whether or not any passed, with the whole
+  review in `articles.headline_review`, and the translations are queued
+  only when the headline is settled so that they carry the final one.
+  **The model scores; PHP decides**: the weights, the arithmetic and the
+  verdict are in `ScoreHeadline`, so two runs of the same rubric compare
+  and a model cannot pass itself by adding up wrongly. Three layers —
+  `MUSTS` (pass or fail), `COMMON` (eight items, 80 points between them),
+  `OPTIONAL` (eleven items of 10, of which only the best
+  `OPTIONAL_COUNTED` are added, because one article cannot carry them
+  all). A headline passes on `PASS_TOTAL` (80), nothing failed, and at
+  least `PASS_SPECIFIC` of the 20 for being specific to this article.
+  The rubric lives in code because the schema is built from its keys;
+  the 見出し layer of the editorial policy says what a headline is for
+  and what form it takes, and is edited on 記事. Two things were learned
+  at once: "a forecast written as a fact" was too strong a must for a
+  headline, which has no room to qualify (dropped, it belongs to the
+  body), and a rubric of eight items pushes the model to cram — the form
+  rules (one short line, no colon-subtitle, no two claims joined by a
+  comma) had to go into the policy before the rewrites read like
+  headlines rather than contents pages.
 - **The selection layer (取捨選択) is set in two places, not on 編集方針**
   (decided 2026-09-22). The **title filter** (タイトルフィルタ) is on the
   情報源 list screen: when an update list is read only the titles are in

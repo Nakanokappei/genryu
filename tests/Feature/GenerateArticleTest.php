@@ -3,6 +3,7 @@
 use App\Actions\ProposeArticle;
 use App\Actions\ProposeTranslation;
 use App\Jobs\GenerateArticle;
+use App\Jobs\RefineHeadline;
 use App\Jobs\TranslateArticle;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
@@ -68,8 +69,11 @@ it('has the agent write an article from an extracted material per the article ge
         ->and($article->translated_from_id)->toBeNull()
         ->and($article->translationLanguages())->toBe(['en', 'zh-Hant', 'zh-Hans'])
         ->and($article)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 800]);
-    Queue::assertPushed(TranslateArticle::class, 3);
-    expect($material->articles()->whereNotNull('translated_from_id')->pluck('language')->sort()->values()->all())->toBe(['en', 'zh-Hans', 'zh-Hant']);
+    // The headline loop comes between the writing and the translations, so that they carry the settled headline.
+    Queue::assertPushed(RefineHeadline::class, 1);
+    Queue::assertNotPushed(TranslateArticle::class);
+    expect($article->headline_model)->toBe(EditorialPolicy::modelFor('headline'))
+        ->and($article->headlinePrompt?->name)->toBe('headline');
     // The policy is the cached developer message; the material JSON, document title and URL are the input; the answer is a title and a body.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
         && $request['model'] === 'gpt-5.6-luna'

@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Model;
 class EditorialPolicy extends Model
 {
     /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 記事生成 / 翻訳. */
-    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article', 'translation'];
+    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'article', 'headline', 'translation'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
@@ -30,6 +30,7 @@ class EditorialPolicy extends Model
         'content_filtering' => '',
         'structuring' => '',
         'article' => '',
+        'headline' => '',
         'translation' => '',
     ];
 

@@ -16,6 +16,11 @@ new #[Title('記事')] class extends PagedList {
 
     public string $articleModel = EditorialPolicy::DEFAULT_MODEL;
 
+    /** The developer prompt of the headline judge, and the model it runs on. */
+    public string $headline = '';
+
+    public string $headlineModel = EditorialPolicy::DEFAULT_MODEL;
+
     /** The developer prompt of the translator, and the model it runs on. */
     public string $translation = '';
 
@@ -26,7 +31,7 @@ new #[Title('記事')] class extends PagedList {
 
     public function mount(): void
     {
-        foreach (['article', 'translation'] as $layer) {
+        foreach (['article', 'headline', 'translation'] as $layer) {
             $this->{$layer} = EditorialPolicy::bodyFor($layer);
             $this->{$layer.'Model'} = EditorialPolicy::modelFor($layer);
         }
@@ -35,9 +40,9 @@ new #[Title('記事')] class extends PagedList {
     public function savePolicy(): void
     {
         $models = ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))];
-        $this->validate(['articleModel' => $models, 'translationModel' => $models]);
+        $this->validate(['articleModel' => $models, 'headlineModel' => $models, 'translationModel' => $models]);
 
-        foreach (['article', 'translation'] as $layer) {
+        foreach (['article', 'headline', 'translation'] as $layer) {
             EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $this->{$layer}, 'model' => $this->{$layer.'Model'}]);
         }
 
@@ -72,11 +77,21 @@ new #[Title('記事')] class extends PagedList {
             <flux:heading size="lg">{{ __('Editorial policy') }}</flux:heading>
             <flux:radio.group wire:model.live="layer" variant="segmented" size="sm" class="ms-auto">
                 <flux:radio value="article" :label="__('Article generation')" />
+                <flux:radio value="headline" :label="__('Headline')" />
                 <flux:radio value="translation" :label="__('Translation')" />
             </flux:radio.group>
         </div>
 
-        @if ($layer === 'translation')
+        @if ($layer === 'headline')
+            <flux:text>{{ __('The developer prompt and the model of the headline loop: the headline the writer gave is scored against the rubric below, and when it does not pass another is written with the review in hand and scored again, up to :attempts times. The best-scoring headline is kept. The rubric, its points and the pass mark are fixed in the code; this prompt says what a headline is for and how to judge it.', ['attempts' => \App\Jobs\RefineHeadline::ATTEMPTS]) }}</flux:text>
+            <flux:textarea wire:model="headline" :label="__('Developer prompt (editable)')" rows="10" class="font-mono text-xs" />
+            <x-pages::fixed-prompts :instruction="\App\Actions\ScoreHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::rubric()" :input="[__('The headline'), __('The article as written')]" />
+            <flux:select wire:model="headlineModel" :label="__('Model of the headline')" class="max-w-xl">
+                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
+                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
+                @endforeach
+            </flux:select>
+        @elseif ($layer === 'translation')
             <flux:text>{{ __('The developer prompt and the model of the translator: the article is translated into the languages we publish in, never written again from the material, so the nuance of the primary source survives. The source and the material go along as context, because a translator without them mistranslates the terms.') }} {{ implode(' / ', array_map(fn ($code) => \App\Models\Article::LANGUAGE_NAMES[$code], \App\Models\Article::LANGUAGES)) }}</flux:text>
             <flux:textarea wire:model="translation" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
             <x-pages::fixed-prompts :instruction="str_replace('%s', __('the target language'), \App\Actions\ProposeTranslation::INSTRUCTIONS)" :input="[__('The article as written'), __('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
