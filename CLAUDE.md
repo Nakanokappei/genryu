@@ -147,11 +147,19 @@ the product (purpose, the five stages, stack); read it first.
   **The model scores; PHP decides**: the weights, the arithmetic and the
   verdict are in `ScoreHeadline`, so two runs of the same rubric compare
   and a model cannot pass itself by adding up wrongly. Three layers —
-  `MUSTS` (pass or fail), `COMMON` (eight items, 80 points between them),
-  `OPTIONAL` (eleven items of 10, of which only the best
+  `MUSTS` (pass or fail), `COMMON` (six items, 80 points between them),
+  `OPTIONAL` (thirteen items of 10, of which only the best
   `OPTIONAL_COUNTED` are added, because one article cannot carry them
-  all). A headline passes on `PASS_TOTAL` (80), nothing failed, and at
+  all). A headline passes on `PASS_TOTAL` (70), nothing failed, and at
   least `PASS_SPECIFIC` of the 20 for being specific to this article.
+  The bar and the rubric were tuned together: eight common items and a
+  bar of 80 were cleared by nothing (the best of five articles scored 64
+  to 77), and a bar nothing clears costs the full three attempts on every
+  article, so 今読む理由 and 利益・損失 moved to the optional items — one
+  short line cannot carry them as well — their points were spread over
+  the six that remain, and the bar came down to 70. The same five then
+  passed, four of them on the headline the writer had already given, and
+  25 calls became 7.
   The rubric lives in code because the schema is built from its keys;
   the 見出し layer of the editorial policy says what a headline is for
   and what form it takes, and is edited on 記事. Two things were learned
