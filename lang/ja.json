@@ -315,5 +315,22 @@
     "The headline has not been written yet.": "見出しがまだ作られていません。",
     "The agent did not return a headline.": "エージェントが見出しを返しませんでした。",
     "The article did not pass the checks: :errors": "記事が検査を通りませんでした: :errors",
-    "figures": "図版"
+    "figures": "図版",
+    "Production": "編成",
+    "Quality check": "品質チェック",
+    "Quality": "品質",
+    "Checked at": "チェック日時",
+    "checking": "チェック中",
+    "checked": "チェック済み",
+    "Model of the quality check": "品質チェックのモデル",
+    "Check unchecked articles": "未チェックの記事をチェック",
+    "Check all articles again": "すべての記事をチェックし直す",
+    ":count quality checks queued.": ":count 件の品質チェックを登録しました。",
+    "Check every article that has not been checked, or whose check failed? Each one is one call to the model.": "未チェックの記事と、チェックに失敗した記事をチェックしますか？ 1件ごとにモデルを1回呼び出します。",
+    "Check every article again? Each one is one call to the model.": "すべての記事をチェックし直しますか？ 1件ごとにモデルを1回呼び出します。",
+    "The developer prompt and the model of the quality check: every written article is scored out of 100 against the media's standards and the rubric written here, with the reason the points were lost. The rubric lives in this prompt, so changing it here changes how articles are scored; check them all again after a change.": "書かれた記事を、ここに書いたメディアの基準と採点基準で100点満点で採点し、減点の理由を添えます。採点基準はこのプロンプトの中にあるので、ここを変えると採点が変わります。変えたあとは、すべての記事をチェックし直してください。",
+    "Only a written original article is checked.": "チェックするのは、書き上がった原文の記事だけです。",
+    "The quality layer of the editorial policy is empty.": "編集方針の「品質チェック」が空です。",
+    "The agent did not return a score.": "エージェントが点数を返しませんでした。",
+    "Checked by :model.": ":model でチェックしました。"
 }

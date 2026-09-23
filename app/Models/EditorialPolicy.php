@@ -22,8 +22,8 @@ use Illuminate\Database\Eloquent\Model;
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳. */
-    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'headline', 'article', 'translation'];
+    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック. */
+    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
@@ -32,6 +32,7 @@ class EditorialPolicy extends Model
         'structuring' => '',
         'headline' => '',
         'article' => '',
+        'quality' => '',
         'translation' => '',
     ];
 

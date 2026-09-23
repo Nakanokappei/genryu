@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
  * 記事 (UI: "Articles"): written from a material by App\Jobs\GenerateArticle
@@ -129,6 +130,18 @@ class Article extends Model
     public function translatedFrom(): BelongsTo
     {
         return $this->belongsTo(Article::class, 'translated_from_id');
+    }
+
+    /** @return HasMany<QualityCheck, $this> every scoring of this article (品質チェック) */
+    public function qualityChecks(): HasMany
+    {
+        return $this->hasMany(QualityCheck::class);
+    }
+
+    /** @return HasOne<QualityCheck, $this> the latest scoring, the one the screens show */
+    public function qualityCheck(): HasOne
+    {
+        return $this->hasOne(QualityCheck::class)->latestOfMany();
     }
 
     /** @return HasMany<Article, $this> the translations made from this article */

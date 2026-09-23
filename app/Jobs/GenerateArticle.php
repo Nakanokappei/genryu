@@ -19,7 +19,7 @@ use Throwable;
  * comes first, from the material (App\Jobs\RefineHeadline); this job then
  * has the agent write the body under that headline per the article
  * generation layer of the editorial policy, checks that a body came back,
- * and keeps it; the translations follow. The article pins the prompt
+ * and keeps it; the translations and the quality check follow. The article pins the prompt
  * versions and the models it was written with and keeps the usage of the
  * body's call, as a screening and a material do. The outcome lands on the
  * article (status 生成中 / 下書き / 失敗) so the screens can show it.
@@ -91,7 +91,8 @@ class GenerateArticle implements ShouldQueue
 
             $document = $material->document;
             $model = (string) $article->model;
-            $write = fn (?array $revision = null): array => $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url, $revision);
+            // A first write, or a rewrite of a body with what is wrong with it.
+            $write = fn (?string $previous = null, string $problems = ''): array => $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url, $previous === null ? null : ['body' => $previous, 'problem' => $problems]);
             // A written body with what the checks found in it, and how to rank it: fewer problems first, then a length nearer the range.
             $check = function (array $result) use ($validate, $article, $document): array {
                 $body = trim((string) ($result['json']['body'] ?? ''));
@@ -115,7 +116,7 @@ class GenerateArticle implements ShouldQueue
 
             // A body with problems is written again with them in hand, from the last one written.
             for ($rewrite = 1; $rewrite <= self::MAX_REWRITES && $written['problems'] !== []; $rewrite++) {
-                $written = $check($write(['body' => $written['body'], 'problem' => implode("\n", array_map(fn (string $problem): string => "- {$problem}", $written['problems']))]));
+                $written = $check($write($written['body'], implode("\n", array_map(fn (string $problem): string => "- {$problem}", $written['problems']))));
                 $usages[] = $written['result']['usage'];
 
                 if ($written['body'] !== '' && [count($written['problems']), $written['off']] < [count($best['problems']), $best['off']]) {
@@ -143,10 +144,12 @@ class GenerateArticle implements ShouldQueue
             return;
         }
 
-        // Nothing waits for a person: the languages we publish in follow the written article.
+        // Nothing waits for a person: the languages we publish in follow the written article, and 編成 scores it (品質チェック).
         foreach ($article->refresh()->translationLanguages() as $language) {
             TranslateArticle::queueFor($article, $language);
         }
+
+        CheckQuality::queueFor($article);
     }
 
     /**
@@ -154,17 +157,16 @@ class GenerateArticle implements ShouldQueue
      * reported stays unknown.
      *
      * @param  list<array<string, ?int>>  $usages
-     * @return array<string, ?int>
+     * @return array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: ?int}
      */
     private static function sumUsage(array $usages): array
     {
-        $sum = [];
-
-        foreach (array_keys($usages[0]) as $key) {
+        $sum = function (string $key) use ($usages): ?int {
             $values = array_filter(array_column($usages, $key), fn ($value) => $value !== null);
-            $sum[$key] = $values === [] ? null : (int) array_sum($values);
-        }
 
-        return $sum;
+            return $values === [] ? null : (int) array_sum($values);
+        };
+
+        return ['input_tokens' => $sum('input_tokens'), 'cached_tokens' => $sum('cached_tokens'), 'cache_write_tokens' => $sum('cache_write_tokens'), 'output_tokens' => $sum('output_tokens'), 'latency_ms' => $sum('latency_ms')];
     }
 }

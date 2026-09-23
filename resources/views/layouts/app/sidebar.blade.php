@@ -15,7 +15,7 @@
                     {{ __('Dashboard') }}
                 </flux:sidebar.item>
 
-                {{-- 編集 (Editorial): the stages that make an article, in flow order (docs/HANDOVER.md); documents are listed and fetched on one screen. 編成 (Production) follows as its own group once its first screen exists. --}}
+                {{-- 編集 (Editorial): the stages that make an article, in flow order (docs/HANDOVER.md); documents are listed and fetched on one screen. --}}
                 <flux:sidebar.group :heading="__('Editorial')" class="grid">
                     <flux:sidebar.item icon="globe-alt" :href="route('editorial.sources.index')" :current="request()->routeIs('editorial.sources.*')" wire:navigate>
                         {{ __('Sources') }}
@@ -28,6 +28,13 @@
                     </flux:sidebar.item>
                     <flux:sidebar.item icon="newspaper" :href="route('editorial.articles.index')" :current="request()->routeIs('editorial.articles.*')" wire:navigate>
                         {{ __('Articles') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
+
+                {{-- 編成 (Production): the stages that take the written articles on to their publication, in flow order. --}}
+                <flux:sidebar.group :heading="__('Production')" class="grid">
+                    <flux:sidebar.item icon="check-badge" :href="route('production.quality.index')" :current="request()->routeIs('production.quality.*')" wire:navigate>
+                        {{ __('Quality check') }}
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 

@@ -3,6 +3,7 @@
 use App\Actions\ProposeArticle;
 use App\Actions\ProposeTranslation;
 use App\Actions\ValidateArticle;
+use App\Jobs\CheckQuality;
 use App\Jobs\GenerateArticle;
 use App\Jobs\RefineHeadline;
 use App\Jobs\TranslateArticle;
@@ -87,9 +88,10 @@ it('has the agent write the body under the settled headline from an extracted ma
         ->and($article->translated_from_id)->toBeNull()
         ->and($article->translationLanguages())->toBe(['en', 'zh-Hant', 'zh-Hans'])
         ->and($article)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 800]);
-    // The headline loop is queued first, and the translations follow the body.
+    // The headline loop is queued first; the translations and the quality check (編成) follow the body.
     Queue::assertPushed(RefineHeadline::class, 1);
     Queue::assertPushed(TranslateArticle::class, 3);
+    Queue::assertPushed(CheckQuality::class, 1);
     expect($article->headline_model)->toBe(EditorialPolicy::modelFor('headline'))
         ->and($article->headlinePrompt?->name)->toBe('headline');
     // The policy is the cached developer message; the headline, the material JSON, document title and URL are the input; the answer is a body.

@@ -208,6 +208,19 @@ the product (purpose, the five stages, stack); read it first.
   rules (one short line, no colon-subtitle, no two claims joined by a
   comma) had to go into the policy before the rewrites read like
   headlines rather than contents pages.
+- **品質チェック is the first screen of 編成** (built 2026-09-23,
+  `production/quality`). `App\Jobs\CheckQuality` (agent
+  `App\Actions\ScoreQuality`, Responses API, the policy cached) scores a
+  written original out of 100 against the `quality` layer of the
+  editorial policy, **whose rubric lives in the policy text** (edited on
+  the screen, unlike the headline's rubric in code), with the material to
+  check the facts against, and keeps the score and the reason where the
+  points were lost. Every run is a `quality_checks` row (prompt version,
+  model, usage), the article shows its latest (`Article::qualityCheck`).
+  Queued as soon as `GenerateArticle` has written a body; the screen
+  queues the unchecked / failed ones, or all again after the policy
+  changes. Translations are not checked. No pass mark yet: it comes with
+  the next stage (starting the publication of articles that clear it).
 - **The selection layer (取捨選択) is set in two places, not on 編集方針**
   (decided 2026-09-22). The **title filter** (タイトルフィルタ) is on the
   情報源 list screen: when an update list is read only the titles are in

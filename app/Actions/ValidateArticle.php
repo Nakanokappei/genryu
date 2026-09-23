@@ -57,9 +57,12 @@ class ValidateArticle
             $problems[] = 'The body starts with a heading; it must start with the lead, one paragraph with no heading.';
         }
 
-        // Split the body at its ## headings: what comes before the first, then each section with its paragraphs.
+        // Split the body at its ## headings: what comes before the first, then each heading with the paragraphs under it.
         $opening = 0;
-        $sections = [];
+        $headings = [];
+        $paragraphs = [];
+        // The text under the latest heading, which at the end is the sources section's.
+        $underLast = '';
 
         foreach ($lines as $line) {
             if (preg_match('/^(#+)\s*(.*)$/u', $line, $match) === 1) {
@@ -69,11 +72,14 @@ class ValidateArticle
                     continue;
                 }
 
-                $sections[] = ['heading' => trim($match[2]), 'lines' => []];
-            } elseif ($sections === []) {
+                $headings[] = trim($match[2]);
+                $paragraphs[] = 0;
+                $underLast = '';
+            } elseif ($headings === []) {
                 $opening++;
             } else {
-                $sections[array_key_last($sections)]['lines'][] = $line;
+                $paragraphs[array_key_last($paragraphs)]++;
+                $underLast .= $line."\n";
             }
         }
 
@@ -83,32 +89,33 @@ class ValidateArticle
         }
 
         // The sources close the article and link to the primary source.
-        $last = $sections === [] ? null : $sections[array_key_last($sections)];
+        $isSources = fn (string $heading): bool => preg_match(self::SOURCES_HEADING, $heading) === 1;
+        $last = array_key_last($headings);
 
-        if ($last === null || preg_match(self::SOURCES_HEADING, $last['heading']) !== 1) {
+        if ($last === null || ! $isSources($headings[$last])) {
             $problems[] = 'The body must end with a ## 出典 section (Sources in other languages).';
-        } elseif (! str_contains(implode("\n", $last['lines']), $url)) {
+        } elseif (! str_contains($underLast, $url)) {
             $problems[] = "The sources section must link to the primary source: {$url}";
         }
 
-        $content = array_values(array_filter($sections, fn (array $section): bool => preg_match(self::SOURCES_HEADING, $section['heading']) !== 1));
+        $content = array_filter($headings, fn (string $heading): bool => ! $isSources($heading));
 
         if (count($content) !== self::SECTIONS) {
             $problems[] = 'There must be exactly '.self::SECTIONS.' ## headings before the sources, one each for 承, 転 and 結; found '.count($content).'.';
         }
 
-        foreach ($content as $section) {
+        foreach ($content as $index => $heading) {
             // A heading is a plain phrase, not the name of the part it heads, and not the headline again.
-            if (preg_match('/^[起承転結](\s|[:：]|$)/u', $section['heading']) === 1) {
-                $problems[] = "The heading \"{$section['heading']}\" is a label; write a plain phrase.";
+            if (preg_match('/^[起承転結](\s|[:：]|$)/u', $heading) === 1) {
+                $problems[] = "The heading \"{$heading}\" is a label; write a plain phrase.";
             }
 
-            if ($section['heading'] === trim($headline)) {
+            if ($heading === trim($headline)) {
                 $problems[] = 'A heading repeats the headline.';
             }
 
-            if ($section['lines'] === []) {
-                $problems[] = "The section \"{$section['heading']}\" has no text under it.";
+            if ($paragraphs[$index] === 0) {
+                $problems[] = "The section \"{$heading}\" has no text under it.";
             }
         }
 

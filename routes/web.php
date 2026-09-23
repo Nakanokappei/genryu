@@ -11,7 +11,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 
     // 編集 (Editorial): the stages that make an article, from its sources to its writing (docs/HANDOVER.md), a list and a detail each.
-    // 編成 (Production), which takes the articles on to their publication, gets its own group beside it.
     Route::prefix('editorial')->name('editorial.')->group(function () {
         Route::livewire('sources', 'pages::editorial.sources.index')->name('sources.index');
         Route::livewire('sources/{source}', 'pages::editorial.sources.show')->name('sources.show');
@@ -25,6 +24,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('materials/{material}', 'pages::editorial.materials.show')->name('materials.show');
         Route::livewire('articles', 'pages::editorial.articles.index')->name('articles.index');
         Route::livewire('articles/{article}', 'pages::editorial.articles.show')->name('articles.show');
+    });
+
+    // 編成 (Production): the stages that take the written articles on to their publication.
+    Route::prefix('production')->name('production.')->group(function () {
+        Route::livewire('quality', 'pages::production.quality.index')->name('quality.index');
     });
 
     // 編集方針 (Editorial policy): one screen, one body of text per layer.
