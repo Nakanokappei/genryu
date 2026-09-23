@@ -30,9 +30,10 @@ class ProposeArticle
 
     /**
      * @param  array<string, mixed>  $material
+     * @param  array{body: string, problem: string}|null  $revision  a body already written and what is wrong with it, when it is to be written again
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url): array
+    public function __invoke(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null): array
     {
         $key = (string) config('services.openai.key');
 
@@ -44,7 +45,7 @@ class ProposeArticle
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $headline, $documentTitle, $url))
+            ->post(self::ENDPOINT, self::request($policy, $model, $material, $headline, $documentTitle, $url, $revision))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -70,26 +71,35 @@ class ProposeArticle
      * The request: the policy first, as the developer message, with the
      * cache breakpoint on it; the instructions after it; the headline,
      * then the material with the document it came from last; the answer
-     * constrained to a Markdown body and its language.
+     * constrained to a Markdown body and its language. A rewrite adds
+     * the body already written and what is wrong with it after that.
      *
      * @param  array<string, mixed>  $material
+     * @param  array{body: string, problem: string}|null  $revision
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url): array
+    public static function request(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url, ?array $revision = null): array
     {
+        $input = [
+            [
+                'role' => 'developer',
+                'content' => [
+                    ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
+                ],
+            ],
+            ['role' => 'developer', 'content' => self::INSTRUCTIONS],
+            ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+        ];
+
+        // A body to be written again is shown with what is wrong with it, so the rewrite fixes that and keeps the rest.
+        if ($revision !== null) {
+            $input[] = ['role' => 'user', 'content' => "The body you wrote:\n\n{$revision['body']}\n\nWhat is wrong with it: {$revision['problem']}\n\nWrite it again, fixing that and keeping the headline, the four parts and everything else."];
+        }
+
         return [
             'model' => $model,
             'prompt_cache_options' => ['mode' => 'explicit'],
-            'input' => [
-                [
-                    'role' => 'developer',
-                    'content' => [
-                        ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
-                    ],
-                ],
-                ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-                ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
-            ],
+            'input' => $input,
             'text' => [
                 'format' => [
                     'type' => 'json_schema',

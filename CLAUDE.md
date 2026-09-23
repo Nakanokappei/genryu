@@ -152,12 +152,26 @@ the product (purpose, the five stages, stack); read it first.
   parts — 起 an opening against the headline (the present, before the
   technology), 承 the background and key words the rest needs, 転 the
   new technology, 結 the world once it is real — and the translations
-  follow the body.
+  follow the body. **The Markdown has one shape** (2026-09-23): the
+  headline is the `#` the screen puts above the body, so the body is a
+  lead (the whole article in one paragraph), 起 with no heading, 承 / 転 /
+  結 under `##`, and `## 出典` with the source as a link; every line is
+  set apart by a blank line when it is kept (`Article::separateBlocks`),
+  because models write paragraphs one newline apart and Markdown runs
+  them together. **The body's length is counted in code**
+  (`GenerateArticle::lengthOf`, `LENGTHS`: 800–1,200 characters in
+  Chinese or Japanese, 500–800 words otherwise, the sources section and
+  the Markdown marks left out): a body outside it is written once more
+  with its count in hand, the nearer of the two is kept, and one still
+  outside is kept with its count in the status message. **The topic word
+  is the field's own big noun** (decided 2026-09-23): the must once asked
+  for a word the reader already knows, which fought the policy and
+  failed デジタルツイン and 分解炉; the body's 承 explains the word.
   **The model scores; PHP decides**: the weights, the arithmetic and the
   verdict are in `ScoreHeadline`, so two runs of the same rubric compare
   and a model cannot pass itself by adding up wrongly. Three layers —
-  `MUSTS` (pass or fail), `COMMON` (seven items, 80 points between them; 何が可能になるか joined them on 2026-09-23 after a run as a must drove headlines past what the material could vouch for; the length is a must counted in code, 25 characters or 12 words),
-  `OPTIONAL` (thirteen items of 10, of which only the best
+  `MUSTS` (pass or fail), `COMMON` (eight items, 80 points between them; 何が可能になるか joined them on 2026-09-23 after a run as a must drove headlines past what the material could vouch for; the length is a must counted in code, 30 characters or 14 words; 常識が覆る moved up from the optional items with 15 points and a bar of its own, `PASS_REVERSED`, after headlines that only summarised the news passed at once),
+  `OPTIONAL` (twelve items of 10, of which only the best
   `OPTIONAL_COUNTED` are added, because one article cannot carry them
   all). A headline passes on `PASS_TOTAL` (70), nothing failed, and at
   least `PASS_SPECIFIC` of the 20 for being specific to this article.

@@ -67,7 +67,7 @@ function refineHeadline(Article $article): Article
     return $article->refresh();
 }
 
-// The arithmetic is ours: seven common items plus the best two of the optional ones, and three conditions to pass.
+// The arithmetic is ours: eight common items plus the best two of the optional ones, and four conditions to pass.
 it('adds up the score and decides the verdict itself', function () {
     $full = ScoreHeadline::review(json_decode((string) headlineScore(100, 10)['output'][0]['content'][0]['text'], true), '短い見出し');
 
@@ -86,6 +86,10 @@ it('adds up the score and decides the verdict itself', function () {
     // Specific to this article carries its own bar, even when everything else is full.
     $vague = ScoreHeadline::review(json_decode((string) headlineScore(100, 10, ['common' => [...array_map(fn (array $item): int => $item['points'], ScoreHeadline::COMMON), 'specific_to_this_article' => 5]])['output'][0]['content'][0]['text'], true), '短い見出し');
     expect($vague['passed'])->toBeFalse();
+
+    // So does the reversal: a headline that only summarises does not pass, however well it scores elsewhere.
+    $summary = ScoreHeadline::review(json_decode((string) headlineScore(100, 10, ['common' => [...array_map(fn (array $item): int => $item['points'], ScoreHeadline::COMMON), 'common_sense_reversed' => ScoreHeadline::PASS_REVERSED - 1]])['output'][0]['content'][0]['text'], true), '短い見出し');
+    expect($summary['total'])->toBeGreaterThanOrEqual(ScoreHeadline::PASS_TOTAL)->and($summary['passed'])->toBeFalse();
 });
 
 // The length is counted in code: characters for Chinese or Japanese, words otherwise.

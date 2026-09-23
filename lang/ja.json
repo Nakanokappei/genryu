@@ -313,5 +313,8 @@
     "The material did not pass the checks: :errors": "素材情報が検査を通りませんでした: :errors",
     "The headlines already tried and the review of the last one": "試した見出しと、直前の見出しの採点結果（書き直しのとき）",
     "The headline has not been written yet.": "見出しがまだ作られていません。",
-    "The agent did not return a headline.": "エージェントが見出しを返しませんでした。"
+    "The agent did not return a headline.": "エージェントが見出しを返しませんでした。",
+    "The body is :count :unit, outside :min–:max.": "本文は :count :unit で、:min〜:max の範囲外です。",
+    "characters": "字",
+    "words": "語"
 }

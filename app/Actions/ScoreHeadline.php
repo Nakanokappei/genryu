@@ -16,11 +16,12 @@ use RuntimeException;
  * The model scores; it does not decide. The weights, the arithmetic and
  * the verdict are here, in PHP, so that two runs of the same rubric are
  * comparable and a model cannot pass itself by adding up wrongly. Three
- * layers: the musts, which are pass or fail; seven common items worth 80
- * between them; and eleven optional ones worth 10 each, of which only the
+ * layers: the musts, which are pass or fail; eight common items worth 80
+ * between them; and twelve optional ones worth 10 each, of which only the
  * best two count, because an article does not have to carry all of them.
  * A headline passes when nothing failed, the total is at least
- * PASS_TOTAL, and it is at least half specific to this article.
+ * PASS_TOTAL, and it is at least half specific to this article and at
+ * least a clear reversal of what the reader takes for granted.
  */
 class ScoreHeadline
 {
@@ -34,7 +35,8 @@ class ScoreHeadline
      */
     public const MUSTS = [
         'topic_word_present' => 'The headline carries a topic word that belongs to what the article is about.',
-        'word_is_common' => 'That topic word is one the intended reader knows.',
+        // Until 2026-09-23 this asked for a word the reader already knows, which fought the policy's "the field's own big noun" and failed デジタルツイン and 分解炉; the body's second part explains the word, so the headline may carry one the reader has yet to learn.
+        'topic_word_names_the_field' => 'That topic word is the field\'s own big noun, naming the world the article steps into — not a general word such as technology, AI or research, and not a specialist\'s narrow term such as a model number. It need not be a word the reader already uses.',
         'read_at_once' => 'The headline can be taken in on one reading.',
         'faithful' => 'The material supports what the headline claims and promises.',
     ];
@@ -43,11 +45,13 @@ class ScoreHeadline
      * The one must counted here rather than judged by the model: a
      * headline in Chinese or Japanese takes at most MAX_CHARACTERS
      * characters, one in any other language at most MAX_WORDS words.
-     * Added 2026-09-23, when a headline of 36 characters passed on 82.
+     * Added 2026-09-23, when a headline of 36 characters passed on 82, at
+     * 25 characters; raised to 30 the same day, because a line that
+     * denies an assumption needs room for the contrast.
      */
-    public const MAX_CHARACTERS = 25;
+    public const MAX_CHARACTERS = 30;
 
-    public const MAX_WORDS = 12;
+    public const MAX_WORDS = 14;
 
     /**
      * Every headline is scored on all six; 80 between them. There were
@@ -59,16 +63,21 @@ class ScoreHeadline
      * rest. The direction of a headline was a must for one run on
      * 2026-09-23 and pushed the writer to claim a distant future the
      * material could not vouch for, so it is scored here instead, as what
-     * this announcement makes possible.
+     * this announcement makes possible. The reversal of what the reader
+     * takes for granted — what the headline is for — was one optional
+     * item among thirteen until 2026-09-23, when headlines that only
+     * summarised the news passed at once; it is scored on every headline
+     * now and carries a bar of its own (PASS_REVERSED).
      */
     public const COMMON = [
         'specific_to_this_article' => ['points' => 20, 'about' => 'Only an article from this material could carry this headline: a fact, a finding or a cause from it is at the centre.'],
-        'about_the_reader' => ['points' => 10, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
-        'curiosity' => ['points' => 10, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
-        'concreteness' => ['points' => 10, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
-        'single_focus' => ['points' => 10, 'about' => 'One claim, not several.'],
-        'latent_question' => ['points' => 10, 'about' => 'It puts into words a doubt the reader half felt already.'],
-        'what_this_makes_possible' => ['points' => 10, 'about' => 'It points to what this announcement makes possible, not to what still stands in the way: the step this news takes, not a distant future the material cannot vouch for.'],
+        'common_sense_reversed' => ['points' => 15, 'about' => 'What the reader takes for granted stops being true: the headline denies an assumption, or shows it looking in the wrong place, rather than summarising the news.'],
+        'about_the_reader' => ['points' => 8, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
+        'curiosity' => ['points' => 8, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
+        'concreteness' => ['points' => 8, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
+        'single_focus' => ['points' => 7, 'about' => 'One claim, not several.'],
+        'latent_question' => ['points' => 7, 'about' => 'It puts into words a doubt the reader half felt already.'],
+        'what_this_makes_possible' => ['points' => 7, 'about' => 'It points to what this announcement makes possible, not to what still stands in the way: the step this news takes, not a distant future the material cannot vouch for.'],
     ];
 
     /** Scored the same way, but only the best two are added: a headline need not carry them all. */
@@ -77,7 +86,6 @@ class ScoreHeadline
         'impossible_made_possible' => 'What could not be done becomes possible.',
         'why_the_strong_lose' => 'It shows why those who are strong today lose.',
         'how_the_weak_win' => 'It shows how those who are weak today win.',
-        'common_sense_reversed' => 'What is taken for granted stops being true.',
         'unthinkable_becomes_normal' => 'What is unthinkable today becomes ordinary.',
         'surprising_proper_noun' => 'A name everyone knows makes the whole headline unexpected.',
         'surprising_causality' => 'A cause and an effect are joined in a way nobody would have guessed.',
@@ -101,6 +109,14 @@ class ScoreHeadline
 
     /** And it has to be at least half specific to this article, whatever else it scores. */
     public const PASS_SPECIFIC = 10;
+
+    /**
+     * And a clear reversal of what the reader takes for granted: a
+     * headline that only summarises does not pass. Half the 15 (8) let a
+     * paraphrase through on 2026-09-23 (熟練者の操作を教材に変える), so the
+     * bar is 12.
+     */
+    public const PASS_REVERSED = 12;
 
     /** What the model is told after the cached policy: the rubric, and that it scores rather than decides. Shown on the screen under the prompt. */
     public const INSTRUCTIONS = 'Score the headline below against every item, on the material rather than on what the headline promises. Score 0 when an item is not met, half its points when it is partly met, and its full points when it is met. An angle that is only the same thing said again does not score twice among the optional items. Add nothing up: the totals and the verdict are worked out from your scores. In what_to_fix, say in one or two lines what a better headline would have to do — never write the headline itself.';
@@ -226,8 +242,8 @@ class ScoreHeadline
 
     /**
      * The review as it is kept: every score held to its ceiling, the
-     * total worked out here — the seven common items plus the best two
-     * optional ones — and the verdict from the three conditions.
+     * total worked out here — the eight common items plus the best two
+     * optional ones — and the verdict from the four conditions.
      *
      * @param  array<string, mixed>  $json  what the model answered
      * @return array<string, mixed>
@@ -269,7 +285,8 @@ class ScoreHeadline
             'optional' => $optional,
             'counted' => $counted->keys()->all(),
             'total' => $total,
-            'passed' => $failed === [] && $total >= self::PASS_TOTAL && $common['specific_to_this_article'] >= self::PASS_SPECIFIC,
+            'passed' => $failed === [] && $total >= self::PASS_TOTAL && $common['specific_to_this_article'] >= self::PASS_SPECIFIC
+                && $common['common_sense_reversed'] >= self::PASS_REVERSED,
             'what_to_fix' => trim((string) ($json['what_to_fix'] ?? '')),
         ];
     }

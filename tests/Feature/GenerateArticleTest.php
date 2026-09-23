@@ -21,7 +21,13 @@ const TRANSLATION_POLICY = "記事を対象言語へ翻訳する。一次情報�
 
 const ARTICLE_HEADLINE = '工業炉の炎はアンモニアでも燃える';
 
-const ARTICLE_ANSWER = ['body' => "## 工業炉はまだ化石燃料で燃えている\n\n…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html", 'language' => 'ja'];
+/** A body inside the length the policy asks for: 900 characters before its sources. */
+function articleBody(int $characters = 900): string
+{
+    return "## 工業炉はまだ化石燃料で燃えている\n\n".str_repeat('炉', $characters - mb_strlen('工業炉はまだ化石燃料で燃えている'))."\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html";
+}
+
+define('ARTICLE_ANSWER', ['body' => articleBody(), 'language' => 'ja']);
 
 /**
  * What the agent would answer, as the Responses API wire format.
@@ -207,4 +213,48 @@ it('shows the update title while the article is generating', function () {
 
     $this->get(route('articles.index'))->assertSee($article->material->document->title)->assertSee('生成中');
     $this->get(route('articles.show', $article))->assertSee($article->material->document->title)->assertSee('まだ生成していません');
+});
+
+// The length is counted in code: the sources and the Markdown marks are left out, characters for Chinese or Japanese, words otherwise.
+it('counts the length of a body as the policy does', function () {
+    expect(GenerateArticle::lengthOf(articleBody(), 'ja'))->toMatchArray(['count' => 900, 'unit' => 'characters', 'off' => 0])
+        ->and(GenerateArticle::lengthOf(articleBody(1300), 'ja')['off'])->toBe(100)
+        ->and(GenerateArticle::lengthOf(articleBody(700), null)['off'])->toBe(-100)
+        ->and(GenerateArticle::lengthOf("## Why\n\n".str_repeat('word ', 600)."\n\n## Sources\n\n[NEDO](https://example.com)", 'en'))->toMatchArray(['count' => 601, 'unit' => 'words', 'off' => 0]);
+});
+
+// A body outside the range is written once more with its count in hand, and the one nearer the range is kept.
+it('writes a body again when it is too long and keeps the nearer one', function () {
+    Http::fake(['api.openai.com/*' => Http::sequence()
+        ->push(articleAgentAnswer(['body' => articleBody(1400), 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1100), 'language' => 'ja']))]);
+
+    $article = generateArticle(Material::factory()->create());
+
+    expect($article->status)->toBe('draft')
+        ->and(GenerateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1100)
+        ->and($article->status_message)->not->toContain('範囲外')
+        // Both calls are paid for, so both are counted.
+        ->and($article->input_tokens)->toBe(6000);
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), 'It is 1400 characters long'));
+});
+
+// A rewrite that is no nearer is dropped, and the count is shown rather than anything waiting on a person.
+it('keeps the first body when the rewrite is no nearer, and says so', function () {
+    Http::fake(['api.openai.com/*' => Http::sequence()
+        ->push(articleAgentAnswer(['body' => articleBody(1300), 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1500), 'language' => 'ja']))]);
+
+    $article = generateArticle(Material::factory()->create());
+
+    expect($article->status)->toBe('draft')
+        ->and(GenerateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1300)
+        ->and($article->status_message)->toContain('1300 字')->toContain('範囲外');
+    Queue::assertPushed(TranslateArticle::class, 3);
+});
+
+// Models write paragraphs one newline apart, which Markdown would run together; every line is set apart before the body is kept.
+it('sets every line of a body apart as its own block', function () {
+    expect(Article::separateBlocks("リード。\n起の段落。\n## 承\n承の段落。\n\n\n## 出典\n[NEDO](https://example.com)\n"))
+        ->toBe("リード。\n\n起の段落。\n\n## 承\n\n承の段落。\n\n## 出典\n\n[NEDO](https://example.com)");
 });

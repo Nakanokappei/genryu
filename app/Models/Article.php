@@ -52,6 +52,18 @@ class Article extends Model
         'zh-Hant' => '繁體中文',
     ];
 
+    /**
+     * A body with a blank line between every two lines: models write the
+     * paragraphs one newline apart, which Markdown runs together into one
+     * paragraph (the lead into the opening). Every line of a body is a
+     * block of its own — a paragraph, a heading, the source's link — so
+     * nothing is lost by setting them apart.
+     */
+    public static function separateBlocks(string $body): string
+    {
+        return trim(preg_replace('/\n\s*\n+|\n/u', "\n\n", str_replace("\r\n", "\n", $body)) ?? $body);
+    }
+
     protected $fillable = [
         'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'status', 'status_message', 'published_at',
         'headline_prompt_id', 'headline_model', 'headline_review',

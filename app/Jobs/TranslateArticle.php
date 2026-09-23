@@ -85,7 +85,7 @@ class TranslateArticle implements ShouldQueue
 
             $translation->update([
                 'title' => $title,
-                'body' => $body,
+                'body' => Article::separateBlocks($body),
                 'status' => 'draft',
                 'status_message' => __('Translated by :model.', ['model' => $model]),
                 ...$result['usage'],
