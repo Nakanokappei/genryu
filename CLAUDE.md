@@ -129,7 +129,8 @@ the product (purpose, the five stages, stack); read it first.
   correcting it. A material therefore has several `articles` rows: the
   original (`translated_from_id` null, `language` the source's) and its
   translations, each pinning its own prompt version, model and usage.
-  **Both prompts and both models are set on the 記事 screen**, above what
+  **The prompts and models are set on the 記事 screen** (見出し, 記事生成,
+  翻訳 — the tabs in the order they are applied), above what
   they make, as the content filtering is on 文書 and the structuring on
   素材情報; **the 編集方針 screen is gone** (2026-09-23) — every layer now
   lives with what it governs. The article screen is one page per piece,
@@ -137,17 +138,25 @@ the product (purpose, the five stages, stack); read it first.
 - **見出しは採点して書き直すループ** (stage 2.4, built 2026-09-23). The
   headline is the hook the whole article rests on and the cheapest thing
   to write again, so it is the one loop in the pipeline, and it is
-  bounded: `App\Jobs\RefineHeadline` scores the headline the writer gave
-  (`App\Actions\ScoreHeadline`), and when it does not pass has another
-  written with the review in hand (`App\Actions\ProposeHeadline`) and
-  scores that, up to `RefineHeadline::ATTEMPTS` (3) headlines. The
-  best-scoring one is kept whether or not any passed, with the whole
-  review in `articles.headline_review`, and the translations are queued
-  only when the headline is settled so that they carry the final one.
+  bounded. **The headline comes before the body** (reordered 2026-09-23):
+  `GenerateArticle::queueFor` queues `App\Jobs\RefineHeadline`, which
+  has the headline written from the material in the source language
+  (`App\Actions\ProposeHeadline`, in four steps: topic word, plain
+  draft, the assumption it rests on, the line that denies it), scores it
+  on the material (`App\Actions\ScoreHeadline`), and when it does not
+  pass has another written with the review in hand, up to
+  `RefineHeadline::ATTEMPTS` (3) headlines. The best-scoring one is kept
+  whether or not any passed, with the whole review in
+  `articles.headline_review`; no headline fails the article. Then
+  `GenerateArticle` writes the body under the settled headline in four
+  parts — 起 an opening against the headline (the present, before the
+  technology), 承 the background and key words the rest needs, 転 the
+  new technology, 結 the world once it is real — and the translations
+  follow the body.
   **The model scores; PHP decides**: the weights, the arithmetic and the
   verdict are in `ScoreHeadline`, so two runs of the same rubric compare
   and a model cannot pass itself by adding up wrongly. Three layers —
-  `MUSTS` (pass or fail), `COMMON` (six items, 80 points between them),
+  `MUSTS` (pass or fail), `COMMON` (seven items, 80 points between them; 何が可能になるか joined them on 2026-09-23 after a run as a must drove headlines past what the material could vouch for; the length is a must counted in code, 25 characters or 12 words),
   `OPTIONAL` (thirteen items of 10, of which only the best
   `OPTIONAL_COUNTED` are added, because one article cannot carry them
   all). A headline passes on `PASS_TOTAL` (70), nothing failed, and at

@@ -2,19 +2,21 @@
 
 namespace App\Actions;
 
-use App\Models\Article;
 use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
  * The judge of 見出し (the headline): given the headline layer of the
- * editorial policy, a headline and the article under it, a model scores
- * the headline item by item and says what a better one would have to do.
+ * editorial policy, a headline and the material its article will be
+ * written from, a model scores the headline item by item and says what a
+ * better one would have to do. The headline comes before the body, so it
+ * is judged on what the material can deliver, and the body is then
+ * written to deliver it.
  *
  * The model scores; it does not decide. The weights, the arithmetic and
  * the verdict are here, in PHP, so that two runs of the same rubric are
  * comparable and a model cannot pass itself by adding up wrongly. Three
- * layers: the musts, which are pass or fail; eight common items worth 80
+ * layers: the musts, which are pass or fail; seven common items worth 80
  * between them; and eleven optional ones worth 10 each, of which only the
  * best two count, because an article does not have to carry all of them.
  * A headline passes when nothing failed, the total is at least
@@ -23,8 +25,6 @@ use RuntimeException;
 class ScoreHeadline
 {
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
-
-    private const MAX_BODY_CHARS = 20000;
 
     /**
      * Fail any of these and the headline is rewritten whatever it scored.
@@ -36,8 +36,18 @@ class ScoreHeadline
         'topic_word_present' => 'The headline carries a topic word that belongs to what the article is about.',
         'word_is_common' => 'That topic word is one the intended reader knows.',
         'read_at_once' => 'The headline can be taken in on one reading.',
-        'faithful' => 'The article answers what the headline claims and promises.',
+        'faithful' => 'The material supports what the headline claims and promises.',
     ];
+
+    /**
+     * The one must counted here rather than judged by the model: a
+     * headline in Chinese or Japanese takes at most MAX_CHARACTERS
+     * characters, one in any other language at most MAX_WORDS words.
+     * Added 2026-09-23, when a headline of 36 characters passed on 82.
+     */
+    public const MAX_CHARACTERS = 25;
+
+    public const MAX_WORDS = 12;
 
     /**
      * Every headline is scored on all six; 80 between them. There were
@@ -46,15 +56,19 @@ class ScoreHeadline
      * no headline reached (the best of five articles scored 64 to 77),
      * so those two moved to the optional items, where a headline may
      * take them or leave them, and their points were spread over the
-     * rest.
+     * rest. The direction of a headline was a must for one run on
+     * 2026-09-23 and pushed the writer to claim a distant future the
+     * material could not vouch for, so it is scored here instead, as what
+     * this announcement makes possible.
      */
     public const COMMON = [
-        'specific_to_this_article' => ['points' => 20, 'about' => 'Only this article could carry this headline: a fact, a finding or a cause from it is at the centre.'],
-        'about_the_reader' => ['points' => 12, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
-        'curiosity' => ['points' => 12, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
-        'concreteness' => ['points' => 12, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
-        'single_focus' => ['points' => 12, 'about' => 'One claim, not several.'],
-        'latent_question' => ['points' => 12, 'about' => 'It puts into words a doubt the reader half felt already.'],
+        'specific_to_this_article' => ['points' => 20, 'about' => 'Only an article from this material could carry this headline: a fact, a finding or a cause from it is at the centre.'],
+        'about_the_reader' => ['points' => 10, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
+        'curiosity' => ['points' => 10, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
+        'concreteness' => ['points' => 10, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
+        'single_focus' => ['points' => 10, 'about' => 'One claim, not several.'],
+        'latent_question' => ['points' => 10, 'about' => 'It puts into words a doubt the reader half felt already.'],
+        'what_this_makes_possible' => ['points' => 10, 'about' => 'It points to what this announcement makes possible, not to what still stands in the way: the step this news takes, not a distant future the material cannot vouch for.'],
     ];
 
     /** Scored the same way, but only the best two are added: a headline need not carry them all. */
@@ -89,12 +103,13 @@ class ScoreHeadline
     public const PASS_SPECIFIC = 10;
 
     /** What the model is told after the cached policy: the rubric, and that it scores rather than decides. Shown on the screen under the prompt. */
-    public const INSTRUCTIONS = 'Score the headline below against every item, on the article as written rather than on what the headline promises. Score 0 when an item is not met, half its points when it is partly met, and its full points when it is met. An angle that is only the same thing said again does not score twice among the optional items. Add nothing up: the totals and the verdict are worked out from your scores. In what_to_fix, say in one or two lines what a better headline would have to do — never write the headline itself.';
+    public const INSTRUCTIONS = 'Score the headline below against every item, on the material rather than on what the headline promises. Score 0 when an item is not met, half its points when it is partly met, and its full points when it is met. An angle that is only the same thing said again does not score twice among the optional items. Add nothing up: the totals and the verdict are worked out from your scores. In what_to_fix, say in one or two lines what a better headline would have to do — never write the headline itself.';
 
     /**
+     * @param  array<string, mixed>  $material
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, string $headline, Article $article): array
+    public function __invoke(string $policy, string $model, string $headline, array $material): array
     {
         $key = (string) config('services.openai.key');
 
@@ -106,7 +121,7 @@ class ScoreHeadline
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $headline, $article))
+            ->post(self::ENDPOINT, self::request($policy, $model, $headline, $material))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -131,11 +146,12 @@ class ScoreHeadline
     /**
      * The request: the policy first, as the developer message, with the
      * cache breakpoint on it; the rubric after it; the headline and the
-     * article it heads last.
+     * material its article will be written from last.
      *
+     * @param  array<string, mixed>  $material
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, string $headline, Article $article): array
+    public static function request(string $policy, string $model, string $headline, array $material): array
     {
         return [
             'model' => $model,
@@ -148,7 +164,7 @@ class ScoreHeadline
                     ],
                 ],
                 ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".self::rubric()],
-                ['role' => 'user', 'content' => "Headline:\n{$headline}\n\nArticle:\n".mb_substr((string) $article->body, 0, self::MAX_BODY_CHARS)],
+                ['role' => 'user', 'content' => "Headline:\n{$headline}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
             ],
             'text' => [
                 'format' => [
@@ -169,6 +185,8 @@ class ScoreHeadline
         foreach (self::MUSTS as $key => $about) {
             $lines[] = "- {$key}: {$about}";
         }
+
+        $lines[] = '- short_enough (counted by code, not scored): at most '.self::MAX_CHARACTERS.' characters in Chinese or Japanese, at most '.self::MAX_WORDS.' words in any other language.';
 
         $lines[] = '';
         $lines[] = 'Scored on every headline, 80 points between them:';
@@ -208,13 +226,13 @@ class ScoreHeadline
 
     /**
      * The review as it is kept: every score held to its ceiling, the
-     * total worked out here — the eight common items plus the best two
+     * total worked out here — the seven common items plus the best two
      * optional ones — and the verdict from the three conditions.
      *
      * @param  array<string, mixed>  $json  what the model answered
      * @return array<string, mixed>
      */
-    public static function review(array $json): array
+    public static function review(array $json, string $headline): array
     {
         $failed = [];
 
@@ -222,6 +240,11 @@ class ScoreHeadline
             if (($json['musts'][$key] ?? false) !== true) {
                 $failed[] = $key;
             }
+        }
+
+        // The length is counted, not judged: a model reads a long line as short enough.
+        if (! self::isShortEnough($headline)) {
+            $failed[] = 'short_enough';
         }
 
         $common = [];
@@ -249,6 +272,19 @@ class ScoreHeadline
             'passed' => $failed === [] && $total >= self::PASS_TOTAL && $common['specific_to_this_article'] >= self::PASS_SPECIFIC,
             'what_to_fix' => trim((string) ($json['what_to_fix'] ?? '')),
         ];
+    }
+
+    /**
+     * Whether a headline fits its length: characters for a headline
+     * written in Han, kana or Hangul, words for any other.
+     */
+    public static function isShortEnough(string $headline): bool
+    {
+        if (preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $headline) === 1) {
+            return mb_strlen(trim($headline)) <= self::MAX_CHARACTERS;
+        }
+
+        return count(preg_split('/\s+/u', trim($headline), -1, PREG_SPLIT_NO_EMPTY) ?: []) <= self::MAX_WORDS;
     }
 
     /**

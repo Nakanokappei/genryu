@@ -19,7 +19,9 @@ const ARTICLE_POLICY = "素材情報から記事を書く。\n\n- 形式: Markdo
 
 const TRANSLATION_POLICY = "記事を対象言語へ翻訳する。一次情報と素材情報は文脈として使う。\n";
 
-const ARTICLE_ANSWER = ['title' => 'NEDO、アンモニア燃焼器の開発事業を開始', 'body' => "## 発表の概要\n\nNEDO は…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html", 'language' => 'ja', 'topic_word' => 'アンモニア燃焼', 'title_draft' => 'NEDO がアンモニア燃焼器の開発事業を始めた', 'assumption' => '工業炉の熱は化石燃料で作るものだ'];
+const ARTICLE_HEADLINE = '工業炉の炎はアンモニアでも燃える';
+
+const ARTICLE_ANSWER = ['body' => "## 工業炉はまだ化石燃料で燃えている\n\n…\n\n## 出典\n\nhttps://www.nedo.go.jp/news/press/1.html", 'language' => 'ja'];
 
 /**
  * What the agent would answer, as the Responses API wire format.
@@ -43,14 +45,15 @@ beforeEach(function () {
 
 function generateArticle(Material $material): Article
 {
-    // Queued as the screens queue it, so the article pins the prompt version and the model.
+    // Queued as the screens queue it, so the article pins the prompt version and the model; the headline loop that runs first has settled the headline.
     $article = GenerateArticle::queueFor($material);
+    $article->update(['title' => ARTICLE_HEADLINE]);
     (new GenerateArticle($article))->handle(app(ProposeArticle::class));
 
     return $article->refresh();
 }
 
-it('has the agent write an article from an extracted material per the article generation layer', function () {
+it('has the agent write the body under the settled headline from an extracted material per the article generation layer', function () {
     Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer(ARTICLE_ANSWER))]);
     $material = Material::factory()->create(['data' => ['要約' => 'アンモニア燃焼器の開発事業を開始。', '発表主体' => 'NEDO']]);
     $material->document->update(['title' => 'アンモニア燃焼器', 'url' => 'https://www.nedo.go.jp/news/press/1.html']);
@@ -58,7 +61,7 @@ it('has the agent write an article from an extracted material per the article ge
     $article = generateArticle($material);
 
     expect($article->status)->toBe('draft')
-        ->and($article->title)->toBe(ARTICLE_ANSWER['title'])
+        ->and($article->title)->toBe(ARTICLE_HEADLINE)
         ->and($article->body)->toBe(ARTICLE_ANSWER['body'])
         ->and($article->status_message)->toContain('gpt-5.6-luna')
         // The version of the policy and the model it ran on are pinned, with what the call used.
@@ -69,18 +72,18 @@ it('has the agent write an article from an extracted material per the article ge
         ->and($article->translated_from_id)->toBeNull()
         ->and($article->translationLanguages())->toBe(['en', 'zh-Hant', 'zh-Hans'])
         ->and($article)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 800]);
-    // The headline loop comes between the writing and the translations, so that they carry the settled headline.
+    // The headline loop is queued first, and the translations follow the body.
     Queue::assertPushed(RefineHeadline::class, 1);
-    Queue::assertNotPushed(TranslateArticle::class);
+    Queue::assertPushed(TranslateArticle::class, 3);
     expect($article->headline_model)->toBe(EditorialPolicy::modelFor('headline'))
         ->and($article->headlinePrompt?->name)->toBe('headline');
-    // The policy is the cached developer message; the material JSON, document title and URL are the input; the answer is a title and a body.
+    // The policy is the cached developer message; the headline, the material JSON, document title and URL are the input; the answer is a body.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
         && $request['model'] === 'gpt-5.6-luna'
         && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
         && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
-        // The title is reached in three steps, in the order the schema names them.
-        && $request['text']['format']['schema']['required'] === ['topic_word', 'title_draft', 'assumption', 'title', 'body', 'language']
+        && $request['text']['format']['schema']['required'] === ['body', 'language']
+        && str_contains($request['input'][2]['content'], 'Headline: '.ARTICLE_HEADLINE)
         && str_contains($request['input'][2]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
         && str_contains($request['input'][2]['content'], 'アンモニア燃焼器')
         && str_contains($request['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
@@ -123,14 +126,22 @@ it('translates the article into the languages we publish in, with the source as 
     $this->get(route('articles.index'))->assertSee('日本語 / English');
 });
 
-it('fails when the agent leaves out the title or the body', function () {
-    Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer(['title' => 'x']))]);
+it('fails when the agent leaves out the body', function () {
+    Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer(['language' => 'ja']))]);
 
     $article = generateArticle(Material::factory()->create());
 
     expect($article->status)->toBe('failed')
-        ->and($article->status_message)->toContain('タイトルと本文')
-        ->and($article->title)->toBeNull();
+        ->and($article->status_message)->toContain('本文を返しませんでした')
+        ->and($article->body)->toBeNull();
+});
+
+it('does not write a body before the headline is settled', function () {
+    $article = GenerateArticle::queueFor(Material::factory()->create());
+    (new GenerateArticle($article))->handle(app(ProposeArticle::class));
+
+    expect($article->refresh()->status)->toBe('failed')->and($article->status_message)->toContain('見出しがまだ');
+    Http::assertNothingSent();
 });
 
 it('fails when the agent does not answer JSON', function () {
@@ -175,7 +186,8 @@ it('queues the missing and failed articles of extracted materials, and one artic
 
     Livewire::test('pages::articles.index')->call('generate');
 
-    Queue::assertPushed(GenerateArticle::class, 2);
+    // Each article begins with its headline; the body follows the loop.
+    Queue::assertPushed(RefineHeadline::class, 2);
     expect($missing->articles()->sole()->status)->toBe('generating')
         ->and($failed->articles()->sole()->status)->toBe('generating')
         ->and($generated->articles()->sole()->status)->toBe('draft')
@@ -184,7 +196,7 @@ it('queues the missing and failed articles of extracted materials, and one artic
     Livewire::test('pages::materials.show', ['material' => $generated])->call('generate');
     Livewire::test('pages::articles.show', ['article' => $generated->articles()->sole()])->call('generate');
 
-    Queue::assertPushed(GenerateArticle::class, 4);
+    Queue::assertPushed(RefineHeadline::class, 4);
     expect($generated->articles()->sole()->status)->toBe('generating')
         ->and(Article::query()->count())->toBe(3);
 });

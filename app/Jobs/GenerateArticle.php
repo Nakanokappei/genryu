@@ -13,14 +13,15 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 記事を生成 (UI: "Generate article", stage 2.4 of docs/HANDOVER.md): in the
- * background, have the agent write an article from an extracted material
- * per the article generation layer of the editorial policy, check that a
- * title and a body came back, and keep them as the material's article.
- * The article pins the prompt version and the model it was written with
- * and keeps the usage of the call, as a screening and a material do.
- * The outcome lands on the article (status 生成中 / 下書き / 失敗) so the
- * screens can show it.
+ * 記事を生成 (UI: "Generate article", stage 2.4 of docs/HANDOVER.md): an
+ * article is made in three steps, each in the background. The headline
+ * comes first, from the material (App\Jobs\RefineHeadline); this job then
+ * has the agent write the body under that headline per the article
+ * generation layer of the editorial policy, checks that a body came back,
+ * and keeps it; the translations follow. The article pins the prompt
+ * versions and the models it was written with and keeps the usage of the
+ * body's call, as a screening and a material do. The outcome lands on the
+ * article (status 生成中 / 下書き / 失敗) so the screens can show it.
  */
 class GenerateArticle implements ShouldQueue
 {
@@ -34,7 +35,8 @@ class GenerateArticle implements ShouldQueue
 
     /**
      * Queue the writing of a material's article: the row appears at once
-     * as 生成中, whether it is new or being written again. This is the
+     * as 生成中, whether it is new or being written again, and the
+     * headline is written first; this job follows it. This is the
      * original — the one written from the material, in the language of
      * the primary source — so it is the material's article that has no
      * article behind it; the translations are queued once it is written.
@@ -51,9 +53,7 @@ class GenerateArticle implements ShouldQueue
             ],
         );
 
-        self::dispatch($article);
-
-        return $article;
+        return RefineHeadline::queueFor($article);
     }
 
     public function handle(ProposeArticle $propose): void
@@ -66,6 +66,10 @@ class GenerateArticle implements ShouldQueue
                 throw new RuntimeException(__('The material has not been extracted yet.'));
             }
 
+            if (trim((string) $article->title) === '') {
+                throw new RuntimeException(__('The headline has not been written yet.'));
+            }
+
             // The policy read is the version pinned when the job was queued, not whatever the screen holds by now.
             $policy = $article->prompt !== null ? $article->prompt->text : '';
 
@@ -75,16 +79,14 @@ class GenerateArticle implements ShouldQueue
 
             $document = $material->document;
             $model = (string) $article->model;
-            $result = $propose($policy, $model, (array) $material->data, $document->title, $document->url);
-            $title = trim((string) ($result['json']['title'] ?? ''));
+            $result = $propose($policy, $model, (array) $material->data, (string) $article->title, $document->title, $document->url);
             $body = trim((string) ($result['json']['body'] ?? ''));
 
-            if ($title === '' || $body === '') {
-                throw new RuntimeException(__('The agent did not return a title and a body.'));
+            if ($body === '') {
+                throw new RuntimeException(__('The agent did not return a body.'));
             }
 
             $article->update([
-                'title' => $title,
                 'body' => $body,
                 // The language the agent says it wrote in, which is the material's and so the primary source's.
                 'language' => in_array($result['json']['language'] ?? null, Article::SOURCE_LANGUAGES, true) ? $result['json']['language'] : null,
@@ -99,7 +101,9 @@ class GenerateArticle implements ShouldQueue
             return;
         }
 
-        // The headline is scored and written again before anything is translated, so the translations carry the final one.
-        RefineHeadline::queueFor($article->refresh());
+        // Nothing waits for a person: the languages we publish in follow the written article.
+        foreach ($article->refresh()->translationLanguages() as $language) {
+            TranslateArticle::queueFor($article, $language);
+        }
     }
 }

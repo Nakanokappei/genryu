@@ -8,30 +8,31 @@ use RuntimeException;
 
 /**
  * The agent behind 記事 (UI: "Articles", stage 2.4 of docs/HANDOVER.md):
- * given the article generation layer of the editorial policy and a
- * material (the JSON extracted from one document), a model proposes the
- * article as a title, a Markdown body and the language it wrote them in,
- * which is the language of the material and so of the primary source;
- * the other languages are translated from it. The call goes to the Responses
+ * given the article generation layer of the editorial policy, a
+ * material (the JSON extracted from one document) and the headline
+ * App\Jobs\RefineHeadline settled on, a model proposes the body of the
+ * article under that headline, in Markdown, and the language it wrote
+ * in, which is the language of the material and so of the primary
+ * source; the other languages are translated from it. The call goes to the Responses
  * API like the screening's and the material's: the policy as the
  * developer message carrying an explicit prompt-cache breakpoint, so the
  * policy, the same for every article, is served from the cache, then
  * what changes per article after it. The usage the API reports comes
  * back with the proposal. It only proposes; App\Jobs\GenerateArticle
- * checks a title and a body are there before anything is saved.
+ * checks a body is there before anything is saved.
  */
 class ProposeArticle
 {
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
     /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. Shown on the screen under the prompt, so nobody puts a placeholder in the prompt for it. */
-    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document. Write the article from it, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
+    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and the headline of its article has already been settled. Write the body of the article under that headline, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
 
     /**
      * @param  array<string, mixed>  $material
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
-    public function __invoke(string $policy, string $model, array $material, string $documentTitle, string $url): array
+    public function __invoke(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url): array
     {
         $key = (string) config('services.openai.key');
 
@@ -43,7 +44,7 @@ class ProposeArticle
 
         $response = Http::withToken($key)
             ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $documentTitle, $url))
+            ->post(self::ENDPOINT, self::request($policy, $model, $material, $headline, $documentTitle, $url))
             ->throw();
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
@@ -67,14 +68,14 @@ class ProposeArticle
 
     /**
      * The request: the policy first, as the developer message, with the
-     * cache breakpoint on it; the instructions after it; the material
-     * with the document it came from last; the answer constrained to a
-     * title and a Markdown body.
+     * cache breakpoint on it; the instructions after it; the headline,
+     * then the material with the document it came from last; the answer
+     * constrained to a Markdown body and its language.
      *
      * @param  array<string, mixed>  $material
      * @return array<string, mixed>
      */
-    public static function request(string $policy, string $model, array $material, string $documentTitle, string $url): array
+    public static function request(string $policy, string $model, array $material, string $headline, string $documentTitle, string $url): array
     {
         return [
             'model' => $model,
@@ -87,7 +88,7 @@ class ProposeArticle
                     ],
                 ],
                 ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-                ['role' => 'user', 'content' => "Source document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+                ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
             ],
             'text' => [
                 'format' => [
@@ -97,16 +98,11 @@ class ProposeArticle
                     'schema' => [
                         'type' => 'object',
                         'properties' => [
-                            // The title is reached in four steps, and a model writes the properties in the order the schema names them: fix the word, summarise with it, name what the summary takes for granted, then write the line that denies it. Only the last of the four is kept.
-                            'topic_word' => ['type' => 'string'],
-                            'title_draft' => ['type' => 'string'],
-                            'assumption' => ['type' => 'string'],
-                            'title' => ['type' => 'string'],
                             'body' => ['type' => 'string'],
                             // Which language it wrote in, so the job knows what is left to translate into.
                             'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
                         ],
-                        'required' => ['topic_word', 'title_draft', 'assumption', 'title', 'body', 'language'],
+                        'required' => ['body', 'language'],
                         'additionalProperties' => false,
                     ],
                 ],

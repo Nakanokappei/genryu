@@ -9,29 +9,29 @@ use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 
-// 記事 (Articles): the article generation and translation layers of the editorial policy (the developer prompts and models of the writer and the translator), and the articles written from each material in the background, each with its translations; nothing is written by hand here. Publishing comes later.
+// 記事 (Articles): the headline, article generation and translation layers of the editorial policy (the developer prompts and models of the headline loop, the writer and the translator), in the order they are applied,, and the articles written from each material in the background, each with its translations; nothing is written by hand here. Publishing comes later.
 new #[Title('記事')] class extends PagedList {
+    /** The developer prompt of the headline loop, and the model it runs on. */
+    public string $headline = '';
+
+    public string $headlineModel = EditorialPolicy::DEFAULT_MODEL;
+
     /** The developer prompt of the writer, and the model it runs on. */
     public string $article = '';
 
     public string $articleModel = EditorialPolicy::DEFAULT_MODEL;
-
-    /** The developer prompt of the headline judge, and the model it runs on. */
-    public string $headline = '';
-
-    public string $headlineModel = EditorialPolicy::DEFAULT_MODEL;
 
     /** The developer prompt of the translator, and the model it runs on. */
     public string $translation = '';
 
     public string $translationModel = EditorialPolicy::DEFAULT_MODEL;
 
-    /** Which of the two prompts is open (UI: the tabs); both are saved together whichever is showing. */
-    public string $layer = 'article';
+    /** Which of the three prompts is open (UI: the tabs, in the order they are applied); all are saved together whichever is showing. */
+    public string $layer = 'headline';
 
     public function mount(): void
     {
-        foreach (['article', 'headline', 'translation'] as $layer) {
+        foreach (['headline', 'article', 'translation'] as $layer) {
             $this->{$layer} = EditorialPolicy::bodyFor($layer);
             $this->{$layer.'Model'} = EditorialPolicy::modelFor($layer);
         }
@@ -40,9 +40,9 @@ new #[Title('記事')] class extends PagedList {
     public function savePolicy(): void
     {
         $models = ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))];
-        $this->validate(['articleModel' => $models, 'headlineModel' => $models, 'translationModel' => $models]);
+        $this->validate(['headlineModel' => $models, 'articleModel' => $models, 'translationModel' => $models]);
 
-        foreach (['article', 'headline', 'translation'] as $layer) {
+        foreach (['headline', 'article', 'translation'] as $layer) {
             EditorialPolicy::query()->updateOrCreate(['layer' => $layer], ['body' => $this->{$layer}, 'model' => $this->{$layer.'Model'}]);
         }
 
@@ -71,21 +71,21 @@ new #[Title('記事')] class extends PagedList {
 <section class="w-full space-y-6" @if ($this->articles->contains(fn ($article) => $article->status === 'generating' || $article->translations->contains('status', 'generating'))) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Articles') }}</flux:heading>
 
-    {{-- The two prompts sit with the articles because they are what make them: the writer's and the translator's. They are one setting read two ways, so they share a section and a save. --}}
+    {{-- The three prompts sit with the articles because they are what make them: the headline loop's, the writer's and the translator's, in the order they are applied. They are one setting read three ways, so they share a section and a save. --}}
     <form wire:submit="savePolicy" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <div class="flex flex-wrap items-center gap-3">
             <flux:heading size="lg">{{ __('Editorial policy') }}</flux:heading>
             <flux:radio.group wire:model.live="layer" variant="segmented" size="sm" class="ms-auto">
-                <flux:radio value="article" :label="__('Article generation')" />
                 <flux:radio value="headline" :label="__('Headline')" />
+                <flux:radio value="article" :label="__('Article generation')" />
                 <flux:radio value="translation" :label="__('Translation')" />
             </flux:radio.group>
         </div>
 
         @if ($layer === 'headline')
-            <flux:text>{{ __('The developer prompt and the model of the headline loop: the headline the writer gave is scored against the rubric below, and when it does not pass another is written with the review in hand and scored again, up to :attempts times. The best-scoring headline is kept. The rubric, its points and the pass mark are fixed in the code; this prompt says what a headline is for and how to judge it.', ['attempts' => \App\Jobs\RefineHeadline::ATTEMPTS]) }}</flux:text>
-            <flux:textarea wire:model="headline" :label="__('Developer prompt (editable)')" rows="10" class="font-mono text-xs" />
-            <x-pages::fixed-prompts :instruction="\App\Actions\ScoreHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::rubric()" :input="[__('The headline'), __('The article as written')]" />
+            <flux:text>{{ __('The developer prompt and the model of the headline loop, the first step of an article: a headline is written from the material in the language of the primary source and scored against the rubric below, and when it does not pass another is written with the review in hand and scored again, up to :attempts times. The best-scoring headline is kept, and the article is written under it. The rubric, its points and the pass mark are fixed in the code; this prompt says how to write a headline and how to judge it.', ['attempts' => \App\Jobs\RefineHeadline::ATTEMPTS]) }}</flux:text>
+            <flux:textarea wire:model="headline" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
+            <x-pages::fixed-prompts :instruction="\App\Actions\ProposeHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::rubric()" :input="[__('The material, as JSON'), __('The headline'), __('The headlines already tried and the review of the last one')]" />
             <flux:select wire:model="headlineModel" :label="__('Model of the headline')" class="max-w-xl">
                 @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                     <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
@@ -101,9 +101,9 @@ new #[Title('記事')] class extends PagedList {
                 @endforeach
             </flux:select>
         @else
-            <flux:text>{{ __('The developer prompt and the model of the writer: an LLM turns a material into one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
+            <flux:text>{{ __('The developer prompt and the model of the writer: under the settled headline, an LLM turns a material into the body of one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
             <flux:textarea wire:model="article" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
-            <x-pages::fixed-prompts :instruction="\App\Actions\ProposeArticle::INSTRUCTIONS" :input="[__('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
+            <x-pages::fixed-prompts :instruction="\App\Actions\ProposeArticle::INSTRUCTIONS" :input="[__('The headline'), __('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
             <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
                 @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
                     <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
