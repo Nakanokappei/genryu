@@ -39,16 +39,22 @@ class ScoreHeadline
         'faithful' => 'The article answers what the headline claims and promises.',
     ];
 
-    /** Every headline is scored on all eight; 80 between them. */
+    /**
+     * Every headline is scored on all six; 80 between them. There were
+     * eight until 2026-09-23: asking one short line to carry why it has
+     * to be known now and what is lost by not knowing as well set a bar
+     * no headline reached (the best of five articles scored 64 to 77),
+     * so those two moved to the optional items, where a headline may
+     * take them or leave them, and their points were spread over the
+     * rest.
+     */
     public const COMMON = [
         'specific_to_this_article' => ['points' => 20, 'about' => 'Only this article could carry this headline: a fact, a finding or a cause from it is at the centre.'],
-        'about_the_reader' => ['points' => 10, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
-        'curiosity' => ['points' => 10, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
-        'concreteness' => ['points' => 10, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
-        'single_focus' => ['points' => 10, 'about' => 'One claim, not several.'],
-        'latent_question' => ['points' => 8, 'about' => 'It puts into words a doubt the reader half felt already.'],
-        'gain_or_loss' => ['points' => 6, 'about' => 'What is gained by reading, or lost by not knowing, is visible.'],
-        'why_now' => ['points' => 6, 'about' => 'Why this has to be known now.'],
+        'about_the_reader' => ['points' => 12, 'about' => 'What it does to the reader\'s work, life, money or time is visible.'],
+        'curiosity' => ['points' => 12, 'about' => 'The subject is clear, and the reason or the mechanism is worth opening the article for.'],
+        'concreteness' => ['points' => 12, 'about' => 'An event, a change or a scale comes through, rather than an abstraction.'],
+        'single_focus' => ['points' => 12, 'about' => 'One claim, not several.'],
+        'latent_question' => ['points' => 12, 'about' => 'It puts into words a doubt the reader half felt already.'],
     ];
 
     /** Scored the same way, but only the best two are added: a headline need not carry them all. */
@@ -64,13 +70,20 @@ class ScoreHeadline
         'conflict' => 'Values that cannot both be had, or interests that collide, are visible.',
         'cost_or_limit' => 'The sacrifice behind the gain, or the unexpected condition of the success, is visible.',
         'unlikely_words_joined' => 'Words that do not usually go together are joined, and mean something.',
+        'gain_or_loss' => 'What is gained by reading, or lost by not knowing, is visible.',
+        'why_now' => 'Why this has to be known now.',
     ];
 
     /** How many of the optional items are added to the total. */
     public const OPTIONAL_COUNTED = 2;
 
-    /** What a headline has to reach to be kept. */
-    public const PASS_TOTAL = 80;
+    /**
+     * What a headline has to reach to be kept. 80 until 2026-09-23, which
+     * nothing reached once the headline also had to be one short line;
+     * the bar only decides when the loop stops trying, so a bar nothing
+     * clears costs the full three attempts on every article.
+     */
+    public const PASS_TOTAL = 70;
 
     /** And it has to be at least half specific to this article, whatever else it scores. */
     public const PASS_SPECIFIC = 10;

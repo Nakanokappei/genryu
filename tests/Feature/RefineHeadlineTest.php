@@ -66,9 +66,10 @@ it('adds up the score and decides the verdict itself', function () {
     expect($full['total'])->toBe(100)->and($full['passed'])->toBeTrue()
         ->and($full['counted'])->toHaveCount(ScoreHeadline::OPTIONAL_COUNTED);
 
-    // Five points everywhere: 40 of the common points, and the best two optional ones at five each.
+    // Five points everywhere: five per common item, and the best two optional ones at five each.
+    $five = 5 * count(ScoreHeadline::COMMON) + 5 * ScoreHeadline::OPTIONAL_COUNTED;
     $half = ScoreHeadline::review(json_decode((string) headlineScore(5, 5)['output'][0]['content'][0]['text'], true));
-    expect($half['total'])->toBe(50)->and($half['passed'])->toBeFalse();
+    expect($half['total'])->toBe($five)->and($half['passed'])->toBeFalse();
 
     // A must that failed is a rewrite whatever the total says.
     $failed = ScoreHeadline::review(json_decode((string) headlineScore(100, 10, mustsFailed: ['faithful'])['output'][0]['content'][0]['text'], true));
@@ -118,7 +119,7 @@ it('writes the headline again until it passes', function () {
         ->and($article->headline_review['passed'])->toBeTrue()
         // jsonb keeps no key order, so the attempts are compared by value.
         ->and($article->headline_review['attempts'])->toEqual([
-            ['headline' => '燃料を替える取り組み', 'total' => 40, 'passed' => false],
+            ['headline' => '燃料を替える取り組み', 'total' => 5 * count(ScoreHeadline::COMMON), 'passed' => false],
             ['headline' => 'ナフサ分解炉の炎は、メタンだけではない', 'total' => 100, 'passed' => true],
         ]);
 
