@@ -24,17 +24,4 @@ class DocumentRevision extends Model
     {
         return $this->belongsTo(Document::class);
     }
-
-    /**
-     * The lines of the Markdown, 1-based, as the quotes of a material
-     * point at them.
-     *
-     * @return array<int, string>
-     */
-    public function lines(): array
-    {
-        $lines = preg_split('/\R/u', $this->markdown) ?: [];
-
-        return array_combine(range(1, count($lines)), $lines);
-    }
 }

@@ -4,7 +4,6 @@ namespace App\Actions;
 
 use App\Crawl\Crawler;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Sleep;
 
 /**
@@ -87,7 +86,7 @@ class RobotsPolicy
     private function read(string $url): array
     {
         try {
-            $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(10)->get($url);
+            $response = Crawler::client(10)->get($url);
         } catch (\Throwable) {
             return ['status' => 0, 'body' => ''];
         }

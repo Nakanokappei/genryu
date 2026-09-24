@@ -95,12 +95,6 @@ class MediaController extends Controller
         return $article->scheduledLocal() ?? CarbonImmutable::parse($article->created_at)->setTimezone($article->timezone());
     }
 
-    /** Whether the article's time has not come yet. */
-    public static function isUpcoming(Article $article): bool
-    {
-        return self::dateOf($article)->isFuture();
-    }
-
     /** The lead as plain text: the one above the separator line, or, without one, the body's first paragraph that is not a heading. */
     public static function lead(Article $article): string
     {

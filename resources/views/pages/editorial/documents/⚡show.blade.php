@@ -109,6 +109,7 @@ new #[Title('文書')] class extends Component {
             SemanticFilterExample::query()->updateOrCreate(['document_id' => $this->document->id], ['side' => $side, 'created_by' => auth()->id()]);
         }
 
+        // A fresh instance: $measure has read the examples before this one was added.
         $result = app(MeasureLikeness::class)->again();
         $this->document->refresh();
 

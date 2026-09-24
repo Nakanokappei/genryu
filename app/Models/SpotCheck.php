@@ -49,10 +49,4 @@ class SpotCheck extends Model
     {
         return $this->belongsTo(User::class, 'confirmed_by');
     }
-
-    /** @return BelongsTo<User, $this> */
-    public function decider(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'decided_by');
-    }
 }

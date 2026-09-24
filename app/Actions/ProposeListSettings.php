@@ -25,7 +25,7 @@ class ProposeListSettings
             'response_format' => ['type' => 'json_object'],
             'messages' => [
                 ['role' => 'developer', 'content' => self::instructions()],
-                ['role' => 'user', 'content' => "URL: {$url}\n\nHTML:\n".self::trim($html)],
+                ['role' => 'user', 'content' => self::page($html, $url)],
             ],
         ]);
 
@@ -51,13 +51,14 @@ class ProposeListSettings
     }
 
     /**
-     * The model needs the structure, not the scripts, styles or the tail of a very long page.
+     * A page as a settings agent reads it: its URL, then its HTML without
+     * scripts, styles or the tail of a very long page.
      */
-    private static function trim(string $html): string
+    public static function page(string $html, string $url): string
     {
         $html = (string) preg_replace('#<(script|style|svg|noscript)\b[^>]*>.*?</\1>#is', '', $html);
         $html = (string) preg_replace('/\s+/', ' ', $html);
 
-        return mb_substr($html, 0, self::MAX_HTML_CHARS);
+        return "URL: {$url}\n\nHTML:\n".mb_substr($html, 0, self::MAX_HTML_CHARS);
     }
 }

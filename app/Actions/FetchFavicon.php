@@ -7,7 +7,6 @@ use App\Crawl\Url;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
 
@@ -58,7 +57,7 @@ class FetchFavicon
         foreach ($candidates as $url) {
             try {
                 // robots.txt is enforced by the global HTTP middleware (AppServiceProvider).
-                $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(10)->get($url);
+                $response = Crawler::client(10)->get($url);
             } catch (Throwable) {
                 // Forbidden, unreachable or faked away: try the next candidate.
                 continue;
@@ -80,7 +79,7 @@ class FetchFavicon
     private function refresh(Source $source): ?string
     {
         try {
-            $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(10)
+            $response = Crawler::client(10)
                 ->withHeaders($source->favicon_modified_at !== null ? ['If-Modified-Since' => $source->favicon_modified_at->toRfc7231String()] : [])
                 ->get((string) $source->favicon_url);
         } catch (Throwable) {
@@ -132,7 +131,7 @@ class FetchFavicon
     private function pageOrNothing(string $url): string
     {
         try {
-            return Http::withUserAgent(Crawler::USER_AGENT)->timeout(20)->get($url)->body();
+            return Crawler::client()->get($url)->body();
         } catch (Throwable) {
             return '';
         }

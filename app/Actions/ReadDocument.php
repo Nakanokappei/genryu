@@ -8,6 +8,7 @@ use App\Pdf\PdfMarkdown;
 use App\Pdf\PdfParser;
 use Dom\Element;
 use Dom\HTMLDocument;
+use Illuminate\Support\Str;
 use League\HTMLToMarkdown\Converter\TableConverter;
 use League\HTMLToMarkdown\HtmlConverter;
 use RuntimeException;
@@ -226,7 +227,7 @@ class ReadDocument
             return null;
         }
 
-        $raw = trim((string) preg_replace('/\s+/u', ' ', $raw));
+        $raw = Str::squish($raw);
 
         return $raw === '' ? null : self::dateText($raw);
     }
@@ -250,7 +251,7 @@ class ReadDocument
     private static function dateLine(Element $content): ?Element
     {
         foreach ($content->querySelectorAll(self::DATE_LINE_CANDIDATES) as $node) {
-            $text = trim((string) preg_replace('/\s+/u', ' ', $node->textContent));
+            $text = Str::squish($node->textContent);
 
             if ($text !== '' && mb_strlen($text) <= self::DATE_LINE_MAX_CHARS && preg_match(self::DATE_TEXT_PATTERN, $text) === 1) {
                 return $node;
@@ -267,7 +268,7 @@ class ReadDocument
     private static function dropNavigationLinks(Element $content): void
     {
         foreach (iterator_to_array($content->querySelectorAll('a')) as $anchor) {
-            $text = self::oneLine($anchor->textContent);
+            $text = Str::squish($anchor->textContent);
 
             if ($text !== '' && mb_strlen($text) <= self::NAVIGATION_LINK_MAX_CHARS && preg_match(self::NAVIGATION_LINK_PATTERN, $text) === 1) {
                 $anchor->parentNode?->removeChild($anchor);
@@ -284,11 +285,11 @@ class ReadDocument
      */
     private static function takeTitle(HTMLDocument $document, Element $content, ?string $title): string
     {
-        $listed = self::oneLine((string) $title);
+        $listed = Str::squish((string) $title);
 
         if ($listed !== '') {
             foreach ($content->querySelectorAll(self::TITLE_CANDIDATES) as $heading) {
-                $text = self::oneLine($heading->textContent);
+                $text = Str::squish($heading->textContent);
 
                 if ($text !== '' && (str_starts_with($text, $listed) || str_starts_with($listed, $text))) {
                     $heading->parentNode?->removeChild($heading);
@@ -301,7 +302,7 @@ class ReadDocument
         $own = $content->querySelector('h1');
 
         if ($own instanceof Element) {
-            $text = self::oneLine($own->textContent);
+            $text = Str::squish($own->textContent);
             $own->parentNode?->removeChild($own);
 
             return $text;
@@ -313,15 +314,7 @@ class ReadDocument
 
         $page = $document->querySelector('h1');
 
-        return $page instanceof Element ? self::oneLine($page->textContent) : '';
-    }
-
-    /**
-     * Text with its whitespace collapsed to single spaces.
-     */
-    private static function oneLine(string $text): string
-    {
-        return trim((string) preg_replace('/\s+/u', ' ', $text));
+        return $page instanceof Element ? Str::squish($page->textContent) : '';
     }
 
     /**

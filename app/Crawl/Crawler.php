@@ -2,6 +2,7 @@
 
 namespace App\Crawl;
 
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
@@ -15,11 +16,15 @@ class Crawler
 {
     public const USER_AGENT = 'Genryu/0.2 (+https://genryu.test)';
 
-    /**
-     * The response at a URL, an error status thrown as an exception.
-     */
+    /** A request as the crawler, which gives up after the timeout in seconds. */
+    public static function client(int $timeout = 20): PendingRequest
+    {
+        return Http::withUserAgent(self::USER_AGENT)->timeout($timeout);
+    }
+
+    /** The response at a URL, an error status thrown as an exception. */
     public static function get(string $url): Response
     {
-        return Http::withUserAgent(self::USER_AGENT)->timeout(20)->get($url)->throw();
+        return self::client()->get($url)->throw();
     }
 }

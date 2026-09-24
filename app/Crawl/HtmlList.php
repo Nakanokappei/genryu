@@ -4,6 +4,7 @@ namespace App\Crawl;
 
 use Dom\Element;
 use Dom\HTMLDocument;
+use Illuminate\Support\Str;
 
 /**
  * An update list read from an HTML page with the HTML list settings
@@ -53,7 +54,7 @@ class HtmlList
             // anchor) or sit inside it (an anchor wrapping a heading).
             $link = $titleNode instanceof Element ? self::anchorOf($titleNode) : null;
             $href = $link instanceof Element ? trim((string) $link->getAttribute('href')) : '';
-            $title = $titleNode instanceof Element ? trim((string) preg_replace('/\s+/u', ' ', $titleNode->textContent)) : '';
+            $title = $titleNode instanceof Element ? Str::squish($titleNode->textContent) : '';
 
             if ($href === '' || $title === '') {
                 continue;

@@ -37,21 +37,11 @@ new #[Title('品質チェック')] class extends PagedList {
         return Article::query()->originals()->whereNotNull('body')->with('material.document.source', 'qualityCheck')->latest()->latest('id')->paginate($this->rowsPerPage());
     }
 
-    // Queue a check for every written original that has none, or whose latest one failed.
-    public function check(): void
+    // Queue a check for every written original without a passing run, or for all of them again (after the policy changed).
+    public function check(bool $all = false): void
     {
         $articles = Article::query()->originals()->whereNotNull('body')->where('status', 'written')
-            ->where(fn ($query) => $query->whereDoesntHave('qualityCheck')->orWhereRelation('qualityCheck', 'status', 'failed'))->get();
-        $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
-        unset($this->articles);
-
-        Flux::toast(variant: 'success', text: __(':count quality checks queued.', ['count' => $articles->count()]));
-    }
-
-    // Queue a check for every written original again, as after the policy has changed.
-    public function checkAll(): void
-    {
-        $articles = Article::query()->originals()->whereNotNull('body')->where('status', 'written')->get();
+            ->unless($all, fn ($query) => $query->where(fn ($query) => $query->whereDoesntHave('qualityCheck')->orWhereRelation('qualityCheck', 'status', 'failed')))->get();
         $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
         unset($this->articles);
 
@@ -73,7 +63,7 @@ new #[Title('品質チェック')] class extends PagedList {
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="check" icon="check-badge" wire:confirm="{{ __('Check every article that has not been checked, or whose check failed? Each one is one call to the model.') }}">{{ __('Check unchecked articles') }}</flux:button>
-            <flux:button type="button" wire:click="checkAll" icon="arrow-path" wire:confirm="{{ __('Check every article again? Each one is one call to the model.') }}">{{ __('Check all articles again') }}</flux:button>
+            <flux:button type="button" wire:click="check(true)" icon="arrow-path" wire:confirm="{{ __('Check every article again? Each one is one call to the model.') }}">{{ __('Check all articles again') }}</flux:button>
         </div>
     </form>
 

@@ -97,7 +97,7 @@ it('queues the checks from the screen and shows those in progress', function () 
     Livewire::test('pages::production.quality.index')->call('check');
     Queue::assertPushed(CheckQuality::class, 2);
 
-    Livewire::test('pages::production.quality.index')->call('checkAll');
+    Livewire::test('pages::production.quality.index')->call('check', true);
     Queue::assertPushed(CheckQuality::class, 5);
 
     $this->get(route('production.quality.index'))->assertSee('チェック中');

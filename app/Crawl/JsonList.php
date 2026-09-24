@@ -2,6 +2,8 @@
 
 namespace App\Crawl;
 
+use Illuminate\Support\Str;
+
 /**
  * An update list read from the JSON file a site draws its list from
  * (UI: "JSON list settings"): finding that file on a page, and reading
@@ -48,7 +50,7 @@ class JsonList
                 continue;
             }
 
-            $title = trim((string) preg_replace('/\s+/u', ' ', (string) data_get($item, (string) ($config['title'] ?? 'title'))));
+            $title = Str::squish((string) data_get($item, (string) ($config['title'] ?? 'title')));
             $href = trim((string) data_get($item, (string) ($config['link'] ?? 'url')));
 
             if ($title === '' || $href === '') {

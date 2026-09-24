@@ -14,7 +14,6 @@ use Dom\Element;
 use Dom\HTMLDocument;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 use Throwable;
@@ -116,7 +115,7 @@ class FetchDocument implements ShouldQueue
      */
     private static function get(string $url): array
     {
-        $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(30)->get($url)->throw();
+        $response = Crawler::client(30)->get($url)->throw();
         $body = $response->body();
 
         return [$body, str_contains(strtolower((string) $response->header('Content-Type')), 'application/pdf') || str_starts_with($body, '%PDF-') ? 'pdf' : 'html'];
@@ -204,7 +203,7 @@ class FetchDocument implements ShouldQueue
      * one per article) would match no other page of the site: the number
      * is dropped for a prefix match on the id or class.
      */
-    public static function generalise(string $selector): string
+    private static function generalise(string $selector): string
     {
         $selector = (string) preg_replace('/#([A-Za-z_][\w-]*?[-_])\d{4,}(?![\w-])/', '[id^="$1"]', $selector);
 

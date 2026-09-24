@@ -3,7 +3,6 @@
 namespace App\Crawl;
 
 use App\Exceptions\RobotsForbidden;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use SimpleXMLElement;
 
@@ -104,7 +103,7 @@ class Feed
             $candidate = rtrim($origin, '/').$path;
 
             try {
-                $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(20)->get($candidate);
+                $response = Crawler::client()->get($candidate);
             } catch (RobotsForbidden) {
                 // A probe robots.txt forbids is simply not a route.
                 continue;

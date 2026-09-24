@@ -428,7 +428,7 @@ it('queues every document of a source again from its screen, except the excluded
     Document::factory()->for($source)->create(['excluded_by' => 'セミナー']);
     Document::factory()->create();
 
-    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('fetchAllDocumentsAgain');
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('fetchDocuments', true);
 
     Queue::assertPushed(FetchDocument::class, 2);
     expect($fetched->refresh()->status)->toBe('fetching')

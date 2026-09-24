@@ -1,8 +1,10 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Actions\ReadDocument;
 use App\Actions\RebuildMarkdown;
 use App\Actions\ReviseDocumentSettings;
+use App\Crawl\JsonList;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
 use App\Jobs\ScreenDocument;
@@ -28,13 +30,13 @@ new #[Title('情報源')] class extends Component {
     public string $notes = '';
 
     /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
-    public array $list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
+    public array $list = [];
 
     /** @var array<string, string> JSON list settings: the file's URL, the path to the items, the keys inside an item, max_items */
-    public array $json = ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => '50'];
+    public array $json = [];
 
     /** @var array<string, string> Document settings: CSS selectors of the body, its date, what to drop inside it, and fixed text to move after it */
-    public array $documentSettings = ['content' => '', 'date' => '', 'remove' => '', 'fixed_text' => ''];
+    public array $documentSettings = [];
 
     /** 全文へのリンク: CSS selectors of the link to the full text on a document's page, one per line, tried in order */
     public string $fullTextLink = '';
@@ -54,23 +56,33 @@ new #[Title('情報源')] class extends Component {
             default => 'feed',
         };
 
-        foreach ($this->source->html_list_settings ?? [] as $key => $value) {
-            if (array_key_exists($key, $this->list)) {
-                $this->list[$key] = (string) $value;
-            }
-        }
+        $this->list = self::filled(self::blankList(), $this->source->html_list_settings);
+        $this->json = self::filled(self::blankJson(), $this->source->json_list_settings);
+        $this->documentSettings = self::filled(array_fill_keys(ReadDocument::DOCUMENT_SETTING_KEYS, ''), $this->source->document_settings);
+    }
 
-        foreach ($this->source->json_list_settings ?? [] as $key => $value) {
-            if (array_key_exists($key, $this->json)) {
-                $this->json[$key] = (string) $value;
-            }
-        }
+    /** @return array<string, string> the HTML list form before anything is filled in */
+    private static function blankList(): array
+    {
+        return ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => (string) ConfigureSource::DEFAULT_MAX_PAGES];
+    }
 
-        foreach ($this->source->document_settings ?? [] as $key => $value) {
-            if (array_key_exists($key, $this->documentSettings)) {
-                $this->documentSettings[$key] = (string) $value;
-            }
-        }
+    /** @return array<string, string> the JSON list form before anything is filled in */
+    private static function blankJson(): array
+    {
+        return ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => (string) JsonList::DEFAULT_MAX_ITEMS];
+    }
+
+    /**
+     * A form's fields with the saved values put in, as strings.
+     *
+     * @param  array<string, string>  $blank
+     * @param  array<string, mixed>|null  $saved
+     * @return array<string, string>
+     */
+    private static function filled(array $blank, ?array $saved): array
+    {
+        return array_map(strval(...), [...$blank, ...array_intersect_key($saved ?? [], $blank)]);
     }
 
     // The JSON list settings are saved on their own; an empty URL means "not read from JSON".
@@ -119,10 +131,11 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Stage 2.2: queue the fetch of every document not fetched yet or failed, leaving the excluded ones alone.
-    public function fetchDocuments(): void
+    // Queue the fetch of every document not fetched yet or failed, or of all but those being fetched; excluded ones are left alone.
+    public function fetchDocuments(bool $all = false): void
     {
-        $documents = $this->source->documents()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', 'failed'))->get();
+        $documents = $this->source->documents()->whereNull('excluded_by')
+            ->where(fn ($query) => $all ? $query->whereNull('status')->orWhere('status', '!=', 'fetching') : $query->whereNull('status')->orWhere('status', 'failed'))->get();
         $documents->each(fn (Document $document) => FetchDocument::queueFor($document));
 
         Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $documents->count()]));
@@ -180,14 +193,6 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: $result['failed'] === 0 ? 'success' : 'warning', duration: 8000, text: __(':rebuilt documents rebuilt, :failed could not be read with the current settings (fetch them again).', $result));
     }
 
-    // Queue every document of the source again (after the document settings or the Markdown rules changed), except the excluded entries and those already being fetched.
-    public function fetchAllDocumentsAgain(): void
-    {
-        $documents = $this->source->documents()->whereNull('excluded_by')->where(fn ($query) => $query->whereNull('status')->orWhere('status', '!=', 'fetching'))->get();
-        $documents->each(fn (Document $document) => FetchDocument::queueFor($document));
-
-        Flux::toast(variant: 'success', text: __(':count documents queued.', ['count' => $documents->count()]));
-    }
 
     // The HTML list settings are saved separately from the name / URL form; an empty item means "read a feed".
     public function saveList(): void
@@ -234,8 +239,8 @@ new #[Title('情報源')] class extends Component {
     public function useFeed(): void
     {
         $this->source->update(['html_list_settings' => null, 'json_list_settings' => null, 'list_method' => 'feed']);
-        $this->list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
-        $this->json = ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => '50'];
+        $this->list = self::blankList();
+        $this->json = self::blankJson();
         $this->configure();
     }
 
@@ -388,7 +393,7 @@ new #[Title('情報源')] class extends Component {
             <flux:button type="submit">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="fetchDocuments" icon="document-arrow-down">{{ __('Fetch documents') }}</flux:button>
             <flux:button type="button" wire:click="rebuildMarkdown" icon="document-text">{{ __('Rebuild Markdown from the originals') }}</flux:button>
-            <flux:button type="button" wire:click="fetchAllDocumentsAgain" icon="arrow-path" wire:confirm="{{ __('Fetch all :count documents of this source again? Each page is requested from the site once more.', ['count' => $source->documents()->whereNull('excluded_by')->count()]) }}">{{ __('Fetch all documents again') }}</flux:button>
+            <flux:button type="button" wire:click="fetchDocuments(true)" icon="arrow-path" wire:confirm="{{ __('Fetch all :count documents of this source again? Each page is requested from the site once more.', ['count' => $source->documents()->whereNull('excluded_by')->count()]) }}">{{ __('Fetch all documents again') }}</flux:button>
         </div>
     </form>
 

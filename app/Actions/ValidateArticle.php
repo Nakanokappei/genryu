@@ -135,7 +135,7 @@ class ValidateArticle
      *
      * @return list<string>
      */
-    public static function lengthProblems(string $body, ?string $language): array
+    private static function lengthProblems(string $body, ?string $language): array
     {
         $length = self::lengthOf($body, $language);
 

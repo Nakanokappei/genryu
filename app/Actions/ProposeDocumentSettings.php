@@ -14,8 +14,6 @@ use App\OpenAi\ChatCompletions;
  */
 class ProposeDocumentSettings
 {
-    private const MAX_HTML_CHARS = 60000;
-
     /**
      * @return array{content: string, date: string, remove: string, fixed_text: string}
      */
@@ -27,7 +25,7 @@ class ProposeDocumentSettings
             'response_format' => ['type' => 'json_object'],
             'messages' => [
                 ['role' => 'developer', 'content' => self::instructions()],
-                ['role' => 'user', 'content' => "URL: {$url}\n\nHTML:\n".self::trim($html)],
+                ['role' => 'user', 'content' => ProposeListSettings::page($html, $url)],
             ],
         ]);
 
@@ -51,16 +49,5 @@ class ProposeDocumentSettings
         - "fixed_text": selects, inside the content element, fixed text that every document page repeats and that is not the body: copyright notices, disclaimers, notes on publication, contact boilerplate. It is kept but moved after the body. Several selectors may be separated by commas.
         Use the most stable selectors available (ids, semantic class names, element structure), never generated or positional ones. Do not invent elements that are not in the HTML.
         TEXT;
-    }
-
-    /**
-     * The model needs the structure, not the scripts, styles or the tail of a very long page.
-     */
-    private static function trim(string $html): string
-    {
-        $html = (string) preg_replace('#<(script|style|svg|noscript)\b[^>]*>.*?</\1>#is', '', $html);
-        $html = (string) preg_replace('/\s+/', ' ', $html);
-
-        return mb_substr($html, 0, self::MAX_HTML_CHARS);
     }
 }
