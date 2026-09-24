@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Enums\Language;
+
 /**
  * The checks the body of an article goes through before it is kept: its
  * shape and its length, both of which can be counted rather than judged.
@@ -154,7 +156,7 @@ class ValidateArticle
     {
         $text = preg_replace('/^#{1,6}\s*(出典|出处|出處|출처|Sources?|Quellen)\b.*\z/imsu', '', $body) ?? $body;
         $text = preg_replace('/^#{1,6}\s*|\[([^\]]*)\]\([^)]*\)|[*_`>]/mu', '$1', $text) ?? $text;
-        $isCjk = $language === null ? preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $text) === 1 : in_array($language, ['ja', 'ko', 'zh-Hans', 'zh-Hant'], true);
+        $isCjk = $language === null ? preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $text) === 1 : (Language::tryFrom($language)?->countsCharacters() ?? false);
         $unit = $isCjk ? 'characters' : 'words';
         $count = $unit === 'characters'
             ? mb_strlen(preg_replace('/\s+/u', '', $text) ?? $text)

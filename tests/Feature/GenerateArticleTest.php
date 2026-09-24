@@ -9,6 +9,7 @@ use App\Jobs\RefineHeadline;
 use App\Jobs\TranslateArticle;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
+use App\Models\LanguageSetting;
 use App\Models\Material;
 use App\Models\Prompt;
 use App\Models\User;
@@ -88,7 +89,7 @@ it('has the agent write the body under the settled headline from an extracted ma
         // The article is the original, in the language the agent says it wrote, and the languages we publish in are queued after it.
         ->and($article->language)->toBe('ja')
         ->and($article->translated_from_id)->toBeNull()
-        ->and($article->translationLanguages())->toBe(['en', 'zh-Hant', 'zh-Hans'])
+        ->and(LanguageSetting::translationTargets($article->language))->toBe(['en', 'zh-Hant', 'zh-Hans'])
         ->and($article)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 800]);
     // The headline loop is queued first; the translations and the quality check (編成) follow the body.
     Queue::assertPushed(RefineHeadline::class, 1);

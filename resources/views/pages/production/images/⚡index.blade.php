@@ -58,7 +58,7 @@ new #[Title('画像')] class extends Component {
     #[Computed]
     public function articles(): Collection
     {
-        return Article::query()->whereNull('translated_from_id')->whereNotNull('scheduled_at')->whereNull('published_at')
+        return Article::query()->originals()->whereNotNull('scheduled_at')->whereNull('published_at')
             ->with('material.document.source', 'image')->orderBy('scheduled_at')->orderBy('id')->get();
     }
 

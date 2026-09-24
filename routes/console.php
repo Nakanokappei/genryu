@@ -84,7 +84,7 @@ Artisan::command('prompts:import {--path=prompts}', function () {
 
     foreach (File::glob("{$root}/languages/*.md") as $file) {
         $language = basename($file, '.md');
-        DB::table('language_settings')->updateOrInsert(['language' => $language], ['prompt' => rtrim(File::get($file)), 'coverage' => DB::table('language_settings')->where('language', $language)->value('coverage') ?? (LanguageSetting::DEFAULTS[$language] ?? 'none'), 'updated_at' => now()]);
+        DB::table('language_settings')->updateOrInsert(['language' => $language], ['prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language), 'updated_at' => now()]);
         $read++;
     }
 

@@ -36,7 +36,7 @@ new #[Title('記事')] class extends Component {
     /** @return Builder<Article> the originals, with what the rows show */
     private function originals(): Builder
     {
-        return Article::query()->whereNull('translated_from_id')->with('material.document.source', 'qualityCheck', 'translations');
+        return Article::query()->originals()->with('material.document.source', 'qualityCheck', 'translations');
     }
 }; ?>
 

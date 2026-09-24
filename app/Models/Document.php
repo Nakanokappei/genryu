@@ -30,7 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * @property array<string, mixed>|null $likeness_detail what the likeness was measured against: the nearest like and unlike, their similarities, the model
  * @property CarbonImmutable|null $published_at
  * @property bool $published_has_time
- * @property string|null $language the language the document is written in (言語), one of Article::LANGUAGES
+ * @property string|null $language the language the document is written in (言語), one of App\Enums\Language
  * @property CarbonImmutable|null $human_decided_at
  */
 class Document extends Model

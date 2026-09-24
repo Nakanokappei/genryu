@@ -34,13 +34,13 @@ new #[Title('品質チェック')] class extends PagedList {
     public function articles()
     {
         // The written originals: a translation says what its original says, so only the original is checked.
-        return Article::query()->whereNull('translated_from_id')->whereNotNull('body')->with('material.document.source', 'qualityCheck')->latest()->latest('id')->paginate($this->rowsPerPage());
+        return Article::query()->originals()->whereNotNull('body')->with('material.document.source', 'qualityCheck')->latest()->latest('id')->paginate($this->rowsPerPage());
     }
 
     // Queue a check for every written original that has none, or whose latest one failed.
     public function check(): void
     {
-        $articles = Article::query()->whereNull('translated_from_id')->whereNotNull('body')->whereIn('status', ['draft', 'published'])
+        $articles = Article::query()->originals()->whereNotNull('body')->whereIn('status', ['draft', 'published'])
             ->where(fn ($query) => $query->whereDoesntHave('qualityCheck')->orWhereRelation('qualityCheck', 'status', 'failed'))->get();
         $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
         unset($this->articles);
@@ -51,7 +51,7 @@ new #[Title('品質チェック')] class extends PagedList {
     // Queue a check for every written original again, as after the policy has changed.
     public function checkAll(): void
     {
-        $articles = Article::query()->whereNull('translated_from_id')->whereNotNull('body')->whereIn('status', ['draft', 'published'])->get();
+        $articles = Article::query()->originals()->whereNotNull('body')->whereIn('status', ['draft', 'published'])->get();
         $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
         unset($this->articles);
 

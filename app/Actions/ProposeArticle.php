@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\Language;
 use App\Models\Article;
 use App\Models\LanguageSetting;
 use App\OpenAi\Responses;
@@ -69,7 +70,7 @@ class ProposeArticle
                 // After the body, so it is written as a summary of the body just written.
                 'lead' => ['type' => 'string'],
                 // Which language it wrote in, so the job knows what is left to translate into.
-                'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
+                'language' => ['type' => 'string', 'enum' => Language::codes()],
                 // The figures of the source to quote, by number, and where each stands; App\Jobs\GenerateArticle keeps only valid ones.
                 'figures' => ['type' => 'array', 'items' => [
                     'type' => 'object',

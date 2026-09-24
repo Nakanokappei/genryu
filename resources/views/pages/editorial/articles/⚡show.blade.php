@@ -26,7 +26,7 @@ new #[Title('記事')] class extends Component {
     /** The article as written, whichever of its languages was opened. */
     public function original(): Article
     {
-        return $this->article->isOriginal() ? $this->article : ($this->article->translatedFrom ?? $this->article);
+        return $this->article->original() ?? $this->article;
     }
 
     /**
@@ -98,7 +98,7 @@ new #[Title('記事')] class extends Component {
 
     {{-- The languages are tabs over one piece: the article as written, then each translation of it. --}}
     <flux:radio.group wire:model.live="language" variant="segmented" size="sm">
-        @foreach (\App\Models\Article::LANGUAGE_NAMES as $code => $name)
+        @foreach (\App\Enums\Language::names() as $code => $name)
             @if ($this->versions->has($code))
                 <flux:radio value="{{ $code }}" label="{{ $name }}{{ $this->versions[$code]->isOriginal() ? '（'.__('Original article').'）' : '' }}" />
             @endif

@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Language;
 use App\Jobs\GenerateArticle;
 use App\Livewire\PagedList;
 use App\Models\Article;
@@ -46,7 +47,7 @@ new #[Title('記事')] class extends PagedList {
             $this->{$layer.'Model'} = EditorialPolicy::modelFor($layer);
         }
 
-        foreach (Article::LANGUAGES as $language) {
+        foreach (Language::codes() as $language) {
             $this->coverages[$language] = LanguageSetting::coverage($language);
             $this->languagePrompts[$language] = LanguageSetting::prompt($language);
         }
@@ -63,7 +64,7 @@ new #[Title('記事')] class extends PagedList {
     /** Both halves of a language's row, whichever form was saved: its coverage and its additional prompt. */
     private function storeLanguageSettings(): void
     {
-        foreach (Article::LANGUAGES as $language) {
+        foreach (Language::codes() as $language) {
             LanguageSetting::query()->updateOrCreate(['language' => $language], ['coverage' => $this->coverages[$language] ?? LanguageSetting::coverage($language), 'prompt' => trim($this->languagePrompts[$language] ?? '')]);
         }
     }
@@ -88,13 +89,13 @@ new #[Title('記事')] class extends PagedList {
     public function articles()
     {
         // The list is the articles as written; their translations hang off them and are read on the article itself.
-        return Article::query()->whereNull('translated_from_id')->with('material.document.source', 'translations')->latest()->latest('id')->paginate($this->rowsPerPage());
+        return Article::query()->originals()->with('material.document.source', 'translations')->latest()->latest('id')->paginate($this->rowsPerPage());
     }
 
     // Stage 2.4: queue the writing for every extracted material whose article is missing or failed, when some language wants its source (言語設定); the translations follow each article on their own.
     public function generate(): void
     {
-        $materials = Material::query()->where('status', 'extracted')->whereDoesntHave('articles', fn ($query) => $query->whereNull('translated_from_id')->whereIn('status', ['generating', 'draft', 'published']))
+        $materials = Material::query()->where('status', 'extracted')->whereDoesntHave('articles', fn ($query) => $query->originals()->whereIn('status', ['generating', 'draft', 'published']))
             ->with('document')->get()->filter(fn (Material $material): bool => LanguageSetting::wantsArticle($material->document->language));
         $materials->each(fn (Material $material) => GenerateArticle::queueFor($material));
         unset($this->articles);
@@ -111,10 +112,10 @@ new #[Title('記事')] class extends PagedList {
         <flux:heading size="lg">{{ __('Language settings') }}</flux:heading>
         <flux:text>{{ __('For each language, which primary sources get an article in it. An article is written in the language of its primary source and translated from there; when that language makes no articles but another takes every source, the original is still written, as the copy the translations are made from, and is not published.') }}</flux:text>
         <div class="divide-y divide-neutral-200 dark:divide-neutral-700">
-            @foreach (\App\Models\Article::LANGUAGES as $code)
+            @foreach (\App\Enums\Language::codes() as $code)
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1 py-2" wire:key="coverage-{{ $code }}">
-                    <span class="w-28 text-sm">{{ \App\Models\Article::LANGUAGE_NAMES[$code] }}</span>
-                    <flux:select wire:model="coverages.{{ $code }}" size="sm" class="max-w-sm" :aria-label="\App\Models\Article::LANGUAGE_NAMES[$code]">
+                    <span class="w-28 text-sm">{{ \App\Enums\Language::nameOf($code) }}</span>
+                    <flux:select wire:model="coverages.{{ $code }}" size="sm" class="max-w-sm" :aria-label="\App\Enums\Language::nameOf($code)">
                         <flux:select.option value="all">{{ __('Articles from every primary source') }}</flux:select.option>
                         <flux:select.option value="own">{{ __('Only from primary sources in this language') }}</flux:select.option>
                         <flux:select.option value="none">{{ __('No articles') }}</flux:select.option>
@@ -141,7 +142,7 @@ new #[Title('記事')] class extends PagedList {
             <flux:text>{{ __('The developer prompt and the model of the headline loop, the first step of an article: a headline is written from the material in the language of the primary source and scored against the rubric below, and when it does not pass another is written with the review in hand and scored again, up to :attempts times. The best-scoring headline is kept, and the article is written under it. The rubric, its points and the pass mark are fixed in the code; this prompt says how to write a headline and how to judge it.', ['attempts' => \App\Jobs\RefineHeadline::ATTEMPTS]) }}</flux:text>
             <flux:textarea wire:model="headline" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
         @elseif ($layer === 'translation')
-            <flux:text>{{ __('The developer prompt and the model of the translator: the article is translated into the languages we publish in, never written again from the material, so the nuance of the primary source survives. The source and the material go along as context, because a translator without them mistranslates the terms.') }} {{ implode(' / ', array_map(fn ($code) => \App\Models\Article::LANGUAGE_NAMES[$code], \App\Models\LanguageSetting::translationTargets(null))) }}</flux:text>
+            <flux:text>{{ __('The developer prompt and the model of the translator: the article is translated into the languages we publish in, never written again from the material, so the nuance of the primary source survives. The source and the material go along as context, because a translator without them mistranslates the terms.') }} {{ implode(' / ', array_map(fn ($code) => \App\Enums\Language::nameOf($code), \App\Models\LanguageSetting::translationTargets(null))) }}</flux:text>
             <flux:textarea wire:model="translation" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
         @else
             <flux:text>{{ __('The developer prompt and the model of the writer: under the settled headline, an LLM turns a material into the body of one article, written in the language of its primary source. Format, voice, length, shape and what may not be written are set here.') }}</flux:text>
@@ -155,8 +156,8 @@ new #[Title('記事')] class extends PagedList {
                 {{-- Seven tabs do not fit a narrow screen: they scroll within their own row rather than widening the page. --}}
                 <div class="ms-auto max-w-full overflow-x-auto">
                     <flux:radio.group wire:model.live="promptLanguage" variant="segmented" size="sm">
-                        @foreach (\App\Models\Article::LANGUAGES as $code)
-                            <flux:radio value="{{ $code }}" label="{{ \App\Models\Article::LANGUAGE_NAMES[$code] }}" />
+                        @foreach (\App\Enums\Language::codes() as $code)
+                            <flux:radio value="{{ $code }}" label="{{ \App\Enums\Language::nameOf($code) }}" />
                         @endforeach
                     </flux:radio.group>
                 </div>

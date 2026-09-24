@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\Language;
 use Carbon\CarbonImmutable;
 use Database\Factories\ArticleFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,31 +39,6 @@ class Article extends Model
     /** @use HasFactory<ArticleFactory> */
     use HasFactory;
 
-    public const STATUSES = ['generating', 'draft', 'failed', 'published'];
-
-    /**
-     * The languages we publish in (decided 2026-09-23), in the order of
-     * the countries' R&D spending in the UNESCO figures for 2023. Which
-     * sources get an article in each is set on 記事 (LanguageSetting); an
-     * article is written in its source's language and translated from
-     * there, never into its own.
-     */
-    public const LANGUAGES = ['en', 'zh-Hant', 'ja', 'de', 'ko', 'fr', 'zh-Hans'];
-
-    /** The languages a primary source may be in, which an original article may therefore be written in. */
-    public const SOURCE_LANGUAGES = self::LANGUAGES;
-
-    /** What each language is called on the screens. */
-    public const LANGUAGE_NAMES = [
-        'en' => 'English',
-        'zh-Hant' => '繁體中文',
-        'ja' => '日本語',
-        'de' => 'Deutsch',
-        'ko' => '한국어',
-        'fr' => 'Français',
-        'zh-Hans' => '简体中文',
-    ];
-
     /**
      * A body with a blank line between every two lines: models write the
      * paragraphs one newline apart, which Markdown runs together into one
@@ -72,22 +50,6 @@ class Article extends Model
     {
         return trim(preg_replace('/\n\s*\n+|\n/u', "\n\n", str_replace("\r\n", "\n", $body)) ?? $body);
     }
-
-    /**
-     * Where each language is read, for the time it is published at (公開予定日時):
-     * English by New York, every other language by its country's capital
-     * (decided 2026-09-23). Every language version of an article goes out
-     * at the same local date and time of day, each in its own zone.
-     */
-    public const TIMEZONES = [
-        'ja' => 'Asia/Tokyo',
-        'en' => 'America/New_York',
-        'zh-Hans' => 'Asia/Shanghai',
-        'zh-Hant' => 'Asia/Taipei',
-        'de' => 'Europe/Berlin',
-        'ko' => 'Asia/Seoul',
-        'fr' => 'Europe/Paris',
-    ];
 
     /**
      * Where a quoted figure can stand (UI 図版): at the end of the opening
@@ -109,9 +71,6 @@ class Article extends Model
 
     /** At most this many figures are quoted in one article, so the article stays the main thing and the figures serve it. */
     public const MAX_FIGURES = 2;
-
-    /** How a quoted figure's source is labelled, in the language of the article. */
-    public const SOURCE_LABELS = ['ja' => '出典', 'en' => 'Source', 'zh-Hant' => '出處', 'zh-Hans' => '出处', 'de' => 'Quelle', 'ko' => '출처', 'fr' => 'Source'];
 
     protected $fillable = [
         'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'figures', 'status', 'status_message', 'published_at', 'scheduled_at', 'image_path', 'image_time',
@@ -136,7 +95,7 @@ class Article extends Model
     /** What the screens call its language. */
     public function languageName(): string
     {
-        return self::LANGUAGE_NAMES[$this->language] ?? (string) $this->language;
+        return Language::nameOf($this->language);
     }
 
     /**
@@ -147,9 +106,7 @@ class Article extends Model
      */
     public function quotedFigures(): array
     {
-        $original = $this->isOriginal() ? $this : $this->translatedFrom;
-
-        return $original === null ? [] : ($original->figures ?? []);
+        return $this->original()->figures ?? [];
     }
 
     /**
@@ -224,7 +181,7 @@ class Article extends Model
     private function figureHtml(array $figure): string
     {
         $document = $this->material?->document;
-        $label = self::SOURCE_LABELS[$this->language] ?? self::SOURCE_LABELS['en'];
+        $label = (Language::tryFrom((string) $this->language) ?? Language::English)->sourceLabel();
         $caption = trim((string) ($figure['caption'] ?? ''));
         $source = $document !== null
             ? e($label).': <a href="'.e($document->url).'" target="_blank" rel="noopener noreferrer">'.e($document->title).'</a>（'.e($document->source->name).'）'
@@ -238,21 +195,27 @@ class Article extends Model
             .'</figure>';
     }
 
+    /** The article as written: this one, or the one it was translated from (null when that is gone). */
+    public function original(): ?Article
+    {
+        return $this->isOriginal() ? $this : $this->translatedFrom;
+    }
+
+    /**
+     * Articles as written, not translations.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function originals(Builder $query): void
+    {
+        $query->whereNull('translated_from_id');
+    }
+
     /** Whether this is the article as written, rather than a translation of one. */
     public function isOriginal(): bool
     {
         return $this->translated_from_id === null;
-    }
-
-    /**
-     * The languages this article is still to be translated into: the ones
-     * that take every source (言語設定), less the one it is written in.
-     *
-     * @return list<string>
-     */
-    public function translationLanguages(): array
-    {
-        return LanguageSetting::translationTargets($this->language);
     }
 
     /**
@@ -263,7 +226,7 @@ class Article extends Model
      */
     public function isPublishable(): bool
     {
-        return LanguageSetting::publishes((string) $this->language, $this->isOriginal() ? $this->language : $this->translatedFrom?->language);
+        return LanguageSetting::publishes((string) $this->language, $this->original()?->language);
     }
 
     /** @return BelongsTo<Material, $this> */
@@ -311,7 +274,7 @@ class Article extends Model
     /** The zone this language version is read in, by which its publication time is set. */
     public function timezone(): string
     {
-        return self::TIMEZONES[$this->language] ?? 'UTC';
+        return Language::tryFrom((string) $this->language)?->timezone() ?? 'UTC';
     }
 
     /** When this language version is to be published, in its own zone (公開予定日時), or null when it is not scheduled. */

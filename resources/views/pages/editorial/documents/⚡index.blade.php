@@ -208,7 +208,7 @@ new #[Title('文書')] class extends PagedList {
     // 言語: a person sets right the language a document was guessed to be in; it decides which languages its article is published in.
     public function setLanguage(int $documentId, string $language): void
     {
-        abort_unless(in_array($language, \App\Models\Article::LANGUAGES, true), 422);
+        abort_unless(in_array($language, \App\Enums\Language::codes(), true), 422);
         Document::query()->whereKey($documentId)->firstOrFail()->update(['language' => $language]);
         unset($this->documents);
     }
@@ -385,7 +385,7 @@ new #[Title('文書')] class extends PagedList {
                         @if ($document->language === null)
                             <option value="" selected>—</option>
                         @endif
-                        @foreach (\App\Models\Article::LANGUAGE_NAMES as $code => $name)
+                        @foreach (\App\Enums\Language::names() as $code => $name)
                             <option value="{{ $code }}" @selected($document->language === $code)>{{ $name }}</option>
                         @endforeach
                     </select>

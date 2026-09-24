@@ -76,14 +76,14 @@ new #[Title('スケジュール')] class extends PagedList {
     public function articles()
     {
         // The scheduled originals, soonest first; each carries its translations and their times.
-        return Article::query()->whereNull('translated_from_id')->whereNotNull('scheduled_at')->with('material.document.source', 'qualityCheck', 'translations')->orderBy('scheduled_at')->orderBy('id')->paginate($this->rowsPerPage());
+        return Article::query()->originals()->whereNotNull('scheduled_at')->with('material.document.source', 'qualityCheck', 'translations')->orderBy('scheduled_at')->orderBy('id')->paginate($this->rowsPerPage());
     }
 
     /** How many checked, unpublished articles have no slot yet, fresh or not. */
     #[Computed]
     public function waiting(): int
     {
-        return Article::query()->whereNull('translated_from_id')->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')->whereRelation('qualityCheck', 'status', 'checked')->count();
+        return Article::query()->originals()->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')->whereRelation('qualityCheck', 'status', 'checked')->count();
     }
 }; ?>
 
@@ -93,7 +93,7 @@ new #[Title('スケジュール')] class extends PagedList {
     {{-- The settings sit with the schedule because they are what make it. --}}
     <form wire:submit="saveSettings" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Settings') }}</flux:heading>
-        <flux:text>{{ __('Checked, unpublished articles whose primary source was published within the period are given the slots of the coming weekdays, best quality first. Every language version goes out at the same local date and time, each in its own zone:') }} {{ implode(' / ', array_map(fn ($language, $zone) => \App\Models\Article::LANGUAGE_NAMES[$language].' '.$zone, array_keys(\App\Models\Article::TIMEZONES), \App\Models\Article::TIMEZONES)) }}</flux:text>
+        <flux:text>{{ __('Checked, unpublished articles whose primary source was published within the period are given the slots of the coming weekdays, best quality first. Every language version goes out at the same local date and time, each in its own zone:') }} {{ implode(' / ', array_map(fn ($language) => $language->label().' '.$language->timezone(), \App\Enums\Language::cases())) }}</flux:text>
         <div class="grid gap-3 sm:grid-cols-3">
             <flux:input type="number" wire:model="articlesPerWeekday" :label="__('Articles per weekday')" min="1" />
             <flux:input type="number" wire:model="days" :label="__('Period (days)')" min="1" />

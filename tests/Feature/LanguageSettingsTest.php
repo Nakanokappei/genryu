@@ -4,6 +4,7 @@ use App\Actions\DetectLanguage;
 use App\Actions\ProposeArticle;
 use App\Actions\ProposeTranslation;
 use App\Actions\ScheduleArticles;
+use App\Enums\Language;
 use App\Jobs\RefineHeadline;
 use App\Models\Article;
 use App\Models\Document;
@@ -62,7 +63,7 @@ it('decides the languages an article is published and translated in', function (
 
 // A source no language wants gets no article from the bulk generation.
 it('writes no article for a source no language wants', function () {
-    foreach (Article::LANGUAGES as $language) {
+    foreach (Language::codes() as $language) {
         LanguageSetting::query()->create(['language' => $language, 'coverage' => $language === 'ja' ? 'all' : 'own']);
     }
 

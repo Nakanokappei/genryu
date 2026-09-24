@@ -27,7 +27,7 @@ class DetectLanguage
         'fr' => ['le', 'la', 'les', 'des', 'et', 'est', 'une', 'pour', 'dans', 'du'],
     ];
 
-    /** The language of a text, as one of Article::LANGUAGES, or null when it has no letters to tell by. */
+    /** The language of a text, as one of App\Enums\Language, or null when it has no letters to tell by. */
     public static function of(string $text): ?string
     {
         $sample = mb_substr($text, 0, self::SAMPLE_CHARS);

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\Language;
 use App\Models\Article;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
@@ -113,7 +114,7 @@ class MediaController extends Controller
     /** The top image's path on the local disk: the original's, for a translation too. */
     public static function imagePathOf(Article $article): ?string
     {
-        return ($article->isOriginal() ? $article : $article->translatedFrom)?->image_path;
+        return $article->original()?->image_path;
     }
 
     /**
@@ -123,6 +124,6 @@ class MediaController extends Controller
      */
     public static function languages(): array
     {
-        return array_values(array_filter(Article::LANGUAGES, fn (string $language): bool => self::articles($language)->isNotEmpty()));
+        return array_values(array_filter(Language::codes(), fn (string $language): bool => self::articles($language)->isNotEmpty()));
     }
 }

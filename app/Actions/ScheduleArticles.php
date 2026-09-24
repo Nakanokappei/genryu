@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Enums\Language;
 use App\Models\Article;
 use App\Models\ScheduleSetting;
 use Carbon\CarbonImmutable;
@@ -14,7 +15,7 @@ use Illuminate\Support\Collection;
  * none) are given the slots of the coming weekdays, best score first,
  * earliest slot first. A slot is a date and a local time of day: every
  * language version of the article goes out at that date and time in its
- * own zone (Article::TIMEZONES), so a slot is used only when it is still
+ * own zone (Language::timezone), so a slot is used only when it is still
  * ahead in every one of them. A translation written after its original
  * was scheduled takes the original's slot. No model is called.
  */
@@ -42,7 +43,7 @@ class ScheduleArticles
         }
 
         // The slots already given, by the original's local date and time.
-        $taken = Article::query()->whereNull('translated_from_id')->whereNotNull('scheduled_at')->get()
+        $taken = Article::query()->originals()->whereNotNull('scheduled_at')->get()
             ->mapWithKeys(fn (Article $article): array => [$article->scheduledLocal()?->format('Y-m-d H:i') => true])->all();
         // From yesterday in UTC, so the day that has already begun in the zones ahead of UTC is not skipped; a slot already past is passed over below.
         $start = $now->utc()->subDay()->startOfDay();
@@ -88,7 +89,7 @@ class ScheduleArticles
     {
         $since = $now->subDays($days);
 
-        return Article::query()->whereNull('translated_from_id')->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')
+        return Article::query()->originals()->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')
             ->whereRelation('qualityCheck', 'status', 'checked')
             ->with('qualityCheck', 'material.document')->get()
             ->filter(fn (Article $article): bool => ($article->material->document->published_at ?? $article->created_at)->greaterThanOrEqualTo($since))
@@ -99,7 +100,7 @@ class ScheduleArticles
     /** Whether a slot, a local date and time, is still ahead in every zone an article is read in. */
     private static function isAheadEverywhere(string $slot, CarbonImmutable $now): bool
     {
-        return array_all(Article::TIMEZONES, fn (string $zone): bool => CarbonImmutable::createFromFormat('Y-m-d H:i', $slot, $zone)->greaterThan($now));
+        return array_all(Language::cases(), fn (Language $language): bool => CarbonImmutable::createFromFormat('Y-m-d H:i', $slot, $language->timezone())->greaterThan($now));
     }
 
     /**
@@ -124,7 +125,7 @@ class ScheduleArticles
     {
         $local = $original->scheduledLocal();
 
-        return $local === null ? null : CarbonImmutable::createFromFormat('Y-m-d H:i', $local->format('Y-m-d H:i'), Article::TIMEZONES[$language] ?? 'UTC')->utc();
+        return $local === null ? null : CarbonImmutable::createFromFormat('Y-m-d H:i', $local->format('Y-m-d H:i'), Language::tryFrom($language)?->timezone() ?? 'UTC')->utc();
     }
 
     /** A translation written after its original was scheduled takes the original's slot. */

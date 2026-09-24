@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Language;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -24,23 +25,12 @@ class LanguageSetting extends Model
 {
     public const COVERAGES = ['all', 'own', 'none'];
 
-    /** What each language does until the screen saves it: the four we published in from the start take every source, the others their own. */
-    public const DEFAULTS = [
-        'en' => 'all',
-        'zh-Hant' => 'all',
-        'ja' => 'all',
-        'de' => 'own',
-        'ko' => 'own',
-        'fr' => 'own',
-        'zh-Hans' => 'all',
-    ];
-
     protected $fillable = ['language', 'coverage', 'prompt'];
 
     /** Which primary sources get an article in a language: all, own or none. */
     public static function coverage(string $language): string
     {
-        return (string) (static::query()->where('language', $language)->value('coverage') ?? self::DEFAULTS[$language] ?? 'none');
+        return (string) (static::query()->where('language', $language)->value('coverage') ?? Language::tryFrom($language)?->defaultCoverage() ?? 'none');
     }
 
     /** The additional prompt for writing in a language, empty when there is none. */
@@ -67,7 +57,7 @@ class LanguageSetting extends Model
     {
         $prompt = self::prompt($language);
 
-        return $prompt === '' ? [] : [['role' => 'developer', 'content' => 'Additional rules for writing in '.(Article::LANGUAGE_NAMES[(string) $language] ?? $language).":\n".$prompt]];
+        return $prompt === '' ? [] : [['role' => 'developer', 'content' => 'Additional rules for writing in '.Language::nameOf($language).":\n".$prompt]];
     }
 
     /** Whether an article from a source in one language is published in another (or in its own). */
@@ -88,7 +78,7 @@ class LanguageSetting extends Model
      */
     public static function translationTargets(?string $sourceLanguage): array
     {
-        return array_values(array_filter(Article::LANGUAGES, fn (string $language): bool => $language !== $sourceLanguage && self::coverage($language) === 'all'));
+        return array_values(array_filter(Language::codes(), fn (string $language): bool => $language !== $sourceLanguage && self::coverage($language) === 'all'));
     }
 
     /** Whether an article is to be written at all for a source in this language: some language wants it. */

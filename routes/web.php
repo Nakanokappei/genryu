@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Language;
 use App\Http\Controllers\MediaController;
 use App\Models\Article;
 use App\Models\ArticleImage;
@@ -15,8 +16,8 @@ Route::redirect('/', '/media')->name('home');
 Route::prefix('media')->name('media.')->group(function () {
     Route::get('/', [MediaController::class, 'index'])->name('index');
     Route::get('images/{article}', [MediaController::class, 'image'])->name('image');
-    Route::get('{language}', [MediaController::class, 'index'])->whereIn('language', Article::LANGUAGES)->name('language');
-    Route::get('{language}/articles/{article}', [MediaController::class, 'show'])->whereIn('language', Article::LANGUAGES)->name('article');
+    Route::get('{language}', [MediaController::class, 'index'])->whereIn('language', Language::codes())->name('language');
+    Route::get('{language}/articles/{article}', [MediaController::class, 'show'])->whereIn('language', Language::codes())->name('article');
 });
 
 Route::middleware(['auth', 'verified'])->group(function () {
