@@ -19,21 +19,15 @@ new #[Title('意味フィルタ')] class extends Component {
 
     public function mount(string $side): void
     {
-        abort_unless(in_array($side, SemanticFilterExample::SIDES, true), 404);
+        abort_unless(array_key_exists($side, SemanticFilterExample::SIDES), 404);
         $this->side = $side;
-        $this->definitions = EditorialPolicy::bodyFor(self::layer($side));
-    }
-
-    /** The policy layer that holds a side's definitions. */
-    private static function layer(string $side): string
-    {
-        return $side === 'like' ? 'semantic_like' : 'semantic_unlike';
+        $this->definitions = EditorialPolicy::bodyFor(SemanticFilterExample::layerOf($side));
     }
 
     // Saved, every embedded document is measured again: only a new definition line calls the model.
     public function save(MeasureLikeness $measure): void
     {
-        EditorialPolicy::query()->updateOrCreate(['layer' => self::layer($this->side)], ['body' => $this->definitions]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => SemanticFilterExample::layerOf($this->side)], ['body' => $this->definitions]);
         $result = $measure->again();
 
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));

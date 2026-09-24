@@ -232,9 +232,9 @@ new #[Title('文書')] class extends PagedList {
         <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions and the examples of each side. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
         {{-- The two sides are set on screens of their own: what this media is like, and what it is not like. --}}
         <div class="grid gap-3 sm:grid-cols-2">
-            @foreach (['like' => __('Like this media'), 'unlike' => __('Unlike this media')] as $side => $label)
+            @foreach (\App\Models\SemanticFilterExample::SIDES as $side => $label)
                 <a href="{{ route('editorial.semantic-filter.show', $side) }}" class="rounded-lg border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800" wire:navigate>
-                    <div class="font-medium">{{ $label }} →</div>
+                    <div class="font-medium">{{ __($label) }} →</div>
                     <div class="text-sm text-neutral-500">{{ __(':definitions definitions, :examples examples', ['definitions' => $this->semanticFilterFigures[$side.'_definitions'], 'examples' => $this->semanticFilterFigures[$side]]) }}</div>
                 </a>
             @endforeach
@@ -359,7 +359,7 @@ new #[Title('文書')] class extends PagedList {
                     @if ($document->excluded_by !== null)
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
                     @elseif ($document->isLeftOut())
-                        <flux:tooltip :content="__('Left out by the semantic filter: likeness :likeness', ['likeness' => sprintf('%+.2f', $document->likeness)])"><x-pages::status status="excluded" /></flux:tooltip>
+                        <flux:tooltip :content="__('Left out by the semantic filter: likeness :likeness', ['likeness' => sprintf('%+.2f', $document->likeness)])"><x-pages::status status="left_out" /></flux:tooltip>
                     @elseif ($document->status === 'failed')
                         <flux:tooltip :content="$document->status_message ?? ''"><x-pages::status :status="$document->status" /></flux:tooltip>
                     @elseif ($document->hasShortBody())

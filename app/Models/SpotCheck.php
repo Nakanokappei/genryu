@@ -29,7 +29,7 @@ class SpotCheck extends Model
     public const JUST_BELOW_WIDTH = 0.10;
 
     /** A person's verdict: like this media, unlike it, or cannot tell. */
-    public const VERDICTS = ['like', 'unlike', 'cannot_tell'];
+    public const VERDICTS = ['like' => 'Like this media', 'cannot_tell' => 'Cannot tell', 'unlike' => 'Unlike this media'];
 
     protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'let_through', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at', 'confirmed_at', 'confirmed_by'];
 

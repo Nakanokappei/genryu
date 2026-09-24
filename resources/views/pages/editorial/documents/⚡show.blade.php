@@ -104,7 +104,7 @@ new #[Title('文書')] class extends Component {
         if ($side === 'none') {
             $this->document->semanticFilterExample()->delete();
         } else {
-            abort_unless(in_array($side, SemanticFilterExample::SIDES, true), 422);
+            abort_unless(array_key_exists($side, SemanticFilterExample::SIDES), 422);
             $measure($this->document);
             SemanticFilterExample::query()->updateOrCreate(['document_id' => $this->document->id], ['side' => $side, 'created_by' => auth()->id()]);
         }
@@ -180,7 +180,7 @@ new #[Title('文書')] class extends Component {
                 <flux:text class="flex-1">{{ isset($document->likeness_detail['error']) ? __('The semantic filter could not measure this document: :reason', ['reason' => $document->likeness_detail['error']]) : __('Not measured yet.') }}</flux:text>
             @else
                 @if ($document->isLeftOut())
-                    <x-pages::status status="excluded" />
+                    <x-pages::status status="left_out" />
                 @endif
                 <flux:text class="flex-1">{{ __('Likeness') }} <span class="font-medium">{{ sprintf('%+.3f', $document->likeness) }}</span>（{{ __('threshold') }} {{ sprintf('%+.2f', \App\Models\EditorialPolicy::likenessThreshold()) }}）</flux:text>
             @endif
@@ -200,8 +200,8 @@ new #[Title('文書')] class extends Component {
         @endforeach
         <div class="flex flex-wrap items-center gap-3">
             <flux:text size="sm">{{ __('As an example of the semantic filter:') }}</flux:text>
-            @foreach (['like' => __('Like this media'), 'unlike' => __('Unlike this media'), 'none' => __('Not an example')] as $side => $label)
-                <flux:button wire:click="markExample('{{ $side }}')" size="sm" :variant="($document->semanticFilterExample?->side ?? 'none') === $side ? 'primary' : 'outline'">{{ $label }}</flux:button>
+            @foreach ([...\App\Models\SemanticFilterExample::SIDES, 'none' => 'Not an example'] as $side => $label)
+                <flux:button wire:click="markExample('{{ $side }}')" size="sm" :variant="($document->semanticFilterExample?->side ?? 'none') === $side ? 'primary' : 'outline'">{{ __($label) }}</flux:button>
             @endforeach
         </div>
         <flux:text size="sm" class="text-neutral-500">{{ __('An example teaches the semantic filter; it does not adopt or reject the document (the human decision below does).') }}</flux:text>

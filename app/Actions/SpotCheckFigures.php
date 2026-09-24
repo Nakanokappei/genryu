@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Models\SemanticFilterExample;
 use App\Models\SpotCheck;
 use Illuminate\Support\Collection;
 
@@ -28,7 +29,7 @@ class SpotCheckFigures
     {
         $checks = SpotCheck::query()->whereNotNull('confirmed_at')->whereNotNull('verdict')->get();
         $days = $checks->pluck('drawn_on')->map(fn ($day): string => $day->toDateString())->unique()->count();
-        $judged = $checks->whereIn('verdict', ['like', 'unlike']);
+        $judged = $checks->whereIn('verdict', array_keys(SemanticFilterExample::SIDES));
 
         return [
             'days' => $days,
@@ -56,7 +57,7 @@ class SpotCheckFigures
      */
     private static function stratum(string $stratum, Collection $checks): array
     {
-        $judged = $checks->whereIn('verdict', ['like', 'unlike']);
+        $judged = $checks->whereIn('verdict', array_keys(SemanticFilterExample::SIDES));
 
         return [
             'stratum' => $stratum,

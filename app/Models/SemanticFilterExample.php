@@ -16,7 +16,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class SemanticFilterExample extends Model
 {
     /** The two sides: like this media (らしい) and unlike it (らしくない). */
-    public const SIDES = ['like', 'unlike'];
+    public const SIDES = ['like' => 'Like this media', 'unlike' => 'Unlike this media'];
+
+    /** The editorial policy layer that holds a side's definitions. */
+    public static function layerOf(string $side): string
+    {
+        return 'semantic_'.$side;
+    }
 
     protected $fillable = ['document_id', 'side', 'created_by'];
 

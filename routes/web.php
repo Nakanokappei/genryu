@@ -5,6 +5,7 @@ use App\Http\Controllers\MediaController;
 use App\Models\Article;
 use App\Models\ArticleImage;
 use App\Models\Document;
+use App\Models\SemanticFilterExample;
 use App\Models\Source;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
@@ -34,7 +35,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // The original file (UI: "Original") of a document, as it was served, from the local disk.
         Route::get('documents/{document}/original', fn (Document $document) => Storage::disk('local')->download((string) $document->original_path, basename((string) $document->original_path)))->name('documents.original');
         // 意味フィルタ: the definitions and the examples of one side (like / unlike), each on a screen of its own.
-        Route::livewire('semantic-filter/{side}', 'pages::editorial.semantic-filter.show')->whereIn('side', ['like', 'unlike'])->name('semantic-filter.show');
+        Route::livewire('semantic-filter/{side}', 'pages::editorial.semantic-filter.show')->whereIn('side', array_keys(SemanticFilterExample::SIDES))->name('semantic-filter.show');
         Route::livewire('materials', 'pages::editorial.materials.index')->name('materials.index');
         Route::livewire('materials/{material}', 'pages::editorial.materials.show')->name('materials.show');
         Route::livewire('articles', 'pages::editorial.articles.index')->name('articles.index');

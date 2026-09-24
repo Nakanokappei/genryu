@@ -47,7 +47,7 @@ new #[Title('抜き取り点検')] class extends Component {
     // Record the verdict on the document in view, then move on to the next one of the day; after the last, back to one not judged yet.
     public function decide(string $verdict): void
     {
-        abort_unless(in_array($verdict, SpotCheck::VERDICTS, true), 422);
+        abort_unless(array_key_exists($verdict, SpotCheck::VERDICTS), 422);
         $current = $this->current;
 
         if ($current === null || $this->isConfirmed()) {
@@ -153,7 +153,7 @@ new #[Title('抜き取り点検')] class extends Component {
     }
 }; ?>
 
-@php($labels = ['like' => __('Like this media'), 'cannot_tell' => __('Cannot tell'), 'unlike' => __('Unlike this media')])
+@php($labels = array_map(__(...), \App\Models\SpotCheck::VERDICTS))
 @php($keys = ['like' => '4', 'cannot_tell' => '5', 'unlike' => '6'])
 <section class="w-full space-y-6"
     @if ($this->checks->contains(fn ($check) => $check->title_ja === null && $check->translation_error === null)) wire:poll.3s="refreshChecks" @endif

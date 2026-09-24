@@ -172,8 +172,8 @@ class EditorialPolicy extends Model
         $policy = static::query()->where('layer', 'semantic_filter')->first();
         $definitions = [];
 
-        foreach (['like' => 'semantic_like', 'unlike' => 'semantic_unlike'] as $side => $layer) {
-            foreach (preg_split('/\R/u', self::bodyFor($layer)) ?: [] as $line) {
+        foreach (array_keys(SemanticFilterExample::SIDES) as $side) {
+            foreach (preg_split('/\R/u', self::bodyFor(SemanticFilterExample::layerOf($side))) ?: [] as $line) {
                 if (trim($line) !== '') {
                     $definitions[] = ['side' => $side, 'text' => trim($line)];
                 }
