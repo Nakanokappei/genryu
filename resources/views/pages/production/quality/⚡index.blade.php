@@ -23,7 +23,7 @@ new #[Title('品質チェック')] class extends PagedList {
 
     public function savePolicy(): void
     {
-        $this->validate(['qualityModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        $this->validate(['qualityModel' => EditorialPolicy::modelRule()]);
         EditorialPolicy::query()->updateOrCreate(['layer' => 'quality'], ['body' => $this->quality, 'model' => $this->qualityModel]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
@@ -68,11 +68,7 @@ new #[Title('品質チェック')] class extends PagedList {
         <flux:text>{{ __('The developer prompt and the model of the quality check: every written article is scored out of 100 against the media\'s standards and the rubric written here, with the reason the points were lost. The rubric lives in this prompt, so changing it here changes how articles are scored; check them all again after a change.') }}</flux:text>
         <flux:textarea wire:model="quality" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
         <x-pages::fixed-prompts :instruction="\App\Actions\ScoreQuality::INSTRUCTIONS" :input="[__('The headline'), __('The article as written'), __('The material, as JSON')]" />
-        <flux:select wire:model="qualityModel" :label="__('Model of the quality check')" class="max-w-xl">
-            @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <x-pages::model-select wire:model="qualityModel" :label="__('Model of the quality check')" class="max-w-xl" />
 
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>

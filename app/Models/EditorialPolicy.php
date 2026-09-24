@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Once;
+use Illuminate\Validation\Rule;
 
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
@@ -65,7 +66,7 @@ class EditorialPolicy extends Model
      * again by the next model up, so the strongest cannot be the model
      * of the screening itself.
      */
-    public const MODELS = [
+    public const TEXT_MODELS = [
         'gpt-5.6-luna' => ['name' => 'GPT-5.6 Luna', 'description' => 'For bulk work where cost matters most'],
         'gpt-5.6-terra' => ['name' => 'GPT-5.6 Terra', 'description' => 'A balance of judgement and cost'],
         'gpt-5.6-sol' => ['name' => 'GPT-5.6 Sol', 'description' => 'For complex specialist work; gpt-5.6 is an alias of this model'],
@@ -95,7 +96,18 @@ class EditorialPolicy extends Model
      */
     public static function screeningModels(): array
     {
-        return array_slice(array_keys(self::MODELS), 0, -1);
+        return array_slice(array_keys(self::TEXT_MODELS), 0, -1);
+    }
+
+    /**
+     * The validation rule for a model chosen on a screen.
+     *
+     * @param  array<string, mixed>|list<string>  $models  a list of ids, or models keyed by id
+     * @return list<mixed>
+     */
+    public static function modelRule(array $models = self::TEXT_MODELS): array
+    {
+        return ['required', Rule::in(array_is_list($models) ? $models : array_keys($models))];
     }
 
     /**
@@ -104,7 +116,7 @@ class EditorialPolicy extends Model
      */
     public static function nextModelUp(string $model): string
     {
-        $ids = array_keys(self::MODELS);
+        $ids = array_keys(self::TEXT_MODELS);
         $index = array_search($model, $ids, true);
 
         return $ids[min(count($ids) - 1, ($index === false ? 0 : $index) + 1)];

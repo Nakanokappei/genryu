@@ -14,7 +14,7 @@ new #[Title('素材情報')] class extends PagedList {
     // Structuring: the developer prompt (OpenAI's name for the system prompt) of the analyst.
     public string $structuring = '';
 
-    /** The model the material is built with (UI: 素材情報のモデル), one of EditorialPolicy::MODELS. */
+    /** The model the material is built with (UI: 素材情報のモデル), one of EditorialPolicy::TEXT_MODELS. */
     public string $structuringModel = EditorialPolicy::DEFAULT_MODEL;
 
     public function mount(): void
@@ -25,7 +25,7 @@ new #[Title('素材情報')] class extends PagedList {
 
     public function saveStructuring(): void
     {
-        $this->validate(['structuringModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        $this->validate(['structuringModel' => EditorialPolicy::modelRule()]);
         EditorialPolicy::query()->updateOrCreate(['layer' => 'structuring'], ['body' => $this->structuring, 'model' => $this->structuringModel]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
@@ -60,11 +60,7 @@ new #[Title('素材情報')] class extends PagedList {
         <flux:text>{{ __('The developer prompt and the model of the analyst: an LLM reads an adopted document and writes the parts an article is made of: the angle it would be written on, what was true before, what this document changes, what may follow, the facts the document gives, the background it fills in from its own general knowledge, and what it infers from both: who gains, who loses, and what everyday life looks like if this holds. What it cannot write plainly it leaves out. The prompt is the same for every document and is served from the cache; a changed prompt is a new version, pinned by every material.') }}</flux:text>
         <flux:textarea wire:model="structuring" :label="__('Developer prompt (editable)')" rows="12" class="font-mono text-xs" />
         <x-pages::fixed-prompts :instruction="\App\Actions\ProposeMaterial::INSTRUCTIONS" :input="[__('The document, as Markdown')]" />
-        <flux:select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl">
-            @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <x-pages::model-select wire:model="structuringModel" :label="__('Model of the structuring')" class="max-w-xl" />
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="extract" icon="cube" wire:confirm="{{ __('Extract a material from every adopted document that has none? Each one is one call to the model.') }}">{{ __('Extract materials from adopted documents') }}</flux:button>

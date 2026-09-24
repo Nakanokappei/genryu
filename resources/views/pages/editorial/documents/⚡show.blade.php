@@ -59,7 +59,7 @@ new #[Title('文書')] class extends Component {
     // The gate: queue the screening of this document (again, if it already ran) with the model chosen here.
     public function screen(): void
     {
-        $this->validate(['screeningModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))]]);
+        $this->validate(['screeningModel' => EditorialPolicy::modelRule()]);
         ScreenDocument::queueFor($this->document, $this->screeningModel);
         $this->document->refresh();
 
@@ -220,11 +220,7 @@ new #[Title('文書')] class extends Component {
                     {{ $document->screening->status_message ?? '—' }}
                 @endif
             </flux:text>
-            <flux:select wire:model="screeningModel" size="sm" class="w-56!">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="screeningModel" size="sm" class="w-56!" detail="name" />
             <flux:button wire:click="screen" size="sm" icon="scale">{{ $document->screening === null ? __('Screen') : __('Screen again') }}</flux:button>
         </div>
         @if ($document->screening?->status === 'screened')

@@ -71,7 +71,7 @@ new #[Title('記事')] class extends PagedList {
 
     public function savePolicy(): void
     {
-        $models = ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))];
+        $models = EditorialPolicy::modelRule();
         $this->validate(['headlineModel' => $models, 'articleModel' => $models, 'translationModel' => $models]);
 
         foreach (['headline', 'article', 'translation'] as $layer) {
@@ -168,25 +168,13 @@ new #[Title('記事')] class extends PagedList {
 
         @if ($layer === 'headline')
             <x-pages::fixed-prompts :instruction="\App\Actions\ProposeHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::INSTRUCTIONS.PHP_EOL.PHP_EOL.\App\Actions\ScoreHeadline::rubric()" :input="[__('The material, as JSON'), __('The headline'), __('The headlines already tried and the review of the last one')]" />
-            <flux:select wire:model="headlineModel" :label="__('Model of the headline')" class="max-w-xl">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="headlineModel" :label="__('Model of the headline')" class="max-w-xl" />
         @elseif ($layer === 'translation')
             <x-pages::fixed-prompts :instruction="str_replace('%s', __('the target language'), \App\Actions\ProposeTranslation::INSTRUCTIONS)" :input="[__('The article as written'), __('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
-            <flux:select wire:model="translationModel" :label="__('Model of the translation')" class="max-w-xl">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="translationModel" :label="__('Model of the translation')" class="max-w-xl" />
         @else
             <x-pages::fixed-prompts :instruction="\App\Actions\ProposeArticle::INSTRUCTIONS" :input="[__('The headline'), __('The title of the primary source'), __('The URL of the primary source'), __('The material, as JSON')]" />
-            <flux:select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="articleModel" :label="__('Model of the article generation')" class="max-w-xl" />
         @endif
 
         <div class="flex flex-wrap items-center gap-3">

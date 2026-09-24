@@ -42,7 +42,7 @@ new #[Title('文書')] class extends PagedList {
 
     public function saveContentFiltering(): void
     {
-        $this->validate(['contentFilteringModel' => ['required', 'in:'.implode(',', EditorialPolicy::screeningModels())]]);
+        $this->validate(['contentFilteringModel' => EditorialPolicy::modelRule(EditorialPolicy::screeningModels())]);
         EditorialPolicy::query()->updateOrCreate(['layer' => 'content_filtering'], ['body' => $this->contentFiltering, 'model' => $this->contentFilteringModel]);
 
         Flux::toast(variant: 'success', text: __('Saved.'));
@@ -52,7 +52,7 @@ new #[Title('文書')] class extends PagedList {
     public function saveSemanticFilter(MeasureLikeness $measure): void
     {
         $this->validate([
-            'semanticFilterModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::EMBEDDING_MODELS))],
+            'semanticFilterModel' => EditorialPolicy::modelRule(EditorialPolicy::EMBEDDING_MODELS),
             'semanticFilterThreshold' => ['required', 'numeric', 'between:-1,1'],
         ]);
         EditorialPolicy::query()->updateOrCreate(['layer' => 'semantic_filter'], ['body' => '', 'model' => $this->semanticFilterModel, 'threshold' => (float) $this->semanticFilterThreshold]);
@@ -240,11 +240,7 @@ new #[Title('文書')] class extends PagedList {
             @endforeach
         </div>
         <div class="grid gap-3 md:grid-cols-[1fr_12rem]">
-            <flux:select wire:model="semanticFilterModel" :label="__('Embedding model')">
-                @foreach (\App\Models\EditorialPolicy::EMBEDDING_MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }} — {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="semanticFilterModel" :label="__('Embedding model')" :models="\App\Models\EditorialPolicy::EMBEDDING_MODELS" detail="described" />
             <flux:input wire:model="semanticFilterThreshold" :label="__('Threshold')" type="number" step="0.01" min="-1" max="1" />
         </div>
         <flux:text size="sm" class="text-neutral-500">{{ __(':measured documents measured, :below below the threshold.', $this->semanticFilterFigures) }}</flux:text>
@@ -260,11 +256,7 @@ new #[Title('文書')] class extends PagedList {
         <flux:text>{{ __('The developer prompt and the model of the screening: an LLM reads a fetched document and decides whether it goes on to the material (adopt), stops here (reject) or needs a look (review). The prompt is the same for every document and is served from the cache; a changed prompt is a new version, and the figures below are kept per version. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
         <flux:textarea wire:model="contentFiltering" :label="__('Developer prompt (editable)')" rows="8" />
         <x-pages::fixed-prompts :instruction="\App\Actions\ProposeDecision::SECOND_PASS.' '.__('(second pass only)')" :input="[__('The document, as Markdown')]" />
-        <flux:select wire:model="contentFilteringModel" :label="__('First-pass model (a document the first pass sends to review is judged again by the next model up)')" class="max-w-xl">
-            @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                <flux:select.option value="{{ $id }}" :disabled="! in_array($id, \App\Models\EditorialPolicy::screeningModels(), true)">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-            @endforeach
-        </flux:select>
+        <x-pages::model-select wire:model="contentFilteringModel" :label="__('First-pass model (a document the first pass sends to review is judged again by the next model up)')" class="max-w-xl" :enabled="\App\Models\EditorialPolicy::screeningModels()" />
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="screenDocuments" icon="scale" wire:confirm="{{ __('Screen every fetched document not screened yet? Each one is one call to the model.') }}">{{ __('Screen the documents not screened yet') }}</flux:button>

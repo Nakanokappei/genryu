@@ -33,8 +33,8 @@ new #[Title('画像')] class extends Component {
     public function savePolicy(): void
     {
         $this->validate([
-            'imageWriterModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::MODELS))],
-            'imageModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::IMAGE_MODELS))],
+            'imageWriterModel' => EditorialPolicy::modelRule(),
+            'imageModel' => EditorialPolicy::modelRule(EditorialPolicy::IMAGE_MODELS),
             'bands.*.name' => ['required', 'string', 'max:64'],
             'bands.*.starts_at' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/', 'distinct'],
             'bands.*.style' => ['required', 'string'],
@@ -91,16 +91,8 @@ new #[Title('画像')] class extends Component {
         <flux:textarea wire:model="image" :label="__('Developer prompt (editable)')" rows="10" class="font-mono text-xs" />
         <x-pages::fixed-prompts :instruction="\App\Actions\ProposeScene::INSTRUCTIONS" :input="[__('The article as written'), __('The material, as JSON'), __('The style of the hour')]" />
         <div class="grid gap-3 sm:grid-cols-2">
-            <flux:select wire:model="imageWriterModel" :label="__('Model of the scene')">
-                @foreach (\App\Models\EditorialPolicy::MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）</flux:select.option>
-                @endforeach
-            </flux:select>
-            <flux:select wire:model="imageModel" :label="__('Image model')">
-                @foreach (\App\Models\EditorialPolicy::IMAGE_MODELS as $id => $model)
-                    <flux:select.option value="{{ $id }}">{{ $model['name'] }}（{{ $id }}）— {{ __($model['description']) }}</flux:select.option>
-                @endforeach
-            </flux:select>
+            <x-pages::model-select wire:model="imageWriterModel" :label="__('Model of the scene')" detail="short" />
+            <x-pages::model-select wire:model="imageModel" :label="__('Image model')" :models="\App\Models\EditorialPolicy::IMAGE_MODELS" />
         </div>
 
         {{-- 時間帯ごとの絵柄: each band runs from its start to the next one's; the last runs past midnight to the first. --}}

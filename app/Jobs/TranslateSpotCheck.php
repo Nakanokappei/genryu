@@ -40,7 +40,7 @@ class TranslateSpotCheck implements ShouldQueue
 
         try {
             $answer = Responses::send([
-                'model' => array_key_first(EditorialPolicy::MODELS),
+                'model' => array_key_first(EditorialPolicy::TEXT_MODELS),
                 'input' => [
                     ['role' => 'developer', 'content' => self::INSTRUCTION],
                     ['role' => 'user', 'content' => mb_substr(MeasureLikeness::text($document), 0, self::MAX_CHARS)],
