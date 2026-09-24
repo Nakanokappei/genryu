@@ -7,11 +7,10 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 記事 (Articles) of 編成 (Production): the articles on their way out and those already out, one above the other. An article moves 公開日時未定 → 画像作成中 → スケジュール済み → 公開済み (Article::publicationStatus); nothing is moved by hand here.
+// 記事 (Articles) of 編成 (Production): the originals scheduled and published.
 new #[Title('記事')] class extends Component {
     /**
-     * The articles on their way out: every checked original not yet
-     * published, those with a time soonest first, then those waiting for one.
+     * Checked, unpublished originals, soonest first, unscheduled last.
      *
      * @return Collection<int, Article>
      */
@@ -23,7 +22,7 @@ new #[Title('記事')] class extends Component {
     }
 
     /**
-     * The articles already out, latest first.
+     * Published originals, latest first.
      *
      * @return Collection<int, Article>
      */
@@ -59,7 +58,7 @@ new #[Title('記事')] class extends Component {
                         </td>
                         <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                         <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $article->qualityCheck?->reason }}">{{ $article->qualityCheck?->score ?? '—' }}</td>
-                        {{-- The language versions that go out; the original is struck through when its language does not publish it (言語設定). --}}
+                        {{-- Language versions; one not published (言語設定) is struck through. --}}
                         <td class="px-3 py-2 text-neutral-500">
                             @foreach ($article->translations->where('status', '!=', 'failed')->prepend($article) as $version)
                                 <span @class(['line-through' => ! $version->isPublishable()]) title="{{ $version->isPublishable() ? '' : __('Not published in this language.') }}">{{ $version->languageName() }}</span>@if (! $loop->last) / @endif

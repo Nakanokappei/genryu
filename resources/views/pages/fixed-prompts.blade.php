@@ -1,4 +1,4 @@
-{{-- The two messages that follow the editable prompt on every run: the fixed instruction, then the input of the run. Shown so that nobody is tempted to write {本文} or {素材情報} into the prompt above — what changes per run is a message of its own, not a placeholder. The input is named, not printed: one box per value that is put in at run time. --}}
+{{-- The fixed instruction and the named inputs sent after the editable prompt (inputs are messages, not placeholders). --}}
 @props(['instruction' => null, 'input'])
 
 @if ($instruction !== null)

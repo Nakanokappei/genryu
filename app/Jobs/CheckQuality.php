@@ -15,13 +15,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 品質チェック (UI: "Quality check", the first stage of 編成 / Production):
- * in the background, have the judge score an article against the quality
- * layer of the editorial policy and keep the score and the reason as a
- * new check. Only an original is checked — a translation says what its
- * original says. Queued as soon as an article is written, and from the
- * screen; nothing waits for a person. The outcome lands on the check
- * (status チェック中 / チェック済み / 失敗) so the screen can show it.
+ * 品質チェック (UI: "Quality check"): score an original article against the
+ * quality layer of the editorial policy and keep the score and the reason.
  */
 class CheckQuality implements ShouldQueue
 {
@@ -33,10 +28,7 @@ class CheckQuality implements ShouldQueue
 
     public function __construct(public QualityCheck $check) {}
 
-    /**
-     * Queue a check of an article: the row appears at once as チェック中,
-     * pinning the prompt version and the model, as every other stage does.
-     */
+    /** Create the check (チェック中) pinning the prompt and model, and queue it. */
     public static function queueFor(Article $article): QualityCheck
     {
         $check = $article->qualityChecks()->create([
@@ -50,12 +42,14 @@ class CheckQuality implements ShouldQueue
         return $check;
     }
 
+    /** Score the article and record the result or the failure on the check. */
     public function handle(ScoreQuality $score): void
     {
         $check = $this->check;
         $article = $check->article;
 
         try {
+            // Only a written original is checked.
             if ($article->translated_from_id !== null || $article->body === null || $article->status !== 'written') {
                 throw new RuntimeException(__('Only a written original article is checked.'));
             }
@@ -65,12 +59,13 @@ class CheckQuality implements ShouldQueue
             $model = (string) $check->model;
             $result = $score($policy, $model, $article, (array) $article->material?->parts);
 
+            // No score, no check.
             if (! is_numeric($result['json']['score'] ?? null)) {
                 throw new RuntimeException(__('The agent did not return a score.'));
             }
 
             $check->update([
-                // The rubric is out of 100, whatever the model adds up to.
+                // Clamped to the rubric's 0-100.
                 'score' => max(0, min(100, (int) $result['json']['score'])),
                 'reason' => trim((string) ($result['json']['reason'] ?? '')),
                 'status' => 'checked',

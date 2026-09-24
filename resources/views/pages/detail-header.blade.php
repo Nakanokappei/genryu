@@ -1,4 +1,4 @@
-{{-- Back link, the source the record came from when given, and the title of a detail screen, with the source's favicon before it. --}}
+{{-- A detail screen's back link and title, with the source's favicon. --}}
 @props(['back', 'backLabel', 'title', 'source' => null])
 
 <div class="space-y-2">

@@ -7,19 +7,17 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * 原本から Markdown を作り直す (UI: "Rebuild Markdown from the originals"):
- * read the document of every document of a source again from the
- * original kept on the local disk, with the source's current document
- * settings and the current Markdown rules, without touching the site. An
- * entry whose settings no longer match is left as it is and counted, so
- * the operator can fetch it again (which lets the agent propose new
- * settings).
+ * 原本から Markdown を作り直す (UI "Rebuild Markdown from the originals"):
+ * re-reads every document of a source from its original on disk with the
+ * current settings; one that no longer reads is left as it is and counted.
  */
 class RebuildMarkdown
 {
     public function __construct(private ReadDocument $read) {}
 
     /**
+     * Rebuilds the source's documents and returns the counts.
+     *
      * @return array{rebuilt: int, failed: int}
      */
     public function __invoke(Source $source): array
@@ -28,6 +26,7 @@ class RebuildMarkdown
         $failed = 0;
 
         foreach ($source->documents()->whereNull('excluded_by')->whereNotNull('original_path')->get() as $document) {
+            // Original missing on disk.
             if (! Storage::disk('local')->exists((string) $document->original_path)) {
                 continue;
             }
@@ -41,6 +40,7 @@ class RebuildMarkdown
                 $document->update(['markdown' => $markdown, 'status' => 'fetched', 'status_message' => __('Markdown rebuilt from the original.')]);
                 $rebuilt++;
             } catch (Throwable) {
+                // Settings no longer read it: leave it as it is.
                 $failed++;
             }
         }

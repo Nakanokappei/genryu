@@ -6,12 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * 品質チェック (UI: "Quality check"): one scoring of an article against
- * the quality layer of the editorial policy (App\Jobs\CheckQuality). The
- * score (UI 品質) is 0 to 100 by the rubric the policy carries, with the
- * reason the model gave; status checking / checked / failed (UI チェック中
- * / チェック済み / 失敗). Pins the prompt version and the model, keeps
- * the usage, as a screening does.
+ * 品質チェック (UI "Quality check"): one scoring of an article, score 0–100
+ * (UI 品質) with its reason. Status checking / checked / failed
+ * (UI チェック中 / チェック済み / 失敗).
  */
 class QualityCheck extends Model
 {

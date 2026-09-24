@@ -1,4 +1,4 @@
-{{-- The decision that stands for a document as a badge: a person's verdict (採用 / 不採用 with a person mark, the reason as tooltip) before the latest screening's (採用 / 不採用 / 要確認, the reason class and the model's reason as tooltip), or where the run stands (判定中 / 失敗 with its message); a dash when nothing has decided. --}}
+{{-- A document's standing decision as a badge: 人の判定, else the latest screening's, else a dash. --}}
 @props(['document'])
 
 @php $screening = $document->latestScreening; @endphp

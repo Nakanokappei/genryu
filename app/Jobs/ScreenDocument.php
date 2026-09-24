@@ -16,22 +16,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * スクリーニング (UI: "Screening", the Editorial Screening Gate): in the
- * background, have the agent read a fetched document's Markdown with the
- * content filtering prompt and decide 採用 / 不採用 / 要確認. The run is
- * kept as a screening row with the prompt version, the model, the
- * tokens and the estimated cost, and becomes the document's latest
- * screening. Nobody reviews by hand: a 要確認 from the first pass gets
- * one second pass by the next model up, which decides 採用 or 不採用; a
- * 不採用 is final and the document is not sent on to the detailed
- * analysis (App\Jobs\ExtractMaterial refuses it). A 不採用 of a document
- * whose body came out short is suspect, though — a teaser reads like
- * nothing worth adopting — so the source's document settings are
- * revised from that document's original, and when that yields a real
- * body, the cured documents are screened again. The outcome lands on
- * the screening (status 判定中 / 判定済み / 失敗) so the screens can show it.
- * A document adopted on the summary its feed gave (format feed) has its
- * full text fetched (App\Jobs\FetchDocument).
+ * スクリーニング (UI: "Screening"): have the agent decide 採用 / 不採用 / 要確認
+ * on a document per the content filtering, then act on the decision.
  */
 class ScreenDocument implements ShouldQueue
 {
@@ -43,12 +29,7 @@ class ScreenDocument implements ShouldQueue
 
     public function __construct(public Screening $screening) {}
 
-    /**
-     * Queue the screening of a document with the prompt as it is now and
-     * the model chosen for the content filtering (or one named here, to
-     * screen a document again with another model): the run appears at
-     * once as 判定中 and is the document's latest screening.
-     */
+    /** Create a screening (判定中) as the document's latest, pinning revision, prompt and model, and queue it. */
     public static function queueFor(Document $document, ?string $model = null, int $pass = 1): Screening
     {
         $screening = Screening::query()->create([
@@ -66,12 +47,14 @@ class ScreenDocument implements ShouldQueue
         return $screening;
     }
 
+    /** Screen the document, then queue a second pass, the full text, or a settings revision as the decision calls for. */
     public function handle(ProposeDecision $propose, ReviseDocumentSettings $revise): void
     {
         $screening = $this->screening;
         $document = $screening->document;
 
         try {
+            // Excluded or left out: not screened.
             if ($document->excluded_by !== null) {
                 throw new RuntimeException(__('The document is excluded by the title filter.'));
             }
@@ -80,9 +63,10 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The semantic filter left this document out (likeness :likeness).', ['likeness' => sprintf('%+.3f', $document->likeness)]));
             }
 
-            // The text read is the revision pinned when the run was queued, not whatever the document holds by now.
+            // The pinned revision, else the current Markdown.
             $markdown = $screening->revision !== null ? $screening->revision->markdown : (string) $document->markdown;
 
+            // Only a fetched document with text.
             if ($document->status !== 'fetched' || $markdown === '') {
                 throw new RuntimeException(__('The document has not been fetched yet.'));
             }
@@ -103,33 +87,30 @@ class ScreenDocument implements ShouldQueue
             return;
         }
 
-        // 要確認 from the first pass: one second pass, by the next model up, which decides.
+        // 要確認 on the first pass: a second pass by the next model up.
         if ($screening->decision === 'review' && $screening->pass === 1) {
             self::queueFor($document, EditorialPolicy::nextModelUp($screening->model), 2);
 
             return;
         }
 
-        // 採用 on the summary from the feed: now the full text is worth its fetch.
+        // Adopted on a feed summary: fetch the full text.
         if ($document->refresh()->wantsFullText()) {
             FetchDocument::queueFor($document);
 
             return;
         }
 
-        // 不採用 with a short body: the settings, not the document, may be at fault.
+        // Rejected with a short body: revise the document settings.
         if ($screening->decision === 'reject' && $document->refresh()->hasShortBody()) {
             $this->reviseSettings($document, $revise);
         }
     }
 
-    /**
-     * Revise the source's document settings from this document's original
-     * and, when a real body comes out, screen the cured documents again
-     * (this one included); what happened is noted on the screening.
-     */
+    /** Revise the source's document settings from this original and screen the grown documents again. */
     private function reviseSettings(Document $document, ReviseDocumentSettings $revise): void
     {
+        // A failed revision is noted on the screening.
         try {
             $result = $revise($document->source, $document);
         } catch (Throwable $exception) {

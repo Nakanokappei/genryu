@@ -1,4 +1,4 @@
-{{-- The front page: the newest article large, the rest of the window after it as cards. --}}
+{{-- The front page: the newest article large, the rest as cards. --}}
 @extends('media.layout')
 
 @php($text = \App\Http\Controllers\MediaController::TEXT[$language])

@@ -5,19 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * 時間帯ごとの絵柄 (UI: "Style by time of day"), set on 編成 › 画像: the day is
- * cut into bands, each starting at a local time and running to the next,
- * the last one round midnight to the first; an article's top image is
- * drawn in the style of the band its slot falls in, so the five articles
- * of a day look like the hours they go out at rather than like one
- * another. Decided 2026-09-23. One row per band. The styles are prompts,
- * and prompts are assets: they live in the database, never in the
- * repository (see EditorialPolicy::DEFAULTS); the defaults here only name
- * the bands and when they start.
+ * 時間帯ごとの絵柄 (UI "Style by time of day"), set on 編成 › 画像: one row per
+ * band of the day, each running from its local start to the next band's.
  */
 class ImageStyle extends Model
 {
-    /** The bands of the day, earliest first: the name shown, the local time it starts at, and the style the image model is given (empty here; set on the screen). */
+    /** The bands, earliest first: name, local start and style (empty in code). */
     public const DEFAULTS = [
         'before_work' => ['name' => '始業前', 'starts_at' => '06:00', 'style' => ''],
         'before_lunch' => ['name' => 'お昼休み前', 'starts_at' => '09:00', 'style' => ''],
@@ -39,6 +32,7 @@ class ImageStyle extends Model
     {
         $bands = self::DEFAULTS;
 
+        // Saved rows override the defaults.
         foreach (static::query()->get() as $row) {
             $bands[$row->band] = ['name' => $row->name, 'starts_at' => $row->starts_at, 'style' => $row->style];
         }
@@ -48,16 +42,13 @@ class ImageStyle extends Model
         return $bands;
     }
 
-    /**
-     * The band a local time of day falls in: the last one to have started
-     * by then, or — before the first has started — the last of the day,
-     * which runs on past midnight.
-     */
+    /** The band a local time falls in: the last started by then, else the last of the day (past midnight). */
     public static function bandFor(string $time): string
     {
         $bands = self::bands();
         $found = array_key_last($bands);
 
+        // Keep the latest band that has started.
         foreach ($bands as $band => $settings) {
             if (strcmp($settings['starts_at'], $time) <= 0) {
                 $found = $band;

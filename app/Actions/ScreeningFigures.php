@@ -6,26 +6,26 @@ use App\Models\Document;
 use App\Models\Screening;
 
 /**
- * The figures of the screenings shown on 文書, per prompt version: how
- * many were screened and how they were decided, how much of the input
- * came from the cache or was written to it, and what a screening and an
- * adoption cost on average; the reason classes counted apart.
+ * The screening figures on 文書: counts, cache rates and costs per prompt
+ * version, and the reason classes of each document's latest screening.
  */
 class ScreeningFigures
 {
     /**
+     * Computes the figures.
+     *
      * @return array{versions: list<array<string, mixed>>, reasons: list<array{reason_class: string, decision: string, meaning: string, count: int, share: float}>}
      */
     public function __invoke(): array
     {
-        // Aggregate rows, not screenings: read as plain rows.
+        // Totals per prompt version, as plain rows.
         $versions = Screening::query()->where('status', 'screened')
             ->join('prompts', 'prompts.id', '=', 'screenings.prompt_id')
             ->groupBy('prompts.version')->orderByDesc('prompts.version')
             ->selectRaw('prompts.version, count(*) as screened, sum(case when decision = ? then 1 else 0 end) as adopted, sum(case when decision = ? then 1 else 0 end) as rejected, sum(case when decision = ? then 1 else 0 end) as reviewed, sum(input_tokens) as input_tokens, sum(cached_tokens) as cached_tokens, sum(cache_write_tokens) as cache_write_tokens, sum(output_tokens) as output_tokens, sum(estimated_total_cost) as cost', ['adopt', 'reject', 'review'])
             ->toBase()->get();
 
-        // The reason classes counted over the latest screening of each document, in the order of the gate's list.
+        // Reason classes over each document's latest screening, in Screening::REASONS order.
         $counted = Screening::query()->where('status', 'screened')->whereIn('id', Document::query()->whereNotNull('latest_screening_id')->select('latest_screening_id'))->groupBy('reason_class')->selectRaw('reason_class, count(*) as count')->pluck('count', 'reason_class');
         $total = max(1, (int) $counted->sum());
         $reasons = [];

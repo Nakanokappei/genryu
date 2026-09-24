@@ -15,15 +15,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 翻訳 (stage 2.4 of docs/HANDOVER.md, the other languages): in the
- * background, have the agent render an article in one of the languages
- * we publish in. The article is translated, never written again from the
- * material, so that what the reporter found in the primary source
- * survives into every language; the source and the material go along as
- * context, because a translator without them mistranslates the terms.
- * The translation pins the prompt version and the model it ran with and
- * keeps the usage, as the original does. The outcome lands on the
- * translation (status 生成中 / 下書き / 失敗) so the screens can show it.
+ * 翻訳 (UI: "Translation"): translate an original article into one
+ * language, with the source and the material as context.
  */
 class TranslateArticle implements ShouldQueue
 {
@@ -35,11 +28,7 @@ class TranslateArticle implements ShouldQueue
 
     public function __construct(public Article $article) {}
 
-    /**
-     * Queue the translation of an article into one language: the row
-     * appears at once as 生成中, whether it is new or being translated
-     * again, pinned to the prompt as it is now.
-     */
+    /** Create or reset the translation (生成中) pinning prompt and model, and queue it. */
     public static function queueFor(Article $original, string $language): Article
     {
         $translation = Article::query()->updateOrCreate(
@@ -58,6 +47,7 @@ class TranslateArticle implements ShouldQueue
         return $translation;
     }
 
+    /** Translate the original and keep the headline, body and slot; a failure lands on the translation. */
     public function handle(ProposeTranslation $propose): void
     {
         $translation = $this->article;
@@ -65,11 +55,12 @@ class TranslateArticle implements ShouldQueue
         try {
             $original = $translation->translatedFrom;
 
+            // The original must have a body.
             if ($original === null || $original->body === null) {
                 throw new RuntimeException(__('The article has not been written yet.'));
             }
 
-            // The policy read is the version pinned when the job was queued, not whatever the screen holds by now.
+            // The pinned policy version.
             $policy = Prompt::textOf($translation->prompt, 'translation');
 
             $document = $original->material?->document;
@@ -78,6 +69,7 @@ class TranslateArticle implements ShouldQueue
             $title = trim((string) ($result['json']['title'] ?? ''));
             $body = trim((string) ($result['json']['body'] ?? ''));
 
+            // Both a title and a body are needed.
             if ($title === '' || $body === '') {
                 throw new RuntimeException(__('The agent did not return a title and a body.'));
             }
@@ -85,7 +77,7 @@ class TranslateArticle implements ShouldQueue
             $translation->update([
                 'headline' => $title,
                 'body' => Article::separateBlocks($body),
-                // Written after its original was scheduled, it goes out in the original's slot, in its own zone.
+                // The original's slot in this language's zone, when it publishes.
                 'scheduled_at' => $original->scheduled_at === null || ! $translation->isPublishable() ? $translation->scheduled_at : ScheduleArticles::timeFor($original, (string) $translation->language),
                 'status' => 'written',
                 'status_message' => __('Translated by :model.', ['model' => $model]),

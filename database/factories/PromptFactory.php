@@ -14,7 +14,7 @@ class PromptFactory extends Factory
 
         return [
             'layer' => 'content_filtering',
-            // Versions are numbered per name, so the next free one.
+            // The layer's next free version.
             'version' => (int) Prompt::query()->where('layer', 'content_filtering')->max('version') + 1,
             'hash' => hash('sha256', $text),
             'text' => $text,

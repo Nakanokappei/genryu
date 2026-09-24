@@ -7,22 +7,20 @@ use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
 
 /**
- * How the crawler identifies itself, and the plain GET every list reader
- * makes. robots.txt is enforced for every request by the global HTTP
- * middleware (AppServiceProvider); a forbidden URL throws
- * App\Exceptions\RobotsForbidden.
+ * The crawler's HTTP client and user agent (robots.txt is enforced by the
+ * global HTTP middleware).
  */
 class Crawler
 {
     public const USER_AGENT = 'Genryu/0.2 (+https://genryu.test)';
 
-    /** A request as the crawler, which gives up after the timeout in seconds. */
+    /** A request as the crawler, with a timeout in seconds. */
     public static function client(int $timeout = 20): PendingRequest
     {
         return Http::withUserAgent(self::USER_AGENT)->timeout($timeout);
     }
 
-    /** The response at a URL, an error status thrown as an exception. */
+    /** GET a URL, throwing on an error status. */
     public static function get(string $url): Response
     {
         return self::client()->get($url)->throw();

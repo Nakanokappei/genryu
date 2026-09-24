@@ -11,7 +11,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 
-// 情報源 (Sources): list the sites we watch, add one by hand; and the title filter of the editorial policy, one setting over every source, applied to the titles when their update lists are read (the documents are not read at that point, so keywords are the cheap test).
+// 情報源 (Sources): the sources, adding one, and the title filter.
 new #[Title('情報源')] class extends PagedList {
     #[Validate('required|string|max:255')]
     public string $name = '';
@@ -21,15 +21,16 @@ new #[Title('情報源')] class extends PagedList {
 
     public string $notes = '';
 
-    // The title filter: exclude rules applied deterministically to the listed titles.
+    // The title filter's rules (UI: 除外キーワード).
     public string $excludeKeywords = '';
 
+    // Load the title filter.
     public function mount(): void
     {
         $this->excludeKeywords = EditorialPolicy::bodyFor('title_filter');
     }
 
-    // Saving the title filter applies it to every document already listed as well: the rules are cheap, so no document waits for the next update list.
+    // Save the title filter and apply it to every listed document.
     public function saveTitleFilter(ApplyTitleFilter $apply): void
     {
         EditorialPolicy::query()->updateOrCreate(['layer' => 'title_filter'], ['body' => $this->excludeKeywords]);
@@ -38,22 +39,20 @@ new #[Title('情報源')] class extends PagedList {
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :excluded documents newly excluded, :restored no longer excluded.', $result));
     }
 
-    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Source> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Source> with document, failed and short-body counts */
     #[Computed]
     public function sources()
     {
-        // The failed fetches are counted here so the list shows which source needs a look (its detail lists them with the reason).
         return Source::query()
             ->withCount([
                 'documents',
                 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed'),
-                // Fetched bodies shorter than Document::SHORT_BODY_CHARS, excluded documents aside: the document settings may miss the body (its detail says which and offers a fix).
                 'documents as short_documents_count' => fn ($query) => $query->withShortBody(),
             ])
             ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
-    // A new source is configured in the background (feed or agent-proposed HTML list settings).
+    // Add a source and queue its configuration.
     public function add(): void
     {
         $validated = $this->validate();
@@ -85,7 +84,7 @@ new #[Title('情報源')] class extends PagedList {
                     <span class="inline-flex items-center gap-2">
                         <x-pages::favicon :source="$source" />
                         <a href="{{ route('editorial.sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
-                        {{-- The site itself: the address is the tooltip, not a column. --}}
+                        {{-- Link to the site, the URL as tooltip. --}}
                         <flux:tooltip :content="$source->url">
                             <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
                         </flux:tooltip>
@@ -101,7 +100,7 @@ new #[Title('情報源')] class extends PagedList {
     </x-pages::table>
     <x-pages::pagination :paginator="$this->sources" />
 
-    {{-- The title filter sits with the sources because it acts on the titles when their update lists are read: one setting for every source. --}}
+    {{-- タイトルフィルタ --}}
     <form wire:submit="saveTitleFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Title filter') }}</flux:heading>
         <flux:text>{{ __('One setting for every source, applied to the titles when an update list is read, before any document is fetched: what is listed but not fetched. Saving applies the rules to every document already listed as well. The content of the documents is judged on the Documents screen.') }}</flux:text>

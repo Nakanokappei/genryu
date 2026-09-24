@@ -5,16 +5,18 @@ namespace App\Actions;
 use App\OpenAi\ChatCompletions;
 
 /**
- * The agent behind the HTML list settings: given a list page, a cheap
- * model proposes the CSS selectors (item, title link, date, next-page
- * link). It only proposes; ConfigureSource verifies the proposal against
- * the page before anything is saved.
+ * The agent that proposes a source's HTML list settings (item, title, date,
+ * next-page selectors) from a list page. App\Jobs\ConfigureSource verifies
+ * them on the page before saving.
  */
 class ProposeListSettings
 {
+    /** Characters of HTML sent. */
     private const MAX_HTML_CHARS = 60000;
 
     /**
+     * Asks the model and returns the proposed selectors.
+     *
      * @return array{item: string, title: string, date: string, next: string}
      */
     public function __invoke(string $html, string $url): array
@@ -37,6 +39,7 @@ class ProposeListSettings
         ];
     }
 
+    /** The fixed instruction. */
     private static function instructions(): string
     {
         return <<<'TEXT'
@@ -50,10 +53,7 @@ class ProposeListSettings
         TEXT;
     }
 
-    /**
-     * A page as a settings agent reads it: its URL, then its HTML without
-     * scripts, styles or the tail of a very long page.
-     */
+    /** A page for a settings agent: URL, then HTML without scripts and styles, cut at MAX_HTML_CHARS. */
     public static function page(string $html, string $url): string
     {
         $html = (string) preg_replace('#<(script|style|svg|noscript)\b[^>]*>.*?</\1>#is', '', $html);

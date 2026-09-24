@@ -11,19 +11,13 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * The favicon of a source, shown next to its name on every screen. Fetched
- * when a page of the site is in hand (configuring the source, reading its
- * update list, fetching a document): the icons the page advertises with
- * <link rel="icon"> are tried in order, then /favicon.ico. Kept on the
- * local disk under favicons/{source}.{ext}, with the URL it came from and
- * its Last-Modified; a source that has one is checked again on every
- * update list with If-Modified-Since, so a changed icon is taken and an
- * unchanged one costs a 304. Decorative, so a site without one (or one
- * that cannot be fetched) is simply left blank and tried again next time.
+ * Fetches a source's favicon (advertised icons, then /favicon.ico) and
+ * keeps it under favicons/{source}.{ext}; rechecked with If-Modified-Since.
+ * A failure leaves it blank.
  */
 class FetchFavicon
 {
-    /** Image types a favicon may be served as, with the extension the file is kept under. */
+    /** Accepted content types and the extension each is stored under. */
     public const ICON_TYPES = [
         'image/x-icon' => 'ico',
         'image/vnd.microsoft.icon' => 'ico',
@@ -34,19 +28,15 @@ class FetchFavicon
         'image/webp' => 'webp',
     ];
 
-    /**
-     * Fetch the icon of a source that has none; a source that has one is
-     * asked about only when told to check again (the update list), with
-     * If-Modified-Since. Without a page of the site in hand, the source
-     * page is fetched for the icons it advertises.
-     */
+    /** Fetches the icon if missing, or rechecks it when $checkAgain; returns its path. */
     public function __invoke(Source $source, ?string $html = null, bool $checkAgain = false): ?string
     {
+        // Already has one and no recheck asked.
         if ($source->favicon_path !== null && ! $checkAgain) {
             return $source->favicon_path;
         }
 
-        // An icon already in hand: ask its URL whether it changed, and take it again only when it did.
+        // Has one with a known URL: recheck it.
         if ($source->favicon_path !== null && $source->favicon_url !== null) {
             return $this->refresh($source);
         }
@@ -54,12 +44,12 @@ class FetchFavicon
         $html ??= $this->pageOrNothing($source->url);
         $candidates = array_unique([...self::advertisedIcons($html, $source->url), Url::absolute('/favicon.ico', $source->url)]);
 
+        // First candidate that yields an icon wins.
         foreach ($candidates as $url) {
             try {
-                // robots.txt is enforced by the global HTTP middleware (AppServiceProvider).
                 $response = Crawler::client(10)->get($url);
             } catch (Throwable) {
-                // Forbidden, unreachable or faked away: try the next candidate.
+                // Unreachable or forbidden: try the next.
                 continue;
             }
 
@@ -71,11 +61,7 @@ class FetchFavicon
         return null;
     }
 
-    /**
-     * Ask the icon's URL whether it changed since the icon was taken: a
-     * 304 keeps what is there, a 200 with an icon replaces it, and a URL
-     * that is gone (404) has the icon looked for afresh next time.
-     */
+    /** Rechecks the icon URL: 304 keeps, 200 replaces, 404/410 forgets the URL. */
     private function refresh(Source $source): ?string
     {
         try {
@@ -83,13 +69,16 @@ class FetchFavicon
                 ->withHeaders($source->favicon_modified_at !== null ? ['If-Modified-Since' => $source->favicon_modified_at->toRfc7231String()] : [])
                 ->get((string) $source->favicon_url);
         } catch (Throwable) {
+            // Unreachable: keep what is there.
             return $source->favicon_path;
         }
 
+        // Not modified.
         if ($response->status() === 304) {
             return $source->favicon_path;
         }
 
+        // Gone: look for the icon afresh next time.
         if ($response->status() === 404 || $response->status() === 410) {
             $source->update(['favicon_url' => null, 'favicon_modified_at' => null]);
 
@@ -101,21 +90,19 @@ class FetchFavicon
         return $source->favicon_path;
     }
 
-    /**
-     * Keep a response as the source's icon when it is one: the file on
-     * disk, the URL, and its Last-Modified (or now, for a site that does
-     * not say) for the next check.
-     */
+    /** Stores a response as the icon when it is one, with its URL and Last-Modified (or now). */
     private function keep(Source $source, string $url, Response $response): bool
     {
         $extension = self::extension($url, (string) $response->header('Content-Type'));
 
+        // Not an icon.
         if (! $response->successful() || $extension === null || $response->body() === '') {
             return false;
         }
 
         $path = "favicons/{$source->id}.{$extension}";
 
+        // Remove an old file under another extension.
         if ($source->favicon_path !== null && $source->favicon_path !== $path) {
             Storage::disk('local')->delete($source->favicon_path);
         }
@@ -128,6 +115,7 @@ class FetchFavicon
         return true;
     }
 
+    /** The page's HTML, or '' when it cannot be fetched. */
     private function pageOrNothing(string $url): string
     {
         try {
@@ -138,8 +126,7 @@ class FetchFavicon
     }
 
     /**
-     * The icons a page advertises (<link rel="icon" | "shortcut icon" |
-     * "apple-touch-icon">), in page order, resolved against the page.
+     * Absolute URLs of the <link rel="…icon"> tags, in page order.
      *
      * @return list<string>
      */
@@ -151,6 +138,7 @@ class FetchFavicon
 
         $icons = [];
 
+        // Link tags whose rel contains icon and that have an href.
         foreach ($tags[0] as $tag) {
             if (preg_match('/\brel\s*=\s*["\']?[^"\'>]*\bicon\b/i', $tag) === 1 && preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $href) === 1) {
                 $icons[] = Url::absolute(html_entity_decode($href[1]), $baseUrl);
@@ -160,10 +148,7 @@ class FetchFavicon
         return $icons;
     }
 
-    /**
-     * The file extension for an icon: from the content type it was served
-     * with, or failing that from its URL.
-     */
+    /** The icon's extension, from its content type or else its URL. */
     private static function extension(string $url, string $contentType): ?string
     {
         $type = strtolower(trim(explode(';', $contentType)[0]));

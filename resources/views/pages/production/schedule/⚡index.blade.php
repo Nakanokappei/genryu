@@ -9,17 +9,18 @@ use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 
-// スケジュール (Schedule), the second screen of 編成 (Production): the settings the publication times are set by — how many articles go out on a weekday, how many days a source stays fresh, the local times of day — above the articles with their slots, every language version at that local time in its own zone. The schedule is made by ScheduleArticles; nothing is timed by hand here.
+// スケジュール (Schedule): the settings and the scheduled articles.
 new #[Title('スケジュール')] class extends PagedList {
-    /** UI 平日の公開本数 */
+    /** UI: 平日の公開本数 */
     public int $articlesPerWeekday = 5;
 
-    /** UI 対象期間（日） */
+    /** UI: 対象期間（日） */
     public int $periodDays = 7;
 
-    /** UI 公開時刻: local times of day, separated by commas. */
+    /** UI: 公開時刻 — local times, comma-separated */
     public string $publicationTimes = '';
 
+    // Load the settings.
     public function mount(): void
     {
         $setting = ScheduleSetting::current();
@@ -28,6 +29,7 @@ new #[Title('スケジュール')] class extends PagedList {
         $this->publicationTimes = implode(', ', (array) $setting->publication_times);
     }
 
+    // Validate and save the settings.
     public function saveSettings(): void
     {
         $times = $this->parsedTimes();
@@ -46,7 +48,7 @@ new #[Title('スケジュール')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    /** @return list<string> the times as written, trimmed, in order */
+    /** @return list<string> the times, trimmed and sorted */
     private function parsedTimes(): array
     {
         $times = array_values(array_filter(array_map(trim(...), explode(',', str_replace('、', ',', $this->publicationTimes))), fn (string $time): bool => $time !== ''));
@@ -64,22 +66,21 @@ new #[Title('スケジュール')] class extends PagedList {
         Flux::toast(variant: 'success', text: __(':count articles scheduled.', ['count' => $count]));
     }
 
-    // Take the unpublished articles off the schedule and make it again, as after the settings changed.
+    // Clear the unpublished slots and schedule again.
     public function reschedule(ScheduleArticles $schedule): void
     {
         ScheduleArticles::clear();
         $this->schedule($schedule);
     }
 
-    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Article> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Article> the scheduled originals, soonest first */
     #[Computed]
     public function articles()
     {
-        // The scheduled originals, soonest first; each carries its translations and their times.
         return Article::query()->originals()->whereNotNull('scheduled_at')->with('material.document.source', 'qualityCheck', 'translations')->orderBy('scheduled_at')->orderBy('id')->paginate($this->rowsPerPage());
     }
 
-    /** How many checked, unpublished articles have no slot yet, fresh or not. */
+    /** Checked, unpublished originals without a slot. */
     #[Computed]
     public function waiting(): int
     {
@@ -90,7 +91,6 @@ new #[Title('スケジュール')] class extends PagedList {
 <section class="w-full space-y-6">
     <flux:heading size="xl">{{ __('Schedule') }}</flux:heading>
 
-    {{-- The settings sit with the schedule because they are what make it. --}}
     <form wire:submit="saveSettings" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Settings') }}</flux:heading>
         <flux:text>{{ __('Checked, unpublished articles whose primary source was published within the period are given the slots of the coming weekdays, best quality first. Every language version goes out at the same local date and time, each in its own zone:') }} {{ implode(' / ', array_map(fn ($language) => $language->label().' '.$language->timezone(), \App\Enums\Language::cases())) }}</flux:text>
@@ -114,7 +114,7 @@ new #[Title('スケジュール')] class extends PagedList {
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ $article->scheduledLocalDisplay() }}</td>
                 <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $article->qualityCheck?->reason }}">{{ $article->qualityCheck?->score ?? '—' }}</td>
-                {{-- Each language version with its own zone; hovering shows when that is in Japan. --}}
+                {{-- Language versions; the tooltip gives the time in Japan. --}}
                 <td class="px-3 py-2 text-neutral-500">
                     @foreach ($article->translations->where('status', '!=', 'failed')->prepend($article) as $version)
                         <span title="{{ $version->scheduled_at === null ? __('Not scheduled.') : __('Japan time').' '.$version->scheduled_at->setTimezone('Asia/Tokyo')->format('Y-m-d H:i') }}" @class(['text-amber-600' => $version->scheduled_at === null])>{{ $version->languageName() }}</span>@if (! $loop->last) / @endif

@@ -9,25 +9,21 @@ use App\Models\SpotCheck;
 use Carbon\CarbonImmutable;
 
 /**
- * 今日の抜き取りを作る (UI: "Draw today's spot check"): draw a day's
- * documents for a person to judge, from those the semantic filter
- * measured that day (their embedding was made that day, in the display
- * timezone), leaving out what the title filter excluded, what was
- * drawn before, and what a person already made an example of the
- * semantic filter (it has been judged, and its likeness is measured
- * without itself). The draw is stratified by where the likeness fell when
- * drawn — passed, just below the threshold, far below — so the line
- * itself is looked at; each row keeps its stratum's weight (how many
- * documents it stands for), so rates over the whole day can be
- * estimated without the bias of the strata. A day is drawn once.
+ * 今日の抜き取りを作る (UI "Draw today's spot check"): draws the day's
+ * documents the semantic filter measured, stratified by likeness against
+ * the threshold, each row weighted by its stratum. A day is drawn once.
+ * Excluded documents, earlier draws and semantic filter examples are left out.
  */
 class DrawSpotCheck
 {
     /**
+     * Draws the given day (display timezone).
+     *
      * @return array{drawn: int, population: int, already: bool}
      */
     public function __invoke(CarbonImmutable $day): array
     {
+        // Already drawn.
         if (SpotCheck::query()->whereDate('drawn_on', $day->toDateString())->exists()) {
             return ['drawn' => 0, 'population' => 0, 'already' => true];
         }
@@ -39,6 +35,7 @@ class DrawSpotCheck
             ->whereHas('embedding', fn ($query) => $query->where('created_at', '>=', $start)->where('created_at', '<', $start->addDay()))
             ->get(['id', 'likeness']);
 
+        // Documents by stratum.
         $strata = [
             'let_through' => $population->filter(fn (Document $document): bool => $document->likeness >= $threshold),
             'just_below' => $population->filter(fn (Document $document): bool => $document->likeness < $threshold && $document->likeness >= $threshold - SpotCheck::JUST_BELOW_WIDTH),
@@ -46,7 +43,7 @@ class DrawSpotCheck
         ];
         $drawn = 0;
 
-        // Each stratum gives its share at random, or all it has; each drawn document stands for its stratum's size over the number drawn from it.
+        // Random picks per stratum; weight = stratum size / number picked.
         foreach ($strata as $stratum => $documents) {
             $picked = $documents->shuffle()->take(SpotCheck::STRATA[$stratum]);
 

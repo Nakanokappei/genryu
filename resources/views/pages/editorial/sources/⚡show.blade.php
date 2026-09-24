@@ -17,7 +17,7 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
 
-// 情報源 (Source) detail: edit or delete the site, fetch its update list, and see what was found.
+// 情報源 (Source) detail.
 new #[Title('情報源')] class extends Component {
     public Source $source;
 
@@ -32,18 +32,19 @@ new #[Title('情報源')] class extends Component {
     /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
     public array $list = [];
 
-    /** @var array<string, string> JSON list settings: the file's URL, the path to the items, the keys inside an item, max_items */
+    /** @var array<string, string> JSON list settings */
     public array $json = [];
 
-    /** @var array<string, string> Document settings: CSS selectors of the body, its date, what to drop inside it, and fixed text to move after it */
+    /** @var array<string, string> Document settings (CSS selectors) */
     public array $documentSettings = [];
 
-    /** 全文へのリンク: CSS selectors of the link to the full text on a document's page, one per line, tried in order */
+    /** UI: 全文へのリンク — CSS selectors, one per line, tried in order */
     public string $fullTextLink = '';
 
-    /** How the update list is read (UI 一覧の取得方法): feed / html / json, one of them, decided once; the settings of the chosen one are what FetchUpdates uses. */
+    /** UI: 一覧の取得方法 — feed / html / json */
     public string $method = 'feed';
 
+    // Fill the forms from the source.
     public function mount(): void
     {
         $this->name = $this->source->name;
@@ -61,13 +62,13 @@ new #[Title('情報源')] class extends Component {
         $this->documentSettings = self::filled(array_fill_keys(ReadDocument::DOCUMENT_SETTING_KEYS, ''), $this->source->document_settings);
     }
 
-    /** @return array<string, string> the HTML list form before anything is filled in */
+    /** @return array<string, string> the empty HTML list form */
     private static function blankList(): array
     {
         return ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => (string) ConfigureSource::DEFAULT_MAX_PAGES];
     }
 
-    /** @return array<string, string> the JSON list form before anything is filled in */
+    /** @return array<string, string> the empty JSON list form */
     private static function blankJson(): array
     {
         return ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => (string) JsonList::DEFAULT_MAX_ITEMS];
@@ -85,7 +86,7 @@ new #[Title('情報源')] class extends Component {
         return array_map(strval(...), [...$blank, ...array_intersect_key($saved ?? [], $blank)]);
     }
 
-    // The JSON list settings are saved on their own; an empty URL means "not read from JSON".
+    // Save the JSON list settings; an empty URL clears them.
     public function saveJson(): void
     {
         $validated = $this->validate([
@@ -97,7 +98,7 @@ new #[Title('情報源')] class extends Component {
             'json.max_items' => ['required', 'integer', 'min:1', 'max:1000'],
         ])['json'];
 
-        // One method at a time: the JSON list saved, the HTML list settings go.
+        // Saving the JSON list drops the HTML list settings.
         $this->source->update(['html_list_settings' => null, 'json_list_settings' => ($validated['url'] ?? '') !== ''
             ? [...$validated, 'items' => (string) ($validated['items'] ?? ''), 'date' => (string) ($validated['date'] ?? ''), 'max_items' => (int) $validated['max_items']]
             : null]);
@@ -105,7 +106,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // 全文へのリンク is saved on its own; empty, every document is fetched from its own page as it is listed.
+    // Save 全文へのリンク.
     public function saveFullTextLink(): void
     {
         $this->validate(['fullTextLink' => ['nullable', 'string', 'max:1000']]);
@@ -114,7 +115,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // The document settings are saved on their own; an empty content selector means "let the agent propose at the next fetch".
+    // Save the document settings; an empty content selector clears them.
     public function saveDocumentSettings(): void
     {
         $validated = $this->validate([
@@ -131,7 +132,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Queue the fetch of every document not fetched yet or failed, or of all but those being fetched; excluded ones are left alone.
+    // Queue the unfetched and failed documents, or all but those fetching; excluded ones are skipped.
     public function fetchDocuments(bool $all = false): void
     {
         $documents = $this->source->documents()->whereNull('excluded_by')
@@ -142,8 +143,7 @@ new #[Title('情報源')] class extends Component {
     }
 
     /**
-     * The fetched documents whose body came out short (UI: 本文が短い): a
-     * sign that the document settings catch a teaser, not the body.
+     * The documents with a short body (UI: 本文が短い).
      *
      * @return \Illuminate\Database\Eloquent\Collection<int, Document>
      */
@@ -153,12 +153,7 @@ new #[Title('情報源')] class extends Component {
         return $this->source->documents()->withShortBody()->orderBy('id')->get();
     }
 
-    /**
-     * Have the agent propose document settings again from a short
-     * document's original (App\Actions\ReviseDocumentSettings): kept only
-     * when the body is no longer short, then the Markdown of every
-     * document is rebuilt and the cured ones are screened again.
-     */
+    // Have the agent propose document settings from a short document, and screen the cured ones again.
     public function proposeDocumentSettings(ReviseDocumentSettings $revise): void
     {
         $document = $this->shortDocuments->first(fn (Document $document) => $document->format === 'html' && $document->original_path !== null && Storage::disk('local')->exists((string) $document->original_path));
@@ -184,7 +179,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', duration: 8000, text: __('Document settings proposed by the agent and verified on ":title" (content: :content, :count characters). :rebuilt documents rebuilt, :failed failed; :grown no longer short, screened again.', ['title' => $document->title, 'content' => $result['settings']['content'], 'count' => $result['chars'], 'rebuilt' => $result['rebuilt'], 'failed' => $result['failed'], 'grown' => count($result['grown'])]));
     }
 
-    // Read every document of the source again from the original on disk, with the current settings and Markdown rules; no request to the site.
+    // Rebuild every document's Markdown from its original on disk.
     public function rebuildMarkdown(RebuildMarkdown $rebuild): void
     {
         $result = $rebuild($this->source);
@@ -194,7 +189,7 @@ new #[Title('情報源')] class extends Component {
     }
 
 
-    // The HTML list settings are saved separately from the name / URL form; an empty item means "read a feed".
+    // Save the HTML list settings; an empty item clears them.
     public function saveList(): void
     {
         $validated = $this->validate([
@@ -205,7 +200,7 @@ new #[Title('情報源')] class extends Component {
             'list.max_pages' => ['required', 'integer', 'min:1', 'max:100'],
         ])['list'];
 
-        // One method at a time: the HTML list saved, the JSON list settings go.
+        // Saving the HTML list drops the JSON list settings.
         $this->source->update(['json_list_settings' => null, 'html_list_settings' => $validated['item'] !== '' && $validated['item'] !== null
             ? [...$validated, 'max_pages' => (int) $validated['max_pages']]
             : null]);
@@ -213,6 +208,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
+    // Save name, URL and notes.
     public function save(): void
     {
         $validated = $this->validate();
@@ -221,7 +217,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Deleting a source takes its documents, materials and articles' materials with it (cascade).
+    // Delete the source and, by cascade, everything under it.
     public function delete(): void
     {
         $this->source->delete();
@@ -229,13 +225,13 @@ new #[Title('情報源')] class extends Component {
         $this->redirectRoute('editorial.sources.index', navigate: true);
     }
 
-    // The tab chosen is remembered as list_method (ConfigureSource skips feeds for html); the other settings stay until one is saved.
+    // Remember the chosen list method.
     public function updatedMethod(string $value): void
     {
         $this->source->update(['list_method' => $value]);
     }
 
-    // Read the feed from now on: the HTML and JSON list settings go, and the feed is looked for again.
+    // Switch to the feed: drop the list settings and configure again.
     public function useFeed(): void
     {
         $this->source->update(['html_list_settings' => null, 'json_list_settings' => null, 'list_method' => 'feed']);
@@ -244,7 +240,7 @@ new #[Title('情報源')] class extends Component {
         $this->configure();
     }
 
-    // Queue the background configuration again (after a failure, or after the site changed).
+    // Queue ConfigureSource again.
     public function configure(): void
     {
         $this->source->update(['status' => 'configuring', 'status_message' => null]);
@@ -253,7 +249,7 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Configuration queued.'));
     }
 
-    // Polled while configuring so the screen follows the background job; the settings form is refilled once it is done.
+    // Polled while configuring; refill the forms once done.
     public function refreshStatus(): void
     {
         $this->source->refresh();
@@ -263,7 +259,7 @@ new #[Title('情報源')] class extends Component {
         }
     }
 
-    // Stage 2.1: read the feed (found deterministically) into the update list.
+    // Read the update list (UI: 更新リストを取得).
     public function fetchUpdates(FetchUpdates $fetch): void
     {
         try {
@@ -315,7 +311,7 @@ new #[Title('情報源')] class extends Component {
         <flux:text class="ms-auto">{{ __('Updates fetched at') }}: {{ $source->updates_fetched_at?->display() ?? '—' }}</flux:text>
     </div>
 
-    {{-- How the update list is read: one of three, chosen once (a site rarely changes it), so only the settings of that one are in view. --}}
+    {{-- 一覧の取得方法: only the chosen method's settings are shown. --}}
     <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:radio.group wire:model.live="method" :label="__('List method')" variant="segmented" size="sm">
             <flux:radio value="feed" :label="__('Feed')" />
@@ -329,7 +325,6 @@ new #[Title('情報源')] class extends Component {
                 <flux:text>{{ __('The list is still read with the HTML or JSON list settings; to read the feed instead, drop them and look for the feed again:') }}</flux:text>
                 <flux:button type="button" wire:click="useFeed" wire:confirm="{{ __('Drop the HTML and JSON list settings and look for a feed?') }}">{{ __('Read the feed') }}</flux:button>
             @endif
-            {{-- For a feed that carries a summary of every document (arXiv): screened on the summary, fetched in full only once adopted. --}}
             <form wire:submit="saveFullTextLink" class="space-y-3">
                 <flux:textarea wire:model="fullTextLink" :label="__('Full text link')" rows="2" placeholder="#latexml-download-link&#10;a.download-pdf" />
                 <flux:text>{{ __('For a feed that gives a summary of every document. Filled in, a new document is screened on the summary from the feed without being fetched, and only once it is adopted is its page fetched and the full text it links to read. CSS selectors of the link on the document\'s page, one per line, tried in order.') }}</flux:text>
@@ -374,7 +369,7 @@ new #[Title('情報源')] class extends Component {
             <flux:input wire:model="documentSettings.remove" :label="__('Remove')" placeholder=".share, .related" />
             <flux:input wire:model="documentSettings.fixed_text" :label="__('Fixed text')" placeholder=".notice, .copyright" />
         </div>
-        {{-- Short bodies point at settings that miss the body; the agent can propose again from one of them. --}}
+        {{-- 本文が短い documents, with a re-proposal. --}}
         @if ($this->shortDocuments->isNotEmpty())
             <flux:callout variant="warning" icon="exclamation-triangle">
                 <flux:callout.heading>{{ __(':count fetched documents have a short body (under :chars characters)', ['count' => $this->shortDocuments->count(), 'chars' => \App\Models\Document::SHORT_BODY_CHARS]) }}</flux:callout.heading>
@@ -397,7 +392,7 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    {{-- Only the documents that are not on the 文書 screen: excluded by a keyword, or failed to fetch, each with the reason. The fetched ones are the 文書 screen's business, filtered by source there. --}}
+    {{-- Excluded and failed documents, with the reason. --}}
     @php $notFetched = $source->documents()->where(fn ($query) => $query->whereNotNull('excluded_by')->orWhere('status', 'failed'))->latest('published_at')->latest('id')->get(); @endphp
     <flux:heading size="lg">{{ __('Documents not fetched') }}</flux:heading>
     <x-pages::table :columns="[__('Title'), __('Published on'), __('Status'), __('Reason')]" :empty="$notFetched->isEmpty()">

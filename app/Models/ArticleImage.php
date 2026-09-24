@@ -6,12 +6,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One drawing of an article's top image (トップ画像, App\Jobs\MakeImage): the
- * scene the writer chose from the article, the prompt the image model was
- * given — the scene, the style of the time band and what may not be
- * drawn — the local time of day and the band it was made for, and where
- * the image is kept. Status making / made / failed (UI 作成中 / 作成済み /
- * 失敗). Pins the prompt version and both models, keeps the usage.
+ * One drawing of an article's トップ画像: the scene, the image prompt, the
+ * time and band it was drawn for, and the file. Status making / made /
+ * failed (UI 作成中 / 作成済み / 失敗).
  */
 class ArticleImage extends Model
 {

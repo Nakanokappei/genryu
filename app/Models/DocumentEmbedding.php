@@ -6,11 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * The embedding of a document for the 意味フィルタ (UI: "Semantic
- * filter"): its title and text as the embedding model read them, kept so
- * the likeness can be measured again, against changed definitions or
- * examples, without calling the model. One per document, for the model
- * it was made with; a changed model makes it again.
+ * A document's embedding for the 意味フィルタ (UI "Semantic filter"), one
+ * per document for the model that made it.
  *
  * @property list<float> $vector unit length, so a similarity is a dot product
  */

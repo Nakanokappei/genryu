@@ -29,9 +29,7 @@ class ScreeningFactory extends Factory
         ];
     }
 
-    /**
-     * A screening that is the document's latest: the document points at it.
-     */
+    /** Makes each created screening its document's latest. */
     public function configure(): static
     {
         return $this->afterCreating(fn (Screening $screening) => $screening->document->update(['latest_screening_id' => $screening->id]));

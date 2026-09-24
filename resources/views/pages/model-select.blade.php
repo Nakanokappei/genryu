@@ -1,4 +1,4 @@
-{{-- A select of models: name, id and description by default; `detail` short shows the name and id, described the name and description, name the name only; `enabled` lists the ids that may be chosen. --}}
+{{-- A select of models; `detail` is full / short / described / name, `enabled` limits the choosable ids. --}}
 @props(['models' => \App\Models\EditorialPolicy::TEXT_MODELS, 'detail' => 'full', 'enabled' => null])
 
 <flux:select {{ $attributes }}>

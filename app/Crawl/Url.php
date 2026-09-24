@@ -3,29 +3,20 @@
 namespace App\Crawl;
 
 /**
- * Links as the crawler finds them on a page, made into the URLs it keeps:
- * resolved against the page, and without the fragment.
+ * Links found on a page made into the URLs the crawler keeps.
  */
 class Url
 {
-    /**
-     * A fragment (#press_table) is browser-side only: it neither reaches the
-     * server nor distinguishes two documents.
-     */
+    /** The URL without its fragment. */
     public static function withoutFragment(string $url): string
     {
         return explode('#', $url, 2)[0];
     }
 
-    /**
-     * Resolve a link against the page it was found on: absolute, protocol-
-     * relative, root-relative, query-only (?page=2, as Drupal pagers emit)
-     * or relative to the page's directory. Shared with ReadDocument, which
-     * resolves the links and images inside a document the same way.
-     */
+    /** Resolve a link (absolute, protocol-, root-, query- or path-relative) against its page. */
     public static function absolute(string $href, string $baseUrl): string
     {
-        // Anything with a scheme (https:, mailto:, tel:) is already absolute.
+        // Has a scheme: already absolute.
         if (preg_match('#^[a-z][a-z0-9+.-]*:#i', $href) === 1) {
             return $href;
         }
@@ -35,6 +26,7 @@ class Url
         $origin = $scheme.'://'.($base['host'] ?? '').(isset($base['port']) ? ':'.$base['port'] : '');
         $path = $base['path'] ?? '/';
 
+        // By the form of the link.
         return match (true) {
             str_starts_with($href, '//') => $scheme.':'.$href,
             str_starts_with($href, '/') => $origin.self::withoutDotSegments($href),
@@ -43,15 +35,13 @@ class Url
         };
     }
 
-    /**
-     * Resolve "." and ".." in a path (../img/burner.png from /news/1 is
-     * /img/burner.png), leaving any query string as it is.
-     */
+    /** Resolve "." and ".." segments in a path, leaving the query string as it is. */
     private static function withoutDotSegments(string $path): string
     {
         [$path, $query] = array_pad(explode('?', $path, 2), 2, null);
         $segments = [];
 
+        // ".." pops, "." is dropped, the rest is kept.
         foreach (explode('/', $path) as $segment) {
             if ($segment === '..') {
                 array_pop($segments);

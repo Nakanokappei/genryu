@@ -9,13 +9,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use RuntimeException;
 
 /**
- * A version of a prompt a stage runs with (UI: プロンプト版): the text of a
- * layer of the editorial policy as it was when a run used it, numbered
- * per name (content_filtering for the スクリーニング, structuring for the
- * 素材情報), with its hash. The text is edited on its screen
- * (EditorialPolicy); a run pins the version it used so results, cache
- * figures and cost can be compared before and after a change. A changed
- * prompt also changes the cached prefix.
+ * プロンプト版 (UI "Prompt version"): a layer's text as a run used it,
+ * numbered per layer, with its hash; runs pin the version they used.
  */
 class Prompt extends Model
 {
@@ -29,15 +24,13 @@ class Prompt extends Model
         return ['activated_at' => 'datetime'];
     }
 
-    /**
-     * The version in force for a layer: the latest one when its text is
-     * the given text, else a new version numbered after it.
-     */
+    /** The latest version of a layer if its text matches, else a new version. */
     public static function current(string $layer, string $text): self
     {
         $hash = hash('sha256', $text);
         $latest = static::query()->where('layer', $layer)->orderByDesc('version')->first();
 
+        // Same text: reuse the latest version.
         if ($latest !== null && $latest->hash === $hash) {
             return $latest;
         }
@@ -51,17 +44,18 @@ class Prompt extends Model
         ]);
     }
 
-    /** The version in force for a layer of the editorial policy, as its screen holds it now. */
+    /** The version for a layer's current body. */
     public static function forLayer(string $layer): self
     {
         return self::current($layer, EditorialPolicy::bodyFor($layer));
     }
 
-    /** The text of a pinned version, which a run cannot do without. */
+    /** A pinned version's text; throws when it is empty. */
     public static function textOf(?self $prompt, string $layer): string
     {
         $text = (string) $prompt?->text;
 
+        // A run cannot go without its prompt.
         if (trim($text) === '') {
             throw new RuntimeException(__('The :layer layer of the editorial policy is empty.', ['layer' => __(EditorialPolicy::LAYER_LABELS[$layer] ?? $layer)]));
         }

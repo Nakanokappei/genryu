@@ -1,4 +1,4 @@
-{{-- One article: headline, when, the top image (ours), and the body with the figures it quotes from the source. --}}
+{{-- One article: headline, byline, top image and body. --}}
 @extends('media.layout')
 
 @php($text = \App\Http\Controllers\MediaController::TEXT[$language])

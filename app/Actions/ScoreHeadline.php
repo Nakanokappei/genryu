@@ -6,67 +6,25 @@ use App\Models\LanguageSetting;
 use App\OpenAi\Responses;
 
 /**
- * The judge of 見出し (the headline): given the headline layer of the
- * editorial policy, a headline and the material its article will be
- * written from, a model scores the headline item by item and says what a
- * better one would have to do. The headline comes before the body, so it
- * is judged on what the material can deliver, and the body is then
- * written to deliver it.
- *
- * The model scores; it does not decide. The weights, the arithmetic and
- * the verdict are here, in PHP, so that two runs of the same rubric are
- * comparable and a model cannot pass itself by adding up wrongly. Three
- * layers: the musts, which are pass or fail; eight common items worth 80
- * between them; and twelve optional ones worth 10 each, of which only the
- * best two count, because an article does not have to carry all of them.
- * A headline passes when nothing failed, the total is at least
- * PASS_TOTAL, and it is at least half specific to this article and at
- * least a clear reversal of what the reader takes for granted.
+ * The judge of 見出し (headline): a model scores a headline item by item on
+ * the material; the weights, total and verdict are worked out here.
  */
 class ScoreHeadline
 {
-    /**
-     * Fail any of these and the headline is rewritten whatever it scored.
-     * Whether a forecast is written as a fact was one of these until
-     * 2026-09-23: it is too strong a test for a headline, which has no
-     * room to qualify, and belongs to the body instead.
-     */
+    /** Pass-or-fail items; failing any fails the headline. */
     public const MUSTS = [
         'topic_word_present' => 'The headline carries a topic word that belongs to what the article is about.',
-        // Until 2026-09-23 this asked for a word the reader already knows, which fought the policy's "the field's own big noun" and failed デジタルツイン and 分解炉; the body's second part explains the word, so the headline may carry one the reader has yet to learn.
         'topic_word_names_the_field' => 'That topic word is the field\'s own big noun, naming the world the article steps into — not a general word such as technology, AI or research, and not a specialist\'s narrow term such as a model number. It need not be a word the reader already uses.',
         'read_at_once' => 'The headline can be taken in on one reading.',
         'faithful' => 'The material supports what the headline claims and promises.',
     ];
 
-    /**
-     * The one must counted here rather than judged by the model: a
-     * headline in Chinese, Japanese or Korean takes at most MAX_CHARACTERS
-     * characters, one in any other language at most MAX_WORDS words.
-     * Added 2026-09-23, when a headline of 36 characters passed on 82, at
-     * 25 characters; raised to 30 the same day, because a line that
-     * denies an assumption needs room for the contrast.
-     */
+    /** Length limit, counted in code: characters in Chinese, Japanese or Korean, words otherwise. */
     public const MAX_CHARACTERS = 30;
 
     public const MAX_WORDS = 14;
 
-    /**
-     * Every headline is scored on all six; 80 between them. There were
-     * eight until 2026-09-23: asking one short line to carry why it has
-     * to be known now and what is lost by not knowing as well set a bar
-     * no headline reached (the best of five articles scored 64 to 77),
-     * so those two moved to the optional items, where a headline may
-     * take them or leave them, and their points were spread over the
-     * rest. The direction of a headline was a must for one run on
-     * 2026-09-23 and pushed the writer to claim a distant future the
-     * material could not vouch for, so it is scored here instead, as what
-     * this announcement makes possible. The reversal of what the reader
-     * takes for granted — what the headline is for — was one optional
-     * item among thirteen until 2026-09-23, when headlines that only
-     * summarised the news passed at once; it is scored on every headline
-     * now and carries a bar of its own (PASS_REVERSED).
-     */
+    /** Items scored on every headline, with their points (80 in all). */
     public const COMMON = [
         'specific_to_this_article' => ['points' => 20, 'about' => 'Only an article from this material could carry this headline: a fact, a finding or a cause from it is at the centre.'],
         'common_sense_reversed' => ['points' => 15, 'about' => 'What the reader takes for granted stops being true: the headline denies an assumption, or shows it looking in the wrong place, rather than summarising the news.'],
@@ -78,7 +36,7 @@ class ScoreHeadline
         'what_this_makes_possible' => ['points' => 7, 'about' => 'It points to what this announcement makes possible, not to what still stands in the way: the step this news takes, not a distant future the material cannot vouch for.'],
     ];
 
-    /** Scored the same way, but only the best two are added: a headline need not carry them all. */
+    /** Items worth 10 each, of which only the best OPTIONAL_COUNTED are added. */
     public const OPTIONAL = [
         'social_problem_solved' => 'It shows how a problem of society gets solved.',
         'impossible_made_possible' => 'What could not be done becomes possible.',
@@ -97,26 +55,16 @@ class ScoreHeadline
     /** How many of the optional items are added to the total. */
     public const OPTIONAL_COUNTED = 2;
 
-    /**
-     * What a headline has to reach to be kept. 80 until 2026-09-23, which
-     * nothing reached once the headline also had to be one short line;
-     * the bar only decides when the loop stops trying, so a bar nothing
-     * clears costs the full three attempts on every article.
-     */
+    /** Minimum total to pass. */
     public const PASS_TOTAL = 70;
 
-    /** And it has to be at least half specific to this article, whatever else it scores. */
+    /** Minimum score for specific_to_this_article. */
     public const PASS_SPECIFIC = 10;
 
-    /**
-     * And a clear reversal of what the reader takes for granted: a
-     * headline that only summarises does not pass. Half the 15 (8) let a
-     * paraphrase through on 2026-09-23 (熟練者の操作を教材に変える), so the
-     * bar is 12.
-     */
+    /** Minimum score for common_sense_reversed. */
     public const PASS_REVERSED = 12;
 
-    /** What the model is told after the cached policy: the rubric, and that it scores rather than decides. Shown on the screen under the prompt. */
+    /** Fixed instruction sent after the cached policy; shown on the screen under the prompt. */
     public const INSTRUCTIONS = 'Score the headline below against every item, on the material rather than on what the headline promises. Score 0 when an item is not met, half its points when it is partly met, and its full points when it is met. An angle that is only the same thing said again does not score twice among the optional items. Add nothing up: the totals and the verdict are worked out from your scores. In what_to_fix, say in one or two lines what a better headline would have to do — never write the headline itself.';
 
     /**
@@ -129,9 +77,7 @@ class ScoreHeadline
     }
 
     /**
-     * The request: the policy first, as the developer message, with the
-     * cache breakpoint on it; the rubric after it; the headline and the
-     * material its article will be written from last.
+     * The request: cached policy, language prompts, rubric, then headline and material.
      *
      * @param  array<string, mixed>  $material
      * @return array<string, mixed>
@@ -140,14 +86,14 @@ class ScoreHeadline
     {
         return Responses::request($model, [
             Responses::policy($policy),
-            // The judge knows the rules of the language too, so it does not score a headline down for keeping them.
+            // Language rules, so the judge does not mark a headline down for following them.
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".self::rubric()],
             ['role' => 'user', 'content' => "Headline:\n{$headline}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
         ], 'headline_score', self::schema());
     }
 
-    /** The rubric as the model reads it: the three layers with their points. */
+    /** The rubric as text for the model. */
     public static function rubric(): string
     {
         $lines = ['Must pass, or the headline is rewritten whatever it scores:'];
@@ -176,8 +122,7 @@ class ScoreHeadline
     }
 
     /**
-     * The schema: whether each must passed, a score for every item, and
-     * what a better headline would have to do. No totals — those are ours.
+     * The answer schema: musts, scores and what_to_fix; no totals.
      *
      * @return array<string, mixed>
      */
@@ -195,9 +140,7 @@ class ScoreHeadline
     }
 
     /**
-     * The review as it is kept: every score held to its ceiling, the
-     * total worked out here — the eight common items plus the best two
-     * optional ones — and the verdict from the four conditions.
+     * The stored review: scores clamped, the total and the verdict.
      *
      * @param  array<string, mixed>  $json  what the model answered
      * @return array<string, mixed>
@@ -212,7 +155,7 @@ class ScoreHeadline
             }
         }
 
-        // The length is counted, not judged: a model reads a long line as short enough.
+        // Length is counted in code; a model misjudges it.
         if (! self::isShortEnough($headline)) {
             $failed[] = 'short_enough';
         }
@@ -229,7 +172,7 @@ class ScoreHeadline
             $optional[$key] = max(0, min(10, (int) ($json['optional'][$key] ?? 0)));
         }
 
-        // Only the best few of the optional items count, so an article is never asked to carry all of them.
+        // Only the best optional items count.
         $counted = collect($optional)->sortDesc()->take(self::OPTIONAL_COUNTED);
         $total = array_sum($common) + $counted->sum();
 
@@ -245,10 +188,7 @@ class ScoreHeadline
         ];
     }
 
-    /**
-     * Whether a headline fits its length: characters for a headline
-     * written in Han, kana or Hangul, words for any other.
-     */
+    /** Whether a headline fits MAX_CHARACTERS (Han, kana, Hangul) or MAX_WORDS (others). */
     public static function isShortEnough(string $headline): bool
     {
         if (preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $headline) === 1) {

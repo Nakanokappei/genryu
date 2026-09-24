@@ -12,24 +12,18 @@ use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * メディアサイト (UI: "Media site", sidebar group プレビュー): the media made
- * with Genryu as a reader would see it — Technology Watch, one front page
- * and one page per article in each language we publish in — to check how
- * the articles look and to show what kind of site the system makes. It
- * is a preview, not the publication: nothing is published yet, so an
- * article is shown as if out at its scheduled local time (or when it was
- * written, if not scheduled), and only the last WINDOW_DAYS days are
- * shown. Open to anyone, without signing in.
+ * メディアサイト (UI "Media site", sidebar group プレビュー): Technology Watch as a
+ * reader sees it, a front page and article pages per language, open to anyone.
  */
 class MediaController extends Controller
 {
-    /** How many days back the site reaches; the top images are deleted after as many (media:prune-images). */
+    /** How many days back the site reaches (also the top images' lifetime, media:prune-images). */
     public const WINDOW_DAYS = 30;
 
     /** The language of the front page at /media. */
     public const DEFAULT_LANGUAGE = 'ja';
 
-    /** What the site says around the articles, in each language. */
+    /** The site's own text, per language. */
     public const TEXT = [
         'ja' => ['tagline' => '研究室から産業へ。新しい技術の道筋を追う', 'latest' => '最新の記事', 'scheduled' => '公開予定', 'image' => 'AI が描いたイメージ', 'disclosure' => '記事は一次情報をもとに AI が執筆・翻訳し、トップ画像は AI が描いたイメージです。記事中の図版は一次情報からの引用です。', 'demo' => 'このサイトは Genryu で作ったメディアのデモです（直近30日分）。', 'empty' => 'まだ記事がありません。', 'back' => 'トップへ'],
         'en' => ['tagline' => 'From the laboratory to industry: following new technology on its way', 'latest' => 'Latest', 'scheduled' => 'Scheduled', 'image' => 'Image drawn by AI', 'disclosure' => 'Articles are written and translated by AI from primary sources; top images are drawn by AI. Figures in articles are quoted from the primary sources.', 'demo' => 'This site is a demo of a media made with Genryu (the last 30 days).', 'empty' => 'No articles yet.', 'back' => 'Front page'],
@@ -40,7 +34,7 @@ class MediaController extends Controller
         'fr' => ['tagline' => 'Du laboratoire à l’industrie : suivre les nouvelles technologies', 'latest' => 'Derniers articles', 'scheduled' => 'Programmé', 'image' => 'Image dessinée par une IA', 'disclosure' => 'Les articles sont rédigés et traduits par une IA à partir de sources primaires ; les images d’en-tête sont dessinées par une IA. Les figures des articles sont citées des sources primaires.', 'demo' => 'Ce site est une démo d’un média réalisé avec Genryu (les 30 derniers jours).', 'empty' => 'Pas encore d’articles.', 'back' => 'Accueil'],
     ];
 
-    /** The front page of a language: the newest article large, the rest after it. */
+    /** A language's front page. */
     public function index(?string $language = null): View
     {
         $language ??= self::DEFAULT_LANGUAGE;
@@ -48,7 +42,7 @@ class MediaController extends Controller
         return view('media.index', ['language' => $language, 'articles' => self::articles($language), 'languages' => self::languages()]);
     }
 
-    /** One article, in the language it is written or translated in. */
+    /** One article page; 404 unless the language matches and it is shown. */
     public function show(string $language, Article $article): View
     {
         abort_unless($article->language === $language && self::isShown($article), 404);
@@ -56,10 +50,7 @@ class MediaController extends Controller
         return view('media.show', ['language' => $language, 'article' => $article, 'languages' => self::languages()]);
     }
 
-    /**
-     * An article's top image, which is ours (drawn by the image model), so
-     * the site serves it; every language version shows its original's.
-     */
+    /** Serves an article's top image (the original's). */
     public function image(Article $article): StreamedResponse
     {
         $path = self::imagePathOf($article);
@@ -69,9 +60,7 @@ class MediaController extends Controller
     }
 
     /**
-     * The articles of a language the site shows, newest first: a body
-     * written, the language version to be published (言語設定), and its
-     * date within the window.
+     * A language's shown articles, newest first.
      *
      * @return Collection<int, Article>
      */
@@ -83,19 +72,19 @@ class MediaController extends Controller
             ->values();
     }
 
-    /** Whether the site shows an article. */
+    /** Whether the site shows an article: written, publishable (言語設定), within the window. */
     public static function isShown(Article $article): bool
     {
         return $article->body !== null && $article->isPublishable() && self::dateOf($article)->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));
     }
 
-    /** When the article counts as out: its scheduled local time, or, not scheduled, when it was written, in its language's zone. */
+    /** The article's date: its scheduled local time, else when it was written, in its timezone. */
     public static function dateOf(Article $article): CarbonImmutable
     {
         return $article->scheduledLocal() ?? CarbonImmutable::parse($article->created_at)->setTimezone($article->timezone());
     }
 
-    /** The lead as plain text: the one above the separator line, or, without one, the body's first paragraph that is not a heading. */
+    /** The lead as plain text, else the body's first non-heading paragraph. */
     public static function lead(Article $article): string
     {
         [$lead, $body] = $article->leadAndBody();
@@ -105,14 +94,14 @@ class MediaController extends Controller
         return trim(strip_tags(Str::markdown($first)));
     }
 
-    /** The top image's path on the local disk: the original's, for a translation too. */
+    /** The original's top image path on the local disk. */
     public static function imagePathOf(Article $article): ?string
     {
         return $article->original()?->image_path;
     }
 
     /**
-     * The languages that have an article to show, in the order we publish them in.
+     * The languages with an article to show, in order.
      *
      * @return list<string>
      */

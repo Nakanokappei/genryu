@@ -9,13 +9,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * 情報源 (UI: "Sources"): an official site whose update list we watch.
+ * 情報源 (UI "Sources"): an official site whose update list we watch.
+ * Status configuring / configured / failed.
  *
- * @property array<string, mixed>|null $html_list_settings HTML list settings (App\Crawl\HtmlList::SETTING_KEYS)
- * @property array<string, mixed>|null $json_list_settings JSON list settings (App\Crawl\JsonList::SETTING_KEYS)
- * @property array<string, mixed>|null $document_settings Document settings (App\Actions\ReadDocument::DOCUMENT_SETTING_KEYS)
- * @property string|null $full_text_link 全文へのリンク: CSS selectors of the link to the full text on a document's page, one per line, tried in order; set, the feed's summary is screened and the full text fetched once adopted
- * @property CarbonImmutable|null $favicon_modified_at Last-Modified of the favicon as fetched (App\Actions\FetchFavicon)
+ * @property array<string, mixed>|null $html_list_settings App\Crawl\HtmlList::SETTING_KEYS
+ * @property array<string, mixed>|null $json_list_settings App\Crawl\JsonList::SETTING_KEYS
+ * @property array<string, mixed>|null $document_settings App\Actions\ReadDocument::DOCUMENT_SETTING_KEYS
+ * @property string|null $full_text_link 全文へのリンク: CSS selectors, one per line, tried in order
+ * @property CarbonImmutable|null $favicon_modified_at the favicon's Last-Modified
  */
 class Source extends Model
 {

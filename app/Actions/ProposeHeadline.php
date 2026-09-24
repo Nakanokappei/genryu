@@ -6,23 +6,18 @@ use App\Models\LanguageSetting;
 use App\OpenAi\Responses;
 
 /**
- * The writer of 見出し (the headline), the first step of an article:
- * given the headline layer of the editorial policy and a material, a
- * model writes the headline in the language of the material, and so of
- * the primary source, in four steps (the topic word, a plain draft, the
- * assumption the draft rests on, the line that denies it) before any
- * body exists. When a headline was already tried it is also given the
- * scores the last one fell short on rather than a headline to imitate,
- * and the headlines already tried so that it does not circle back to
- * one. It only proposes; App\Jobs\RefineHeadline scores what comes back
- * and keeps the best.
+ * The writer of 見出し (UI "Headline"): writes a headline from a material,
+ * in its language, in four steps; a retry is given the last review and
+ * the headlines tried. App\Jobs\RefineHeadline scores and keeps the best.
  */
 class ProposeHeadline
 {
-    /** What the model is told after the cached policy. Shown on the screen under the prompt. */
+    /** Fixed instruction sent after the cached policy; shown on the screen under the prompt. */
     public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and no article has been written from it yet. Write the headline of that article, following the policy above, in the language the material is written in; the article will be written under it. Use only what the material says. When headlines were already tried, the review of the last one says what to change: change that, do not tune the wording of a headline that failed on what it says, and never reuse a headline already tried.';
 
     /**
+     * Sends the request and returns the answer and usage.
+     *
      * @param  array<string, mixed>  $material
      * @param  array<string, mixed>|null  $review  what the judge said of the last headline, or null for the first
      * @param  list<string>  $tried  the headlines already scored
@@ -34,11 +29,8 @@ class ProposeHeadline
     }
 
     /**
-     * The request: the policy first, as the developer message, with the
-     * cache breakpoint on it; the rubric and the instruction after it;
-     * then, when headlines were tried, what was tried and what the judge
-     * said; the material last. The answer walks the four steps in the
-     * order the schema names them, and only the last is kept.
+     * The request: cached policy, language prompts, instruction and rubric,
+     * then any earlier attempts and the material; the schema orders the four steps.
      *
      * @param  array<string, mixed>  $material
      * @param  array<string, mixed>|null  $review
@@ -49,7 +41,7 @@ class ProposeHeadline
     {
         $input = '';
 
-        // A rewrite is told what fell short; the first headline is written from the material alone.
+        // A retry: headlines tried, the review and the shortfall.
         if ($review !== null) {
             $shortfall = [];
 
@@ -68,7 +60,7 @@ class ProposeHeadline
 
         return Responses::request($model, [
             Responses::policy($policy),
-            // What belongs to the language the headline is written in (言語別の追加プロンプト), then the fixed instruction.
+            // 言語別の追加プロンプト (UI "Additional prompt per language").
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".ScoreHeadline::rubric()],
             ['role' => 'user', 'content' => $input],

@@ -2,28 +2,21 @@
 
 namespace App\OpenAi;
 
-/**
- * What a model call used and what it cost. Every agent reports its usage
- * in the same shape (input tokens, cached and cache-written ones apart,
- * output tokens, latency), and every job that keeps a run prices it the
- * same way, so both live here rather than in whichever job came first.
- */
+/** Token usage of model calls and what it costs. */
 class Usage
 {
     /**
-     * What the call cost, from the prices per million tokens configured
-     * for the model: cached input tokens at the cached price, the rest of
-     * the input at the input price, the output at the output price. Null
-     * when the model's prices are not known.
+     * A call's cost in USD from services.openai.prices (per million tokens); null when unpriced.
      *
      * @param  array{input_tokens: ?int, cached_tokens: ?int, output_tokens: ?int}  $usage
      * @return array{estimated_input_cost: ?float, estimated_output_cost: ?float, estimated_total_cost: ?float}
      */
     public static function estimatedCost(string $model, array $usage): array
     {
-        // Looked up by key, not by dot path: the model ids have dots in them (gpt-5.6-luna).
+        // By key, not dot path: model ids contain dots.
         $prices = ((array) config('services.openai.prices'))[$model] ?? null;
 
+        // Unknown prices or usage: no estimate.
         if (! is_array($prices) || ! is_numeric($prices['input'] ?? null) || ! is_numeric($prices['output'] ?? null) || $usage['input_tokens'] === null || $usage['output_tokens'] === null) {
             return ['estimated_input_cost' => null, 'estimated_output_cost' => null, 'estimated_total_cost' => null];
         }
@@ -37,8 +30,7 @@ class Usage
     }
 
     /**
-     * The usage of several calls added up, key by key; a figure no call
-     * reported stays unknown.
+     * Several calls' usage added up per key; null where no call reported it.
      *
      * @param  list<array<string, ?int>>  $usages
      * @return array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: ?int}
@@ -55,8 +47,7 @@ class Usage
     }
 
     /**
-     * What several calls on one model cost in USD, priced call by call;
-     * unknown when any call's is.
+     * Several calls' total cost in USD, priced call by call; null if any is unpriced.
      *
      * @param  list<array<string, ?int>>  $usages
      */
@@ -64,9 +55,11 @@ class Usage
     {
         $total = null;
 
+        // Price each call and add it up.
         foreach ($usages as $usage) {
             $cost = self::estimatedCost($model, ['input_tokens' => $usage['input_tokens'] ?? null, 'cached_tokens' => $usage['cached_tokens'] ?? null, 'output_tokens' => $usage['output_tokens'] ?? null])['estimated_total_cost'];
 
+            // One unknown makes the total unknown.
             if ($cost === null) {
                 return null;
             }

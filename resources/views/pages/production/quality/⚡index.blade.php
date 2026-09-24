@@ -8,19 +8,21 @@ use Flux\Flux;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 
-// 品質チェック (Quality check), the first screen of 編成 (Production): the quality layer of the editorial policy — the media's standards with the rubric in it — and the model it runs on, above the written articles with the state and the score of their latest check. Articles are checked on their own once written; nothing is scored by hand here.
+// 品質チェック (Quality check): the quality layer and the originals with their latest check.
 new #[Title('品質チェック')] class extends PagedList {
-    /** The developer prompt of the judge, rubric included, and the model it runs on. */
+    /** The quality layer's prompt (rubric included) and model. */
     public string $quality = '';
 
     public string $qualityModel = EditorialPolicy::DEFAULT_MODEL;
 
+    // Load the quality layer.
     public function mount(): void
     {
         $this->quality = EditorialPolicy::bodyFor('quality');
         $this->qualityModel = EditorialPolicy::modelFor('quality');
     }
 
+    // Save the quality prompt and model.
     public function savePolicy(): void
     {
         $this->validate(['qualityModel' => EditorialPolicy::modelRule()]);
@@ -29,15 +31,14 @@ new #[Title('品質チェック')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Article> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Article> the originals with a body */
     #[Computed]
     public function articles()
     {
-        // The written originals: a translation says what its original says, so only the original is checked.
         return Article::query()->originals()->whereNotNull('body')->with('material.document.source', 'qualityCheck')->latest()->latest('id')->paginate($this->rowsPerPage());
     }
 
-    // Queue a check for every written original without a passing run, or for all of them again (after the policy changed).
+    // Queue a check for the unchecked or failed originals, or for all.
     public function check(bool $all = false): void
     {
         $articles = Article::query()->originals()->whereNotNull('body')->where('status', 'written')
@@ -52,7 +53,6 @@ new #[Title('品質チェック')] class extends PagedList {
 <section class="w-full space-y-6" @if ($this->articles->contains(fn ($article) => $article->qualityCheck?->status === 'checking')) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Quality check') }}</flux:heading>
 
-    {{-- The policy sits with the checks because it is what makes them, as the article prompts sit with the articles. --}}
     <form wire:submit="savePolicy" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the quality check: every written article is scored out of 100 against the media\'s standards and the rubric written here, with the reason the points were lost. The rubric lives in this prompt, so changing it here changes how articles are scored; check them all again after a change.') }}</flux:text>
@@ -79,7 +79,7 @@ new #[Title('品質チェック')] class extends PagedList {
                         <span title="{{ $check->status === 'failed' ? $check->status_message : '' }}"><x-pages::status :status="$check->status" /></span>
                     @endif
                 </td>
-                {{-- The score, with the reason the points were lost on hover. --}}
+                {{-- The score; the reason as tooltip. --}}
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $check?->reason }}">{{ $check?->score ?? '—' }}</td>
                 <td class="whitespace-nowrap px-3 py-2 text-neutral-500">{{ $check?->status === 'checked' ? $check->updated_at->display() : '—' }}</td>
             </tr>

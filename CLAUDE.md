@@ -72,6 +72,18 @@ The history under `docs/` (Phase 0) keeps the old name.
   the two settings agents stay on Chat Completions through
   `App\OpenAi\ChatCompletions`, the images and embeddings call `Client`
   directly.
+- **A rule is written once** (the third refactoring, 2026-09-25); use
+  these rather than writing the SQL or the list again: `Document`
+  scopes `decidedAs` / `undecided` (the same rule as `decision()`),
+  `leftOut` / `notLeftOut` (the semantic filter), `withShortBody`;
+  `Article::original()` and the `originals` scope; `App\Enums\Language`
+  (codes, names, zones, source labels, default coverage, counted in
+  characters or words); `Prompt::forLayer` / `Prompt::textOf` (pin a
+  layer's version, fail on an empty one); `App\Support\ErrorMessage`
+  (an exception as a status message); `EditorialPolicy::modelRule` with
+  the `pages::model-select` component; `SemanticFilterExample::SIDES`,
+  `SpotCheck::VERDICTS` and `EditorialPolicy::LAYER_LABELS` (value →
+  UI label); `Crawler::client`; `Usage::costOfCalls`.
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
   2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
   更新リストを取得 on the source; how a feed, an HTML list and a JSON list
@@ -163,7 +175,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   article **in the language of the material, and so of the primary
   source**, and says which language that was; `App\Jobs\TranslateArticle`
   (agent `App\Actions\ProposeTranslation`) then renders it in each of
-  `Article::LANGUAGES` — ja / en / zh-Hant / zh-Hans — that it is not
+  the languages 言語設定 translates into (`App\Enums\Language`) that it is not
   already in, queued on its own as soon as the article exists. **A
   translation translates the article, never writes the piece again from
   the material**: what the reporter found in the source survives into
@@ -291,17 +303,18 @@ The history under `docs/` (Phase 0) keeps the old name.
   quality first, earliest slot first. A slot is a date and a local time of
   day (公開時刻, 07:00 / 09:00 / 12:00 / 15:00 / 18:00, the first
   平日の公開本数 = 5 of them): **every language version goes out at that
-  local date and time in its own zone** (`Article::TIMEZONES`: English by
+  local date and time in its own zone** (`Language::timezone()`: English by
   New York, the rest by their capitals — Tokyo, Beijing as Asia/Shanghai,
   Taipei, Berlin, Paris), stored per row as `articles.scheduled_at` (UTC),
   and a slot is used only when it is still ahead in every zone. A
   translation written later takes its original's slot (`TranslateArticle`,
-  and on every run). The settings are one `schedule_settings` row, set on
+  and on every run). The settings are one `schedule_settings` row (`period_days`,
+  `publication_times`), set on
   the screen; スケジュールを組み直す takes the unpublished articles off first.
   It only sets the times: publishing at them, the top image and topping up
   thin days from below the pass mark come later.
 - **Languages are chosen, not fixed** (decided 2026-09-23). We publish
-  in seven (`Article::LANGUAGES`, in the order of the countries' 2023 R&D
+  in seven (`App\Enums\Language`, in the order of the countries' 2023 R&D
   spending by UNESCO: en, zh-Hant, ja, de, ko, fr, zh-Hans). A document
   has the language it is written in (`documents.language`), told from
   its text without a model (`App\Actions\DetectLanguage`) when it is
@@ -353,7 +366,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   **content filtering** (コンテンツフィルタリング) is on the 文書 screen
   above the list: one body, the developer prompt (OpenAI's name for the
   system prompt) of the スクリーニング, and the model it runs on
-  (`EditorialPolicy::MODELS`, column `model`). **The developer prompts are
+  (`EditorialPolicy::TEXT_MODELS`, column `model`). **The developer prompts are
   written in English and answer in the language of the document they
   read** (content filtering, 2026-09-23): the same reasoning in English
   costs about half the tokens of the Japanese it replaced (a screening's
@@ -367,11 +380,11 @@ The history under `docs/` (Phase 0) keeps the old name.
   **Responses API**, the prompt as the developer message with an explicit
   `prompt_cache_breakpoint`, the document after it, structured output)
   decides 採用 / 不採用 / 要確認 (adopt / reject / review) with a reason
-  class (`Screening::PRIMARY_REASONS`). Every run is a `screenings` row
+  class (`screenings.reason_class`, one of `Screening::REASONS`). Every run is a `screenings` row
   (model, prompt version, tokens with cached / cache-written apart,
   latency, estimated cost from `services.openai.prices`); the document
-  points at its latest one (`screening_id`). The prompt text is versioned
-  in `screening_prompts` (`ScreeningPrompt::current`, a new version when
+  points at its latest one (`latest_screening_id`). The prompt text is versioned
+  in `prompts` per layer (`Prompt::forLayer`, a new version when
   the hash changes). Queued from 未判定の文書をスクリーニング and
   不採用をもう一度判定する (every reject an older prompt version decided:
   a changed prompt can rescue a document) on 文書, and スクリーニング on
@@ -390,8 +403,8 @@ The history under `docs/` (Phase 0) keeps the old name.
   / reject with `human_reason`, recorded on the document screen) outranks
   the screening's everywhere (`Document::decision()`); it is kept to
   become a few-shot example for the screening (`docs/TODO.md`). The eight
-  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). `EditorialPolicy::LAYERS` has five layers: exclude_keywords,
-  content_filtering, structuring, article, translation.
+  acceptance cases run only with `SCREENING_ACCEPTANCE=1` (real model). The layers and their UI labels are `EditorialPolicy::LAYER_LABELS`
+  (the title filter's layer is `title_filter`).
 - **A bet is a signal too** (prompt v2, 2026-09-22): the gate rejected
   DARPA's $1M D2 Sprint as EVENT_PR because a prize competition reports
   no results — but a funder putting money, a deadline and a measure
@@ -466,7 +479,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   **抜き取り点検 (Spot check)**, Stet's idea from the NYT comparison
   (artifact "NYT の AI 道具箱と Technology Watch"): `App\Actions\DrawSpotCheck`
   draws 10 of the day's documents the semantic filter measured, stratified
-  (`SpotCheck::STRATA`: passed 3 / just below the threshold 4 / far below 3,
+  (`SpotCheck::STRATA`: let_through 3 / just_below 4 / far_below 3,
   since at random 94% would be below), each row with its stratum's weight
   and the likeness, threshold and outcome as they were when drawn;
   examples and documents drawn before are left out; a day is drawn once.
@@ -503,7 +516,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   is in the footer in each language. `media:prune-images` (scheduled
   daily) deletes the top images drawn more than 30 days ago. A body a
   translator began with the headline as a `#` line does not show it
-  twice (`Article::bodyWithoutHeadline`).
+  twice (`Article::bodyWithoutHeadline`, used by `leadAndBody`).
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings
@@ -619,6 +632,39 @@ came with the scaffold; leave them as they are.
 - Do not log response bodies, secrets, or personal data.
 - Commit `CLAUDE.md` and `.claude/launch.json`; `.claude/settings.local.json`
   is per-user and ignored.
+
+## Why the code is as it is
+
+Reasons taken out of the code comments (2026-09-25), by where they apply:
+
+- **Sources.** `ConfigureSource::verify` tries generic selectors
+  (`h1, h2, h3, h4`, then `a[href]`; dates `time`, then none) when the
+  agent's title selector finds nothing: it gets the item right and the
+  title wrong (CNRS: an anchor wrapping a heading proposed as a heading
+  holding an anchor); what worked is saved. The JSON list exists for
+  三菱電機 (the page holds no entries, a script draws them from a JSON
+  file). The overlap count shown with a found feed warns of a feed that
+  is another list. `Feed::WELL_KNOWN` exists because DARPA serves
+  `/rss.xml` without advertising it. `list_method` html makes
+  `ConfigureSource` skip the feed.
+- **Documents.** `ReadDocument` takes the configured date before the
+  removals, since it may sit in a removed block (日立: the author line),
+  and tries the page's `<h1>` last, since elsewhere it is often the
+  site's logo or section. Local PHP has no CA store, so TLS is verified
+  with composer/ca-bundle (`AppServiceProvider`; fraunhofer.de and
+  cnrs.fr were refused). A changed embedding model makes likeness
+  incomparable: every document is embedded again and the threshold
+  wants looking at. Embeddings are kept so a changed definition or
+  example re-measures without calling the model for old lines.
+- **Materials.** PostgreSQL's jsonb stores keys ordered by length, so
+  `Material::parts()` puts them back in `ProposeMaterial::PARTS` order.
+- **Headlines.** `ScoreHeadline::PASS_REVERSED` is 12, not half of 15:
+  at 8 a paraphrase passed. `MAX_CHARACTERS` is 30, not 25: a headline
+  that denies an assumption needs room for the contrast.
+- **Images.** `ProposeScene` is not given the source's figures, so the
+  scene does not copy someone else's picture.
+- **Screening.** The strongest model cannot be the first-pass model: it
+  is kept as the next model up for the second pass.
 
 ## Gotchas
 

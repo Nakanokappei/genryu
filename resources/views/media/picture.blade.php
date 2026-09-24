@@ -1,4 +1,4 @@
-{{-- An article's top image (ours, served by the site), or, without one yet, a quiet block with the source's name so the grid keeps its shape. --}}
+{{-- An article's top image, or a placeholder block with the source's name. --}}
 @if (\App\Http\Controllers\MediaController::imagePathOf($article))
     <img src="{{ route('media.image', $article) }}" alt="" loading="lazy" class="{{ $class }}">
 @else

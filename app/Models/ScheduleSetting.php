@@ -5,11 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * The settings of スケジュール (UI: "Schedule"): how many articles go out
- * on a weekday (平日の公開本数), how many days after its primary source was
- * published an article may still be scheduled (対象期間), and the local
- * times of day the articles of a day go out at (公開時刻), earliest first.
- * One row; the defaults stand until the screen saves it.
+ * The settings of スケジュール (UI "Schedule"), one row: 平日の公開本数
+ * (articles_per_weekday), 対象期間 (period_days) and 公開時刻 (publication_times).
  */
 class ScheduleSetting extends Model
 {
@@ -22,15 +19,14 @@ class ScheduleSetting extends Model
         return ['articles_per_weekday' => 'integer', 'period_days' => 'integer', 'publication_times' => 'array'];
     }
 
-    /** The settings as saved, or the defaults until they are. */
+    /** The saved settings, or the defaults. */
     public static function current(): self
     {
         return static::query()->first() ?? new self(self::DEFAULTS);
     }
 
     /**
-     * The times a weekday's articles go out at: the first
-     * articles_per_weekday of the times, in order.
+     * A weekday's slots: the earliest articles_per_weekday of the times.
      *
      * @return list<string>
      */

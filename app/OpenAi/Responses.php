@@ -4,20 +4,11 @@ namespace App\OpenAi;
 
 use RuntimeException;
 
-/**
- * The call every agent makes to OpenAI's Responses API. The agents share
- * one shape: the editorial policy first, as the developer message with
- * an explicit prompt-cache breakpoint, so the same policy is served from
- * the cache call after call; what changes per call after it; the answer
- * constrained to a JSON schema. What differs from agent to agent — the
- * instruction, the input and the schema — stays with the agent; sending,
- * reading the answer and counting the usage are here.
- */
+/** The Responses API call every agent shares: cached policy first, JSON-schema answer. */
 class Responses
 {
     /**
-     * The request around an agent's input: the model, explicit prompt
-     * caching, and the answer constrained to the schema under its name.
+     * The request envelope: model, explicit prompt caching, the input and the named schema.
      *
      * @param  list<array<string, mixed>>  $input
      * @param  array<string, mixed>  $schema
@@ -41,9 +32,7 @@ class Responses
     }
 
     /**
-     * The policy as the first message: a developer message whose text
-     * carries the explicit cache breakpoint, so everything up to it is
-     * the cached prefix.
+     * The policy as a developer message ending in the cache breakpoint.
      *
      * @return array<string, mixed>
      */
@@ -58,10 +47,7 @@ class Responses
     }
 
     /**
-     * Send the request and return the answer's JSON with the usage the
-     * API reports (cached and cache-written tokens apart) and the time the
-     * call took. An answer that is not a JSON object fails with $invalid,
-     * which an agent may word for what it expected.
+     * Sends the request; returns the answer's JSON and the usage. A non-object answer throws $invalid.
      *
      * @param  array<string, mixed>  $request
      * @return array{json: array<string, mixed>, usage: array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}}
@@ -74,6 +60,7 @@ class Responses
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
         $json = json_decode(self::outputText($response->json()), true);
 
+        // Not a JSON object: fail.
         if (! is_array($json)) {
             throw new RuntimeException(__($invalid));
         }
@@ -91,18 +78,19 @@ class Responses
     }
 
     /**
-     * The text of the answer: the output_text of the first message in
-     * the output (reasoning items and the like are passed over).
+     * The first output_text of the first message item, skipping reasoning items.
      *
      * @param  array<string, mixed>|null  $body
      */
     private static function outputText(?array $body): string
     {
+        // Look through the output items for a message.
         foreach ($body['output'] ?? [] as $item) {
             if (($item['type'] ?? '') !== 'message') {
                 continue;
             }
 
+            // Its first output_text is the answer.
             foreach ($item['content'] ?? [] as $content) {
                 if (($content['type'] ?? '') === 'output_text') {
                     return (string) $content['text'];
@@ -113,6 +101,7 @@ class Responses
         return (string) ($body['output_text'] ?? '');
     }
 
+    /** A reported token count, or null when absent. */
     private static function count(mixed $value): ?int
     {
         return is_numeric($value) ? (int) $value : null;

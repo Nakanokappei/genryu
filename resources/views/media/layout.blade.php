@@ -1,4 +1,4 @@
-{{-- The frame of the media site (Technology Watch as a reader sees it): masthead, languages, the page, and what readers are told about how it is made. --}}
+{{-- メディアサイト frame: masthead, languages, page, disclosure footer. --}}
 @php($text = \App\Http\Controllers\MediaController::TEXT[$language])
 <!DOCTYPE html>
 <html lang="{{ $language }}">
@@ -13,7 +13,7 @@
     <style>
         .media-serif { font-family: 'Source Serif 4', 'Noto Serif JP', 'Noto Serif TC', 'Noto Serif SC', 'Noto Serif KR', Georgia, serif; }
         .media-sans { font-family: 'Noto Sans JP', 'Noto Sans TC', 'Noto Sans SC', 'Noto Sans KR', system-ui, sans-serif; }
-        /* The lead (above the separator line of the article's Markdown) sits apart from the body; the body opens on a drop cap. */
+        /* The lead set apart; the body opens on a drop cap. */
         .media-article [data-lead] { font-size: 1.22rem; line-height: 1.85; color: #3d3a35; padding-bottom: 1.75rem; margin-bottom: 2.25rem; border-bottom: 1px solid #d9d4ca; }
         .media-article [data-lead] p { margin: 0; }
         .media-article [data-body] > p:first-child::first-letter { float: left; font-size: 3.6em; line-height: 0.82; font-weight: 800; margin: 0.06em 0.12em 0 0; color: #8a2f1d; }

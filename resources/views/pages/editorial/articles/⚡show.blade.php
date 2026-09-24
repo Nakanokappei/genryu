@@ -8,29 +8,30 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 記事 (Article) detail: how the writing went, the article in each language it exists in, and the material it came from. The article as written and its translations are one page: the languages are tabs over the same piece.
+// 記事 (Article) detail, with its languages as tabs.
 new #[Title('記事')] class extends Component {
     public Article $article;
 
-    /** The language being read (UI: the tabs); the original's until another is chosen. */
+    /** The language tab being read. */
     public string $language = '';
 
-    /** Which way the article is read (UI: 記事 / Markdown); the same text either way. */
+    /** UI: 記事 / Markdown */
     public string $view = 'article';
 
+    // Open the original's language.
     public function mount(): void
     {
         $this->language = (string) $this->original()->language;
     }
 
-    /** The article as written, whichever of its languages was opened. */
+    /** The original article. */
     public function original(): Article
     {
         return $this->article->original() ?? $this->article;
     }
 
     /**
-     * The article in every language it exists in, the original first.
+     * Every language version, the original first.
      *
      * @return \Illuminate\Support\Collection<string, Article>
      */
@@ -42,25 +43,21 @@ new #[Title('記事')] class extends Component {
         return $original->translations()->get()->prepend($original)->keyBy(fn (Article $article): string => (string) $article->language);
     }
 
-    /** The one being read. */
+    /** The version being read. */
     #[Computed]
     public function reading(): Article
     {
         return $this->versions[$this->language] ?? $this->original();
     }
 
-    /**
-     * The one the screen itself is headed and listed by: the version in
-     * the language of the interface, else the article as written. The
-     * tabs change what is read, not what the page around it is called.
-     */
+    /** The version in the UI language, else the original: heads the page. */
     #[Computed]
     public function inUiLanguage(): Article
     {
         return $this->versions[app()->getLocale()] ?? $this->original();
     }
 
-    // Queue the writing again (after a failure, or after the editorial policy changed); the translations follow it.
+    // Queue the article again; translations follow.
     public function generate(): void
     {
         GenerateArticle::queueFor($this->original()->material);
@@ -69,7 +66,7 @@ new #[Title('記事')] class extends Component {
         Flux::toast(variant: 'success', text: __('Article queued.'));
     }
 
-    // Queue the translation being read again, leaving the article as written alone.
+    // Queue the translation being read again.
     public function translate(): void
     {
         TranslateArticle::queueFor($this->original(), $this->language);
@@ -78,7 +75,7 @@ new #[Title('記事')] class extends Component {
         Flux::toast(variant: 'success', text: __('Article queued.'));
     }
 
-    // Polled while a background job runs so the screen follows it.
+    // Polled while a job runs.
     public function refreshStatus(): void
     {
         $this->article->refresh();
@@ -96,7 +93,6 @@ new #[Title('記事')] class extends Component {
         __('Created') => $this->original()->created_at->display(),
     ]" />
 
-    {{-- The languages are tabs over one piece: the article as written, then each translation of it. --}}
     <flux:radio.group wire:model.live="language" variant="segmented" size="sm">
         @foreach (\App\Enums\Language::names() as $code => $name)
             @if ($this->versions->has($code))
@@ -135,7 +131,6 @@ new #[Title('記事')] class extends Component {
     </div>
 
     @if ($this->reading->body !== null)
-        {{-- The title belongs with the text it heads: switching language shows that language's title above its body. The two tabs are the same text, read two ways. --}}
         <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             @if ($view === 'markdown')
                 <pre class="overflow-auto text-sm whitespace-pre-wrap"># {{ $this->reading->headline }}

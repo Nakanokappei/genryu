@@ -5,39 +5,23 @@ namespace App\Actions;
 use App\Enums\Language;
 
 /**
- * The checks the body of an article goes through before it is kept: its
- * shape and its length, both of which can be counted rather than judged.
- * The shape is the one the article layer of the editorial policy asks
- * for — the opening (起) with no heading of its own, 承 / 転 / 結
- * under ## headings, and a final sources section linking to the primary
- * source; the headline is not in the body, the screen puts it above as
- * its # heading, and the lead comes back apart from the body, written
- * after it, and is put above it when kept, so it is not here either. Each
- * problem is one line the agent can act on, and the
- * rewrite is given them as they are. Whether the article is any good is
- * not a validator's call.
- *
- * Every non-empty line is a block of its own (models write paragraphs one
- * newline apart; App\Models\Article::separateBlocks sets them apart when
- * the body is kept), so a paragraph here is a line that is not a heading.
+ * Checks an article body (without headline or lead) for shape and length;
+ * each problem is one line handed to the rewrite. A paragraph is any
+ * non-empty line that is not a heading.
  */
 class ValidateArticle
 {
-    /** How long a body may be, not counting its sources: characters in Chinese, Japanese or Korean, words otherwise. */
+    /** Allowed length without the sources: characters (CJK) or words. */
     public const LENGTHS = ['characters' => [800, 1200], 'words' => [500, 800]];
 
-    /** How many ## headings come between the opening and the sources: 承, 転 and 結. */
+    /** ## sections before the sources: 承, 転, 結. */
     public const SECTIONS = 3;
 
-    /**
-     * The heading of the sources section, in the languages an article is
-     * written in; the word may be followed by its translation after a
-     * slash (a writer once put "出典 / Sources" four times in a row).
-     */
+    /** The sources heading in any language, optionally followed by a translation after a slash. */
     private const SOURCES_HEADING = '/^(出典|出处|出處|출처|Sources?|Quellen)(\s*[\/／|]\s*\S.*)?$/iu';
 
     /**
-     * The problems of a body, none when it passes.
+     * The body's problems, none when it passes.
      *
      * @return list<string>
      */
@@ -47,7 +31,7 @@ class ValidateArticle
     }
 
     /**
-     * What is wrong with the shape of a body, one line per problem.
+     * Shape problems, one line each.
      *
      * @return list<string>
      */
@@ -56,24 +40,27 @@ class ValidateArticle
         $lines = array_values(array_filter(array_map(trim(...), preg_split('/\R/u', $body) ?: []), fn (string $line): bool => $line !== ''));
         $problems = [];
 
+        // Empty body.
         if ($lines === []) {
             return ['The body is empty.'];
         }
 
-        // The opening comes first: a body that opens on a heading has lost it, or repeats the headline.
+        // Must start with the opening, not a heading.
         if (str_starts_with($lines[0], '#')) {
             $problems[] = 'The body starts with a heading; it must start with the opening, with no heading.';
         }
 
-        // Split the body at its ## headings: what comes before the first, then each heading with the paragraphs under it.
+        // Count opening paragraphs, then paragraphs under each ## heading.
         $opening = 0;
         $headings = [];
         $paragraphs = [];
-        // The text under the latest heading, which at the end is the sources section's.
+        // Text under the latest heading (at the end, the sources).
         $underLast = '';
 
         foreach ($lines as $line) {
+            // Heading, opening paragraph, or paragraph under a heading.
             if (preg_match('/^(#+)\s*(.*)$/u', $line, $match) === 1) {
+                // Only ## is allowed.
                 if ($match[1] !== '##') {
                     $problems[] = "Only ## headings may be used; found \"{$line}\".";
 
@@ -91,12 +78,12 @@ class ValidateArticle
             }
         }
 
-        // The opening (起), not under a heading.
+        // The opening (起) must be there.
         if ($opening < 1) {
             $problems[] = 'Before the first ## heading there must be the opening, at least one paragraph; found none.';
         }
 
-        // The sources close the article and link to the primary source.
+        // Last section is the sources, linking the primary source.
         $isSources = fn (string $heading): bool => preg_match(self::SOURCES_HEADING, $heading) === 1;
         $last = array_key_last($headings);
 
@@ -108,12 +95,13 @@ class ValidateArticle
 
         $content = array_filter($headings, fn (string $heading): bool => ! $isSources($heading));
 
+        // Exactly SECTIONS content headings.
         if (count($content) !== self::SECTIONS) {
             $problems[] = 'There must be exactly '.self::SECTIONS.' ## headings before the sources, one each for 承, 転 and 結; found '.count($content).'.';
         }
 
         foreach ($content as $index => $heading) {
-            // A heading is a plain phrase, not the name of the part it heads, and not the headline again.
+            // No label headings (起承転結), no repeated headline, no empty section.
             if (preg_match('/^[起承転結](\s|[:：]|$)/u', $heading) === 1) {
                 $problems[] = "The heading \"{$heading}\" is a label; write a plain phrase.";
             }
@@ -131,7 +119,7 @@ class ValidateArticle
     }
 
     /**
-     * What is wrong with the length of a body: nothing, or one line.
+     * Length problem, if any, as one line.
      *
      * @return list<string>
      */
@@ -143,12 +131,9 @@ class ValidateArticle
     }
 
     /**
-     * The length of a body as the policy counts it: the sources section
-     * (the heading that names 出典 or Sources, and what follows) and the
-     * Markdown marks left out; characters without spaces in Chinese,
-     * Japanese or Korean (by the language the agent named, else by the script),
-     * words otherwise. `off` is how far outside the range it is, negative
-     * when short, 0 when inside.
+     * The body's length without sources and Markdown marks: characters
+     * without spaces (CJK, by language or else script) or words. `off` is
+     * the distance outside the range, negative when short.
      *
      * @return array{count: int, unit: string, min: int, max: int, off: int}
      */

@@ -6,26 +6,26 @@ use App\OpenAi\Client;
 use RuntimeException;
 
 /**
- * The second half of a top image (トップ画像): the scene, the style of the
- * hour and what may never be drawn go to the image model as one prompt
- * (the Images API), and the image comes back as JPEG bytes, wide enough
- * to head an article. It only draws; App\Jobs\MakeImage keeps the image.
+ * Draws a トップ画像 (UI "Top image") with the Images API from the scene,
+ * the style of the hour and NEVER; returns JPEG bytes. MakeImage stores it.
  */
 class DrawImage
 {
     /** 16:9, both sides multiples of 16 as the API asks. */
     public const SIZE = '1536x864';
 
-    /** What is never drawn, whatever the scene or the style: the image serves every language and must not pass for a photograph of the event. Shown on the screen. */
+    /** What is never drawn, whatever the scene or style. Shown on the screen. */
     public const NEVER = 'No text, letters or numbers anywhere in the image. No logos, brand names or real people. Not a photograph. A wide composition to head an article.';
 
-    /** The prompt the image model is given: the scene, then the style of the hour, then what is never drawn. */
+    /** The image prompt: scene, style, then NEVER. */
     public static function prompt(string $scene, string $style): string
     {
         return trim($scene)."\n\nStyle: ".trim($style)."\n\n".self::NEVER;
     }
 
     /**
+     * Draws the image and returns its bytes and usage.
+     *
      * @return array{bytes: string, usage: array{input_tokens: ?int, output_tokens: ?int, latency_ms: int}}
      */
     public function __invoke(string $model, string $prompt): array
@@ -36,6 +36,7 @@ class DrawImage
 
         $bytes = base64_decode((string) $response->json('data.0.b64_json'), true);
 
+        // No image in the answer.
         if ($bytes === false || $bytes === '') {
             throw new RuntimeException(__('The image model did not return an image.'));
         }

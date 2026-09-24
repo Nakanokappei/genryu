@@ -11,13 +11,8 @@ use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
 /**
- * 意味フィルタ (UI: "Semantic filter"): in the background, measure a
- * document's likeness (App\Actions\MeasureLikeness) between the title
- * filter and the screening, for every source. At or above the threshold
- * set on 文書 it goes on to the screening; below it goes no further and
- * shows as 対象外 with its likeness. Should the filter itself fail (the
- * embedding call), the document goes on to the screening all the same:
- * a filter that cannot measure must not hold back what nobody looked at.
+ * 意味フィルタ (UI: "Semantic filter"): measure a document's likeness and
+ * send it on to the screening when it reaches the threshold.
  */
 class ApplySemanticFilter implements ShouldQueue
 {
@@ -34,10 +29,12 @@ class ApplySemanticFilter implements ShouldQueue
         self::dispatch($document);
     }
 
+    /** Measure the likeness and queue the screening for a document that passes. */
     public function handle(MeasureLikeness $measure): void
     {
         $document = $this->document;
 
+        // A filter that cannot measure lets the document through.
         try {
             $likeness = $measure($document);
         } catch (Throwable $exception) {
@@ -47,6 +44,7 @@ class ApplySemanticFilter implements ShouldQueue
             return;
         }
 
+        // At or above the threshold, not excluded and not yet screened: screen it.
         if ($likeness >= EditorialPolicy::likenessThreshold() && $document->excluded_by === null && $document->latest_screening_id === null) {
             ScreenDocument::queueFor($document);
         }

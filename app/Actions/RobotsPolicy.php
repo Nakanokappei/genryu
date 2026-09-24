@@ -7,29 +7,31 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Sleep;
 
 /**
- * robots.txt, honoured before every fetch of a site. The file is read once
- * per host per hour; a missing file (404) allows everything, an unreadable
- * one (error, 5xx) allows nothing until it can be read. Rules for our own
- * product token win over the "*" group; the longest matching rule wins.
- * A Crawl-delay in that group is the least time between two of our
- * requests to the host.
+ * robots.txt, checked before every fetch (cached per host for an hour):
+ * 404 allows everything, any other non-200 nothing; our token's group wins
+ * over "*", the longest matching rule wins, and Crawl-delay is honoured.
  */
 class RobotsPolicy
 {
+    /** Our User-agent product token. */
     public const TOKEN = 'Genryu';
 
+    /** How long a robots.txt is cached. */
     private const CACHE_SECONDS = 3600;
 
+    /** Whether robots.txt allows fetching the URL. */
     public function allows(string $url): bool
     {
         $parts = parse_url($url);
         $path = ($parts['path'] ?? '/').(isset($parts['query']) ? '?'.$parts['query'] : '');
         $robots = $this->robots($url);
 
+        // No robots.txt: allowed.
         if ($robots['status'] === 404) {
             return true;
         }
 
+        // Unreadable: disallowed.
         if ($robots['status'] !== 200) {
             return false;
         }
@@ -37,15 +39,13 @@ class RobotsPolicy
         return self::decide(self::groupFor($robots['body'])['rules'], $path);
     }
 
-    /**
-     * Wait until the host's Crawl-delay has passed since our last request
-     * to it, then take the slot. Meant to be called right before sending.
-     */
+    /** Waits out the host's Crawl-delay since our last request, then records this one. */
     public function waitBefore(string $url): void
     {
         $robots = $this->robots($url);
         $delay = $robots['status'] === 200 ? self::groupFor($robots['body'])['delay'] : 0.0;
 
+        // No delay asked.
         if ($delay <= 0) {
             return;
         }
@@ -53,6 +53,7 @@ class RobotsPolicy
         $key = 'robots:last:'.strtolower((string) parse_url($url, PHP_URL_HOST));
         $remaining = (float) Cache::get($key, 0.0) + $delay - (float) now()->format('U.u');
 
+        // Sleep for what is left of the delay.
         if ($remaining > 0) {
             Sleep::for($remaining)->seconds();
         }
@@ -61,7 +62,7 @@ class RobotsPolicy
     }
 
     /**
-     * The host's robots.txt, read once per hour.
+     * The host's robots.txt, cached for CACHE_SECONDS.
      *
      * @return array{status: int, body: string}
      */
@@ -70,6 +71,7 @@ class RobotsPolicy
         $parts = parse_url($url);
         $host = strtolower((string) ($parts['host'] ?? ''));
 
+        // No host: treated as unreadable.
         if ($host === '') {
             return ['status' => 0, 'body' => ''];
         }
@@ -81,6 +83,8 @@ class RobotsPolicy
     }
 
     /**
+     * Fetches a robots.txt; status 0 when it cannot be reached.
+     *
      * @return array{status: int, body: string}
      */
     private function read(string $url): array
@@ -95,9 +99,7 @@ class RobotsPolicy
     }
 
     /**
-     * The Allow / Disallow rules and the Crawl-delay (seconds, 0 when none)
-     * of the group that applies to us: the group naming our token when
-     * there is one, else the "*" group.
+     * The rules and Crawl-delay of the group for our token, else of "*".
      *
      * @return array{rules: list<array{allow: bool, path: string}>, delay: float}
      */
@@ -108,9 +110,11 @@ class RobotsPolicy
         $current = [];
         $seenRule = true;
 
+        // Parse line by line into the own and any groups.
         foreach (preg_split('/\r\n|\r|\n/', $body) ?: [] as $line) {
             $line = trim((string) preg_replace('/#.*$/', '', $line));
 
+            // Blank or not a field.
             if ($line === '' || ! str_contains($line, ':')) {
                 continue;
             }
@@ -118,6 +122,7 @@ class RobotsPolicy
             [$field, $value] = array_map('trim', explode(':', $line, 2));
             $field = strtolower($field);
 
+            // A User-agent line opens or extends the current group.
             if ($field === 'user-agent') {
                 // Consecutive User-agent lines share the rules that follow them.
                 if ($seenRule) {
@@ -130,6 +135,7 @@ class RobotsPolicy
                 continue;
             }
 
+            // A rule or delay applies to the current group.
             if ($field === 'allow' || $field === 'disallow' || $field === 'crawl-delay') {
                 $seenRule = true;
 
@@ -149,6 +155,8 @@ class RobotsPolicy
     }
 
     /**
+     * Whether the path is allowed: the longest matching rule decides, allowed when none match.
+     *
      * @param  list<array{allow: bool, path: string}>  $rules
      */
     private static function decide(array $rules, string $path): bool
@@ -157,6 +165,7 @@ class RobotsPolicy
         $longest = -1;
 
         foreach ($rules as $rule) {
+            // An empty path matches nothing.
             if ($rule['path'] === '') {
                 continue;
             }
@@ -170,9 +179,7 @@ class RobotsPolicy
         return $verdict;
     }
 
-    /**
-     * A rule path is a prefix; "*" matches anything and a trailing "$" anchors the end.
-     */
+    /** Whether a rule path matches: a prefix, "*" any run, trailing "$" the end. */
     private static function matches(string $rule, string $path): bool
     {
         $pattern = '#^'.str_replace('\*', '.*', preg_quote(rtrim($rule, '$'), '#')).(str_ends_with($rule, '$') ? '$' : '').'#';

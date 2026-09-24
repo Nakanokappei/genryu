@@ -13,11 +13,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Put a drawn document's title and gist into plain Japanese for the
- * person who checks it (抜き取り点検): most documents are in English, and
- * a verdict given at a glance needs the gist at a glance. The cheapest
- * model does it (Responses API, structured output); a failure is kept on
- * the row and the original title is shown instead.
+ * 抜き取り点検 (UI: "Spot check"): put a drawn document's title and gist into
+ * Japanese with the cheapest model; a failure is kept on the row.
  */
 class TranslateSpotCheck implements ShouldQueue
 {
@@ -34,6 +31,7 @@ class TranslateSpotCheck implements ShouldQueue
 
     public function __construct(public SpotCheck $check) {}
 
+    /** Translate the title and gist and store them, or the error. */
     public function handle(): void
     {
         $document = $this->check->document;
@@ -51,6 +49,7 @@ class TranslateSpotCheck implements ShouldQueue
                 ]]],
             ], timeout: 90, invalid: 'The agent did not return a translation.')['json'];
 
+            // A title is required.
             if (trim((string) ($answer['title'] ?? '')) === '') {
                 throw new RuntimeException(__('The agent did not return a translation.'));
             }

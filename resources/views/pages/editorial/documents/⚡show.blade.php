@@ -12,18 +12,19 @@ use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 文書 (Document) detail: where it was listed, how the fetch went, the original, the screening and its decision, the Markdown, and the material extracted from it.
+// 文書 (Document) detail.
 new #[Title('文書')] class extends Component {
     public Document $document;
 
-    /** The model to screen with from here: the one chosen for the content filtering, or, for a document sent to review, the next model up. */
+    /** The model to screen with from here. */
     public string $screeningModel = '';
 
-    /** 人の判定 (UI: "Human decision"): adopt / reject, with the reason, as being entered. */
+    /** UI: 人の判定 — adopt / reject */
     public string $humanDecision = '';
 
     public string $humanReason = '';
 
+    // Preselect the screening model and fill the human decision.
     public function mount(): void
     {
         $model = EditorialPolicy::modelFor('content_filtering');
@@ -32,13 +33,13 @@ new #[Title('文書')] class extends Component {
         $this->humanReason = (string) $this->document->human_reason;
     }
 
-    // Record a person's verdict on the document; it outranks the screening at the gate and is kept as a future example for it.
+    // Save 人の判定.
     public function decide(): void
     {
         $this->validate(['humanDecision' => ['required', 'in:adopt,reject'], 'humanReason' => ['nullable', 'string', 'max:1000']]);
         $this->document->update(['human_decision' => $this->humanDecision, 'human_reason' => $this->humanReason !== '' ? $this->humanReason : null, 'human_decided_at' => now(), 'human_decided_by' => auth()->id()]);
 
-        // Adopted on the summary from the feed: the full text is fetched now.
+        // Adopted on a feed summary: fetch the full text.
         if ($this->document->wantsFullText()) {
             FetchDocument::queueFor($this->document);
         }
@@ -46,7 +47,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Withdraw the person's verdict: the screening's decision stands again.
+    // Withdraw 人の判定.
     public function undecide(): void
     {
         $this->document->update(['human_decision' => null, 'human_reason' => null, 'human_decided_at' => null, 'human_decided_by' => null]);
@@ -56,7 +57,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // The gate: queue the screening of this document (again, if it already ran) with the model chosen here.
+    // Queue the screening with the chosen model.
     public function screen(): void
     {
         $this->validate(['screeningModel' => EditorialPolicy::modelRule()]);
@@ -66,7 +67,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Screening queued.'));
     }
 
-    // Stage 2.2: queue the fetch of this document (again, if it already ran).
+    // Queue the fetch of the document.
     public function fetchDocument(): void
     {
         FetchDocument::queueFor($this->document);
@@ -75,7 +76,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Document queued.'));
     }
 
-    // Stage 2.3: queue the extraction of the material (again, if it already ran).
+    // Queue the extraction of the material.
     public function extract(): void
     {
         ExtractMaterial::queueFor($this->document);
@@ -84,8 +85,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Material queued.'));
     }
 
-    // Polled while a background job runs so the screen follows it.
-    // Measure the likeness now; at or above the threshold, and not screened yet, the document goes on to the screening.
+    // Queue the semantic filter for the document.
     public function applySemanticFilter(): void
     {
         ApplySemanticFilter::queueFor($this->document);
@@ -93,12 +93,7 @@ new #[Title('文書')] class extends Component {
         Flux::toast(variant: 'success', text: __('Queued for the semantic filter.'));
     }
 
-    /**
-     * Mark the document as an example of the semantic filter (like or
-     * unlike this media), or take the mark back; every embedded document
-     * is then measured again against the examples as they now are. The
-     * document is embedded first when it is not yet.
-     */
+    // Mark the document as a like / unlike example, or unmark it, and measure again.
     public function markExample(string $side, MeasureLikeness $measure): void
     {
         if ($side === 'none') {
@@ -109,13 +104,14 @@ new #[Title('文書')] class extends Component {
             SemanticFilterExample::query()->updateOrCreate(['document_id' => $this->document->id], ['side' => $side, 'created_by' => auth()->id()]);
         }
 
-        // A fresh instance: $measure has read the examples before this one was added.
+        // A fresh instance: $measure read the examples before this change.
         $result = app(MeasureLikeness::class)->again();
         $this->document->refresh();
 
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));
     }
 
+    // Polled while a job runs.
     public function refreshStatus(): void
     {
         $this->document->refresh();
@@ -125,7 +121,7 @@ new #[Title('文書')] class extends Component {
 <section class="w-full space-y-6" @if ($document->status === 'fetching' || $document->latestScreening?->status === 'screening' || $document->material?->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
     <x-pages::detail-header :back="route('editorial.documents.index')" :back-label="__('Documents')" :source="$document->source" :title="$document->title" />
 
-    {{-- What the document is and where it came from, then its three times. The URL opens the primary source itself, in a window of its own. --}}
+    {{-- Format, URL and times. --}}
     <div class="space-y-2 rounded-xl border border-neutral-200 p-4 text-sm dark:border-neutral-700">
         <dl class="grid gap-x-6 gap-y-2 md:grid-cols-[max-content_1fr]">
             <div class="flex gap-3">
@@ -173,7 +169,7 @@ new #[Title('文書')] class extends Component {
         </flux:callout>
     @endif
 
-    {{-- The semantic filter: the likeness, what the document was nearest to on each side, and a person's mark that makes it an example. --}}
+    {{-- 意味フィルタ: likeness, nearest of each side, example mark. --}}
     <flux:heading size="lg">{{ __('Semantic filter') }}</flux:heading>
     <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <div class="flex flex-wrap items-center gap-3">
@@ -252,7 +248,6 @@ new #[Title('文書')] class extends Component {
                 <flux:button type="button" wire:click="undecide" size="sm">{{ __('Withdraw') }}</flux:button>
             @endif
         </div>
-        {{-- The reason on a row of its own: a verdict is worth a few lines, and Enter writes one instead of saving. --}}
         <flux:textarea wire:model="humanReason" :label="__('Reason')" rows="3" />
         @if ($document->human_decision !== null)
             <flux:text size="sm" class="text-neutral-500">{{ __('Decided :when by :who', ['when' => $document->human_decided_at?->display(), 'who' => $document->humanDecider?->name ?? '—']) }}</flux:text>

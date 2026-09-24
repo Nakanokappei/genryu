@@ -5,24 +5,20 @@ namespace App\Pdf;
 use Smalot\PdfParser\RawData\RawDataParser;
 
 /**
- * The raw reader of smalot/pdfparser, which decodes every stream as it
- * reads the objects, with one step added in front: when the trailer
- * names an /Encrypt dictionary, the stream is decrypted with the file's
- * key (App\Pdf\StandardSecurityHandler) before its filters are undone.
- * Object streams are decrypted as a whole, so the objects inside them
- * come out plain; the strings of top-level dictionaries (title, author)
- * stay encrypted, which does not matter for the text.
+ * smalot/pdfparser's raw reader, decrypting each stream before its filters
+ * when the trailer names an /Encrypt dictionary. Strings outside streams
+ * (title, author) stay encrypted; the text does not need them.
  */
 class DecryptingRawDataParser extends RawDataParser
 {
-    /** The handler of the file being read, built at the first stream; false once it is known the file is not encrypted. */
+    /** The file's handler, built at the first stream; false when not encrypted. */
     private StandardSecurityHandler|false|null $handler = null;
 
     /** The "number_generation" of the object whose streams are being decoded. */
     private ?string $currentObject = null;
 
     /**
-     * A new file starts without a handler.
+     * Parse a file, starting without a handler.
      *
      * @return array<int, mixed>
      */
@@ -34,9 +30,7 @@ class DecryptingRawDataParser extends RawDataParser
     }
 
     /**
-     * Remember which object is being read while its parts are decoded;
-     * the reader recurses into other objects for indirect lengths and
-     * filters, so the previous one is put back afterwards.
+     * Read an object, remembering it as current; restored after, since the reader recurses.
      *
      * @param  array<string, mixed>  $xref
      * @return array<int, mixed>
@@ -54,8 +48,7 @@ class DecryptingRawDataParser extends RawDataParser
     }
 
     /**
-     * Decrypt the stream of the current object before the filters are
-     * applied; cross-reference streams are never encrypted.
+     * Decrypt the current object's stream before its filters; never a cross-reference stream.
      *
      * @param  array<string, mixed>  $xref
      * @param  array<int, array<int, mixed>>  $sdic
@@ -65,6 +58,7 @@ class DecryptingRawDataParser extends RawDataParser
     {
         $handler = $this->handler($pdfData, $xref);
 
+        // Encrypted file, known object, not an xref stream: decrypt.
         if ($handler !== false && $this->currentObject !== null && ! self::isCrossReferenceStream($sdic)) {
             [$number, $generation] = array_map(intval(...), explode('_', $this->currentObject));
             $stream = $handler->decrypt(self::declaredLength($sdic, $stream), $number, $generation);
@@ -74,24 +68,25 @@ class DecryptingRawDataParser extends RawDataParser
     }
 
     /**
-     * The handler for this file, from its /Encrypt dictionary and the
-     * first string of the trailer's /ID.
+     * The file's handler from /Encrypt and the trailer's first /ID, or false.
      *
      * @param  array<string, mixed>  $xref
      */
     private function handler(string $pdfData, array $xref): StandardSecurityHandler|false
     {
+        // Already decided.
         if ($this->handler !== null) {
             return $this->handler;
         }
 
-        // The cross-reference streams are decoded before the trailer is known: nothing to decide yet.
+        // No trailer yet (xref streams come first): undecided.
         if (! isset($xref['trailer'])) {
             return false;
         }
 
         $reference = $xref['trailer']['encrypt'] ?? null;
 
+        // No /Encrypt: not encrypted.
         if (! is_string($reference) || ! isset($xref['xref'][$reference])) {
             return $this->handler = false;
         }
@@ -99,6 +94,7 @@ class DecryptingRawDataParser extends RawDataParser
         $object = $this->getIndirectObject($pdfData, $xref, $reference, (int) $xref['xref'][$reference], false);
         $dictionary = self::toArray($object[0] ?? ['null', 'null']);
 
+        // An unreadable /Encrypt dictionary.
         if (! is_array($dictionary) || $dictionary === []) {
             throw new \RuntimeException(__('The encryption dictionary of this PDF could not be read.'));
         }
@@ -113,6 +109,7 @@ class DecryptingRawDataParser extends RawDataParser
      */
     private static function isCrossReferenceStream(array $sdic): bool
     {
+        // A /Type followed by /XRef.
         foreach ($sdic as $k => $element) {
             if ($element[0] === '/' && $element[1] === 'Type' && ($sdic[$k + 1][1] ?? null) === 'XRef') {
                 return true;
@@ -123,13 +120,13 @@ class DecryptingRawDataParser extends RawDataParser
     }
 
     /**
-     * The stream cut to its declared /Length, as the encrypted bytes end
-     * there; the parent does the same cut for the decoded bytes.
+     * The stream cut to its declared numeric /Length, where the encrypted bytes end.
      *
      * @param  array<int, array<int, mixed>>  $sdic
      */
     private static function declaredLength(array $sdic, string $stream): string
     {
+        // A /Length followed by a number.
         foreach ($sdic as $k => $element) {
             if ($element[0] === '/' && $element[1] === 'Length' && ($sdic[$k + 1][0] ?? null) === 'numeric') {
                 return substr($stream, 0, (int) $sdic[$k + 1][1]);
@@ -147,6 +144,7 @@ class DecryptingRawDataParser extends RawDataParser
      */
     private static function toArray(array $element): mixed
     {
+        // By the element's type.
         return match ($element[0]) {
             '<<' => self::dictionary($element[1]),
             '[' => array_map(self::toArray(...), $element[1]),
@@ -159,6 +157,8 @@ class DecryptingRawDataParser extends RawDataParser
     }
 
     /**
+     * A dictionary's name / value elements as an array keyed by name.
+     *
      * @param  array<int, array<int, mixed>>  $elements  the names and values of a dictionary, in turn
      * @return array<string, mixed>
      */
@@ -166,6 +166,7 @@ class DecryptingRawDataParser extends RawDataParser
     {
         $dictionary = [];
 
+        // Each name with the value after it.
         for ($i = 0; $i + 1 < count($elements); $i += 2) {
             if ($elements[$i][0] === '/') {
                 $dictionary[(string) $elements[$i][1]] = self::toArray($elements[$i + 1]);
@@ -175,25 +176,20 @@ class DecryptingRawDataParser extends RawDataParser
         return $dictionary;
     }
 
-    /**
-     * The bytes of a trailer /ID string, which the reader hands over as
-     * hex digits or as the raw literal.
-     */
+    /** The bytes of a trailer /ID string, given as hex digits or as a literal. */
     private static function bytes(string $value): string
     {
         return preg_match('/^[0-9A-Fa-f]+$/', $value) === 1 && strlen($value) % 2 === 0 ? (string) hex2bin($value) : self::unescape($value);
     }
 
-    /**
-     * A literal string as the reader hands it over, its escapes still in
-     * place: backslash sequences, octal codes and line continuations.
-     */
+    /** Undo a literal string's escapes: backslash sequences, octal codes, line continuations. */
     private static function unescape(string $literal): string
     {
         return (string) preg_replace_callback('/\\\\(?:([0-7]{1,3})|(\r\n|\r|\n)|(.))/s', function (array $match): string {
             // An octal code, a line continuation (nothing), or a single escaped character.
             [, $octal, $newline, $character] = [...$match, '', '', ''];
 
+            // Octal code.
             if ($octal !== '') {
                 return chr((int) octdec($octal) & 255);
             }

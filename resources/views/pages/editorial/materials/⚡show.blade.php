@@ -7,14 +7,14 @@ use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 素材情報 (Material) detail: how the extraction went, the parts of the article it holds (the angle, before / change / after, the facts and the background), and the articles generated from it.
+// 素材情報 (Material) detail.
 new #[Title('素材情報')] class extends Component {
     public Material $material;
 
-    /** Which way the material is read (UI: テキスト / JSON); the same data either way. */
+    /** UI: テキスト / JSON */
     public string $view = 'text';
 
-    // Queue the extraction again (after a failure, or after the editorial policy changed).
+    // Queue the extraction again.
     public function extract(): void
     {
         ExtractMaterial::queueFor($this->material->document);
@@ -23,7 +23,7 @@ new #[Title('素材情報')] class extends Component {
         Flux::toast(variant: 'success', text: __('Material queued.'));
     }
 
-    // Stage 2.4: queue the generation of the article (again, if it already ran).
+    // Queue the article.
     public function generate(): void
     {
         GenerateArticle::queueFor($this->material);
@@ -32,7 +32,7 @@ new #[Title('素材情報')] class extends Component {
         Flux::toast(variant: 'success', text: __('Article queued.'));
     }
 
-    // Polled while a background job runs so the screen follows it.
+    // Polled while a job runs.
     public function refreshStatus(): void
     {
         $this->material->refresh();
@@ -58,7 +58,6 @@ new #[Title('素材情報')] class extends Component {
     @if ($material->parts === null)
         <flux:text>{{ __('Not extracted yet.') }}</flux:text>
     @else
-        {{-- The parts of the article: the angle it would be written on, the change it rests on, and what each side gives. The two tabs are the same data, read two ways. --}}
         <div class="flex flex-wrap items-center gap-3">
             <flux:heading size="lg">{{ __('Material') }}</flux:heading>
             <flux:radio.group wire:model.live="view" variant="segmented" size="sm" class="ms-auto">
@@ -81,7 +80,7 @@ new #[Title('素材情報')] class extends Component {
                     </div>
                 @endforeach
 
-                {{-- The figures of the source, as the source shows them, each linking to the image itself. --}}
+                {{-- 図版, each linking to the image. --}}
                 @if ($material->figures() !== [])
                     <div class="space-y-2">
                         <flux:subheading>{{ __('figures') }}</flux:subheading>

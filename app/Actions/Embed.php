@@ -5,15 +5,17 @@ namespace App\Actions;
 use App\OpenAi\Client;
 
 /**
- * Embed texts with the OpenAI Embeddings API, for the 意味フィルタ. The
- * vectors come back at unit length, so a similarity between two of them
- * is their dot product. Texts are sent a hundred at a time.
+ * Embeds texts with the OpenAI Embeddings API for the 意味フィルタ
+ * (UI "Semantic filter"); vectors are unit length, so similarity is the dot product.
  */
 class Embed
 {
+    /** Texts per request. */
     private const BATCH = 100;
 
     /**
+     * Embeds the texts in batches and returns the unit vectors and total tokens.
+     *
      * @param  list<string>  $texts
      * @return array{vectors: list<list<float>>, tokens: int}
      */
@@ -36,6 +38,8 @@ class Embed
     }
 
     /**
+     * Scales a vector to unit length.
+     *
      * @param  list<float|int>  $vector
      * @return list<float>
      */

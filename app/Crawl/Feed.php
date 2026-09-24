@@ -7,32 +7,29 @@ use RuntimeException;
 use SimpleXMLElement;
 
 /**
- * An update list read from an RSS / Atom feed: finding the feed of a page,
- * and reading its entries.
+ * An update list read from an RSS / Atom feed: finding it and reading its entries.
  */
 class Feed
 {
-    /**
-     * Paths sites commonly serve a feed at without advertising it (DARPA
-     * has /rss.xml but no <link rel="alternate">). Tried in this order.
-     */
+    /** Paths tried, in order, for a feed a page does not advertise. */
     public const WELL_KNOWN = ['/rss.xml', '/feed', '/feed.xml', '/atom.xml', '/rss'];
 
     /** The namespace of arXiv's own elements in its feeds (arxiv:announce_type). */
     private const ARXIV_NAMESPACE = 'http://arxiv.org/schemas/atom';
 
     /**
-     * Find the feed for a page whose body was already fetched, in the fixed
-     * order: the body is a feed; it advertises one; a well-known path has one.
+     * The feed for a fetched page: the page itself, the one it advertises, or a well-known path.
      *
      * @return array{0: string, 1: string}|null the feed URL and its body
      */
     public static function discover(string $url, string $body): ?array
     {
+        // The page is a feed.
         if (self::looksLikeFeed($body)) {
             return [$url, $body];
         }
 
+        // The page advertises one, which must be a feed.
         if (($feedUrl = self::advertisedFeed($body, $url)) !== null) {
             $feed = Crawler::get($feedUrl)->body();
 
@@ -47,11 +44,8 @@ class Feed
     }
 
     /**
-     * RSS 2.0 items or Atom entries as title / url / published_at, with
-     * the summary the feed gives (description / summary) as plain text.
-     * arXiv announces the replaced versions of papers it has listed before
-     * (announce_type replace / replace-cross): only the first announcement
-     * of a paper is an update.
+     * RSS items or Atom entries with their summary as plain text; arXiv's
+     * re-announcements (announce_type replace*) are dropped.
      *
      * @return list<array{title: string, url: string, published_at: ?string, summary: string}>
      */
@@ -60,12 +54,14 @@ class Feed
         // LIBXML_NONET: never follow external references from a feed.
         $document = @simplexml_load_string($xml, SimpleXMLElement::class, LIBXML_NONET | LIBXML_NOCDATA);
 
+        // Not XML.
         if ($document === false) {
             throw new RuntimeException(__('The feed could not be parsed.'));
         }
 
         $entries = [];
 
+        // RSS items, arXiv replacements skipped.
         foreach ($document->channel->item ?? [] as $item) {
             if (str_starts_with((string) $item->children(self::ARXIV_NAMESPACE)->announce_type, 'replace')) {
                 continue;
@@ -74,9 +70,11 @@ class Feed
             $entries[] = ['title' => trim((string) $item->title), 'url' => trim((string) $item->link), 'published_at' => PublishedDate::parse((string) $item->pubDate), 'summary' => self::summaryText((string) $item->description)];
         }
 
+        // Atom entries.
         foreach ($document->entry ?? [] as $entry) {
             $url = '';
 
+            // The alternate (or unlabelled) link.
             foreach ($entry->link as $link) {
                 if ((string) $link['rel'] === '' || (string) $link['rel'] === 'alternate') {
                     $url = (string) $link['href'];
@@ -99,13 +97,14 @@ class Feed
     {
         $origin = Url::absolute('/', $url);
 
+        // Each path in turn until one answers with a feed.
         foreach (self::WELL_KNOWN as $path) {
             $candidate = rtrim($origin, '/').$path;
 
             try {
                 $response = Crawler::client()->get($candidate);
             } catch (RobotsForbidden) {
-                // A probe robots.txt forbids is simply not a route.
+                // Forbidden by robots.txt: skip it.
                 continue;
             }
 
@@ -117,6 +116,7 @@ class Feed
         return null;
     }
 
+    /** Whether the body starts like RSS, Atom or RDF. */
     private static function looksLikeFeed(string $body): bool
     {
         $head = ltrim(substr($body, 0, 2048));
@@ -124,15 +124,15 @@ class Feed
         return preg_match('/<(rss|feed|rdf:RDF)[\s>]/i', $head) === 1;
     }
 
-    /**
-     * The first <link rel="alternate" type="application/rss+xml|atom+xml"> of an HTML page.
-     */
+    /** The URL of the first RSS or Atom <link> of an HTML page. */
     private static function advertisedFeed(string $html, string $baseUrl): ?string
     {
+        // No <link> tags at all.
         if (preg_match_all('#<link\b[^>]*>#i', $html, $tags) === 0) {
             return null;
         }
 
+        // The first with an RSS / Atom type and an href.
         foreach ($tags[0] as $tag) {
             if (preg_match('/\btype\s*=\s*["\']?application\/(rss|atom)\+xml/i', $tag) === 1 && preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $href) === 1) {
                 return Url::absolute(html_entity_decode($href[1]), $baseUrl);
@@ -142,10 +142,7 @@ class Feed
         return null;
     }
 
-    /**
-     * A feed's summary as plain text: tags and entities gone, and arXiv's
-     * leading "arXiv:2609.26800v1 Announce Type: new Abstract:" left out.
-     */
+    /** A summary as plain text, without arXiv's leading "arXiv:… Announce Type: … Abstract:". */
     private static function summaryText(string $summary): string
     {
         $text = trim(html_entity_decode(strip_tags($summary), ENT_QUOTES | ENT_HTML5, 'UTF-8'));

@@ -1,5 +1,5 @@
-{{-- A plain list table shared by the workflow screens: headings, rows in the slot, an empty message. --}}
-{{-- A column is a label, or ['label' => …, 'sort' => key] for a heading that sorts the list (the page's sortBy(key), with its current sort and direction). --}}
+{{-- A list table: headings, rows in the slot, an empty message. --}}
+{{-- A column is a label, or ['label' => …, 'sort' => key] for a sortable heading. --}}
 @props(['columns' => [], 'empty' => false, 'sort' => null, 'direction' => 'desc'])
 
 <div class="overflow-x-auto rounded-xl border border-neutral-200 dark:border-neutral-700">

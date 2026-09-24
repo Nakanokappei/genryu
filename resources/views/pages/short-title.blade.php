@@ -1,4 +1,4 @@
-{{-- A document title as a link on a list row: cut at 31 characters, the whole of it as the tooltip. --}}
+{{-- A title link cut short, the whole title as tooltip. --}}
 @props(['title', 'href'])
 
 @php $short = mb_strlen($title) > 31 ? mb_substr($title, 0, 31).'…' : $title; @endphp

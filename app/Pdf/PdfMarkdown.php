@@ -6,16 +6,10 @@ use Smalot\PdfParser\Document;
 use Smalot\PdfParser\Page;
 
 /**
- * The Markdown of a PDF, read from where its text sits on the page and
- * how big it is (Page::getDataTm with the font size), since a PDF has no
- * structure of its own. Text pieces on one baseline make a line (a raised
- * small piece, a footnote mark, stays in its line); a wide gap inside a
- * line splits it into cells; lines whose cells line up in columns make a
- * table; a line printed bigger than the body is a heading, the biggest
- * ones at the top the title; a page number at the edge is dropped; the
- * other lines flow into paragraphs, broken at an indent, a blank line or
- * a change of size. Made for press releases saved from Word; a PDF laid
- * out in columns or with figures would come out in reading order only.
+ * The Markdown of a PDF, read from the position and size of its text:
+ * pieces on a baseline make a line, wide gaps split it into cells, cells
+ * in columns make a table, bigger print a heading, the rest paragraphs.
+ * Made for single-column documents such as press releases saved from Word.
  *
  * @phpstan-type Piece array{x: float, y: float, size: float, text: string, index: int}
  * @phpstan-type Cell array{x: float, text: string}
@@ -26,6 +20,7 @@ final class PdfMarkdown
     /** A line at least this much bigger than the body is a heading. */
     private const HEADING_MIN_RATIO = 1.1;
 
+    /** A longer line is never a heading. */
     private const HEADING_MAX_CHARS = 80;
 
     /** Points from the top or bottom edge of the page where page numbers live. */
@@ -34,40 +29,45 @@ final class PdfMarkdown
     /** A page number: "1", "1/2", "- 3 -", "2 / 5". */
     private const PAGE_NUMBER_PATTERN = '/^[\s\d\/\-－‐ー]+$/u';
 
-    /** What a printed date looks like when it stands on a line of its own near the top: 2026年8月26日, 2026-08-26, 26.08.2026, August 26, 2026. */
+    /** A printed date: 2026年8月26日, 2026-08-26, 26.08.2026, August 26, 2026. */
     private const DATE_TEXT_PATTERN = '/\d{4}[年.\/-]\d{1,2}[月.\/-]\d{1,2}|\b\d{1,2}[.\/-]\d{1,2}[.\/-]\d{4}\b|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{1,2},? \d{4}\b|\b\d{1,2}\.? (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.? \d{4}\b/iu';
 
+    /** A longer line is never the date line. */
     private const DATE_LINE_MAX_CHARS = 40;
 
-    /** How many lines from the top of the first page the title and the date are looked for. */
+    /** How many lines from the top the title and the date are looked for in. */
     private const HEAD_LINES = 15;
 
-    /** A line that ends like this ended a sentence, so an indented next line starts a paragraph (and not a hanging note). */
+    /** The end of a sentence: an indented line after it starts a paragraph. */
     private const SENTENCE_END = '/[。．.!?！？」』）)】]$/u';
 
-    /** A line that starts like this starts a paragraph of its own: notes, bracketed section names, bullets. */
+    /** Marks that start a paragraph: notes, bracketed section names, bullets. */
     private const PARAGRAPH_START = '/^[※【＜＞■●◆◇○▼▲・]/u';
 
-    /** A piece that is only a bullet: a symbol-font glyph (private use area, Word's Wingdings bullets) or a bullet character. */
+    /** A piece that is only a bullet: a private-use glyph (Word's Wingdings) or a bullet character. */
     private const BULLET_PATTERN = '/^[\x{E000}-\x{F8FF}•●○■□◆◇▪▫‣・]$/u';
 
-    /** Symbol-font glyphs anywhere else have no text: they are dropped. */
+    /** Private-use glyphs elsewhere, which are dropped. */
     private const PRIVATE_USE_PATTERN = '/[\x{E000}-\x{F8FF}]/u';
 
-    /** Control characters other than tab and newline, which a database column cannot hold. */
+    /** Control characters other than tab and newline, which the database cannot store. */
     private const CONTROL_PATTERN = '/[\x00-\x08\x0B\x0C\x0E-\x1F]/';
 
     /**
+     * Read the title, the date line and the body of a PDF.
+     *
      * @return array{title: string, date: ?string, body: string} the title as printed (empty when none was found), the date line as printed, the body as Markdown
      */
     public function __invoke(Document $document, ?string $title = null): array
     {
         $lines = [];
 
+        // The lines of every page, in order.
         foreach ($document->getPages() as $page) {
             $lines = [...$lines, ...self::lines($page)];
         }
 
+        // No text at all.
         if ($lines === []) {
             return ['title' => '', 'date' => null, 'body' => ''];
         }
@@ -82,8 +82,7 @@ final class PdfMarkdown
     }
 
     /**
-     * The lines of one page, top to bottom, each with its cells left to
-     * right; page numbers at the edges left out.
+     * The lines of one page, top to bottom, with page numbers left out.
      *
      * @return list<Line>
      */
@@ -91,12 +90,14 @@ final class PdfMarkdown
     {
         $pieces = [];
 
+        // Each positioned text with its size.
         foreach ($page->getDataTm() as $index => $data) {
             [$matrix, $text] = $data;
             $size = abs((float) ($matrix[0] ?: $matrix[3])) * (float) ($data[3] ?? 1);
-            // A font whose encoding the parser does not know leaves stray bytes: they are no text, and would not store as UTF-8.
+            // Stray bytes from an unknown font encoding are dropped.
             $text = (string) preg_replace(self::CONTROL_PATTERN, '', mb_scrub($text, 'UTF-8'));
 
+            // Nothing drawn.
             if ($text === '' || $size <= 0) {
                 continue;
             }
@@ -110,11 +111,13 @@ final class PdfMarkdown
         $lines = [];
         $current = null;
 
+        // Group the pieces into lines.
         foreach ($pieces as $piece) {
-            // A piece joins the line when their baselines are close for the bigger of the two: a footnote mark sits a little above its line.
+            // Same line when the baselines are close for the bigger size, so a footnote mark stays in its line.
             if ($current !== null && abs($piece['y'] - $current['y']) <= 0.6 * max($piece['size'], $current['size'])) {
                 $current['pieces'][] = $piece;
 
+                // The line takes the size and baseline of its biggest piece.
                 if ($piece['size'] > $current['size']) {
                     $current['size'] = $piece['size'];
                     $current['y'] = $piece['y'];
@@ -123,6 +126,7 @@ final class PdfMarkdown
                 continue;
             }
 
+            // Close the line before and start a new one.
             if ($current !== null) {
                 $lines[] = $current;
             }
@@ -130,6 +134,7 @@ final class PdfMarkdown
             $current = ['y' => $piece['y'], 'size' => $piece['size'], 'pieces' => [$piece]];
         }
 
+        // Close the last line.
         if ($current !== null) {
             $lines[] = $current;
         }
@@ -138,6 +143,7 @@ final class PdfMarkdown
         $number = $page->getPageNumber();
         $result = [];
 
+        // Cut each line into cells, dropping empty lines and page numbers.
         foreach ($lines as $line) {
             $line = self::cells($line, $number);
 
@@ -157,10 +163,9 @@ final class PdfMarkdown
     }
 
     /**
-     * The pieces of a line left to right, run together into cells: a new
-     * cell starts where the gap before a piece is wider than two
-     * characters. The pen keeps the estimated end of what was written so far,
-     * since a piece only says where it starts.
+     * The pieces of a line, left to right, run into cells: a gap wider than
+     * two characters starts a new cell. The pen estimates where the text so
+     * far ends, since a piece gives only its start.
      *
      * @param  array{y: float, size: float, pieces: list<Piece>}  $line
      * @return Line
@@ -170,7 +175,7 @@ final class PdfMarkdown
         $pieces = $line['pieces'];
         usort($pieces, fn (array $a, array $b): int => $a['x'] <=> $b['x'] ?: $a['index'] <=> $b['index']);
 
-        // A bullet in front of the text makes the line a list item; the glyph itself is not text.
+        // A leading bullet makes a list item; the glyph is dropped.
         $bullet = false;
 
         if (count($pieces) > 1 && preg_match(self::BULLET_PATTERN, $pieces[0]['text']) === 1) {
@@ -183,12 +188,13 @@ final class PdfMarkdown
         $cellX = 0.0;
         $pen = null;
 
+        // Run the pieces together, cutting at wide gaps.
         foreach ($pieces as $piece) {
             $piece['text'] = (string) preg_replace(self::PRIVATE_USE_PATTERN, '', $piece['text']);
             $gap = $pen === null ? 0.0 : $piece['x'] - $pen;
 
+            // A wide gap closes the cell (unless it is only spaces).
             if ($text !== '' && $gap > 2 * $line['size']) {
-                // Only spaces so far: no cell yet.
                 if (self::oneLine($text) !== '') {
                     $cells[] = ['x' => $cellX, 'text' => self::oneLine($text)];
                 }
@@ -196,10 +202,10 @@ final class PdfMarkdown
                 $text = '';
             }
 
+            // A new cell starts here, or a space goes between two Latin words.
             if ($text === '') {
                 $cellX = $piece['x'];
             } elseif ($gap > 0.25 * $piece['size'] && preg_match('/[A-Za-z0-9]$/', $text) === 1 && preg_match('/^[A-Za-z0-9]/', $piece['text']) === 1) {
-                // Two Latin words drawn apart without a space between them.
                 $text .= ' ';
             }
 
@@ -207,6 +213,7 @@ final class PdfMarkdown
             $pen = max($pen ?? $piece['x'], $piece['x']) + self::width($piece['text'], $piece['size']);
         }
 
+        // Close the last cell.
         if (self::oneLine($text) !== '') {
             $cells[] = ['x' => $cellX, 'text' => self::oneLine($text)];
         }
@@ -224,14 +231,12 @@ final class PdfMarkdown
         ];
     }
 
-    /**
-     * How wide a text is drawn, roughly: a full-width character is as wide
-     * as it is tall, a Latin one about half of that.
-     */
+    /** A text's rough drawn width: full-width characters 1 em, Latin 0.5, space 0.3. */
     private static function width(string $text, float $size): float
     {
         $width = 0.0;
 
+        // Add up each character's width.
         foreach (mb_str_split($text) as $character) {
             $width += $character === ' ' ? 0.3 : (strlen($character) === 1 ? 0.5 : (mb_strwidth($character) >= 2 ? 1.0 : 0.6));
         }
@@ -240,7 +245,7 @@ final class PdfMarkdown
     }
 
     /**
-     * The size of the body text: the size most of the characters are printed in.
+     * The body size: the size most characters are printed in.
      *
      * @param  list<Line>  $lines
      */
@@ -248,6 +253,7 @@ final class PdfMarkdown
     {
         $characters = [];
 
+        // Count the characters per size.
         foreach ($lines as $line) {
             $key = (string) round($line['size'], 1);
             $characters[$key] = ($characters[$key] ?? 0) + mb_strlen($line['text']);
@@ -259,8 +265,8 @@ final class PdfMarkdown
     }
 
     /**
-     * The sizes headings are printed in, biggest first: every size clearly
-     * bigger than the body. The position in this list is the heading level.
+     * The heading sizes, biggest first (the index is the level): every size
+     * at least HEADING_MIN_RATIO of the body's.
      *
      * @param  list<Line>  $lines
      * @return list<float>
@@ -269,6 +275,7 @@ final class PdfMarkdown
     {
         $sizes = [];
 
+        // Each distinct size big enough.
         foreach ($lines as $line) {
             $size = round($line['size'], 1);
 
@@ -292,6 +299,7 @@ final class PdfMarkdown
     {
         $rank = array_search(round($line['size'], 1), $headingSizes, true);
 
+        // Not a heading size, several cells, too long, or ending a sentence: body text.
         if ($rank === false || count($line['cells']) > 1 || mb_strlen($line['text']) > self::HEADING_MAX_CHARS || preg_match('/[。．]$/u', $line['text']) === 1) {
             return null;
         }
@@ -300,10 +308,9 @@ final class PdfMarkdown
     }
 
     /**
-     * The title: the lines at the top of the first page that together say
-     * what the update list said (spaces aside), taken out; without a
-     * match, the biggest lines at the top when they are bigger than the
-     * body, else what the update list said.
+     * Take out the title: the top lines that spell the listed title (spaces
+     * aside); with no listed title, the biggest lines at the top; else the
+     * listed title is returned and nothing taken.
      *
      * @param  list<Line>  $lines
      * @param  list<float>  $headingSizes
@@ -315,6 +322,7 @@ final class PdfMarkdown
         $target = self::squeeze($listed);
         $head = min(count($lines), self::HEAD_LINES);
 
+        // Look for consecutive top lines that spell the listed title.
         if ($target !== '') {
             foreach (range(0, $head - 1) as $start) {
                 $accumulated = '';
@@ -322,11 +330,12 @@ final class PdfMarkdown
                 for ($end = $start; $end < $head; $end++) {
                     $accumulated .= self::squeeze($lines[$end]['text']);
 
+                    // No longer a prefix of the title.
                     if (! str_starts_with($target, $accumulated)) {
                         break;
                     }
 
-                    // Enough of the title to be it (the page may print it without a last word).
+                    // 80% is enough: the page may print it without a last word.
                     if (mb_strlen($accumulated) >= 0.8 * mb_strlen($target)) {
                         array_splice($lines, $start, $end - $start + 1);
 
@@ -336,15 +345,17 @@ final class PdfMarkdown
             }
         }
 
-        // No update-list title, or a page that prints another one: the biggest lines at the top.
+        // No listed title: the first run of lines in the biggest size.
         if ($listed === '' && $headingSizes !== []) {
             foreach (range(0, $head - 1) as $start) {
+                // Skip to the first line in the biggest size.
                 if (round($lines[$start]['size'], 1) !== $headingSizes[0]) {
                     continue;
                 }
 
                 $end = $start;
 
+                // Extend over the lines that follow in that size.
                 while ($end + 1 < $head && round($lines[$end + 1]['size'], 1) === $headingSizes[0]) {
                     $end++;
                 }
@@ -360,13 +371,14 @@ final class PdfMarkdown
     }
 
     /**
-     * The date: the first short line near the top that reads as one, taken out.
+     * Take out the date: the first short line near the top that reads as one.
      *
      * @param  list<Line>  $lines
      * @return array{0: list<Line>, 1: ?string}
      */
     private static function takeDate(array $lines): array
     {
+        // The first top line short enough and date-like.
         foreach (array_slice($lines, 0, self::HEAD_LINES, true) as $index => $line) {
             if (mb_strlen($line['text']) <= self::DATE_LINE_MAX_CHARS && preg_match(self::DATE_TEXT_PATTERN, $line['text']) === 1) {
                 array_splice($lines, $index, 1);
@@ -379,8 +391,7 @@ final class PdfMarkdown
     }
 
     /**
-     * The body: tables where lines have cells in columns, headings where
-     * the print is bigger, paragraphs of the rest.
+     * The body as Markdown: tables, headings, then paragraphs and list items.
      *
      * @param  list<Line>  $lines
      * @param  list<float>  $headingSizes
@@ -394,6 +405,7 @@ final class PdfMarkdown
         $pitch = self::pitch($lines);
         $count = count($lines);
 
+        // Each line becomes part of a table, a heading, or a paragraph.
         for ($i = 0; $i < $count; $i++) {
             $line = $lines[$i];
 
@@ -411,6 +423,7 @@ final class PdfMarkdown
 
             $level = self::headingLevel($line, $headingSizes);
 
+            // A heading line.
             if ($level !== null) {
                 self::flush($blocks, $paragraph);
                 $blocks[] = str_repeat('#', $level).' '.$line['text'];
@@ -419,6 +432,7 @@ final class PdfMarkdown
                 continue;
             }
 
+            // A new paragraph closes the one before.
             if ($previous !== null && self::startsParagraph($line, $previous, $margin, $pitch)) {
                 self::flush($blocks, $paragraph);
             }
@@ -434,16 +448,11 @@ final class PdfMarkdown
     }
 
     /**
-     * Whether a line starts a paragraph rather than continuing the one
-     * before it: a bullet, a blank line's worth of space above it, another
-     * size of print, an indent after a sentence ended (a hanging note keeps its
-     * indent without one), another left edge than the line before (a
-     * centred or right-aligned line; a hanging line after a comma, or
-     * after a line that reached the right edge, is not one), a line before
-     * it that started well inside the page (centred or right-aligned, so
-     * on its own), a line before it left short (justified text fills every
-     * line but the last of a paragraph, so a sentence ending before the
-     * right edge ends it too), or a mark that opens notes and sections.
+     * Whether a line starts a paragraph: a bullet; a blank line above; another
+     * size; an indent after a sentence end; another left edge (not after a
+     * comma or a full line); a previous line starting well inside the page
+     * (centred or right-aligned) or left short (justified text fills every
+     * line but a paragraph's last); or a PARAGRAPH_START mark.
      *
      * @param  Line  $line
      * @param  Line  $previous
@@ -469,9 +478,8 @@ final class PdfMarkdown
     }
 
     /**
-     * Where body lines start and end: the usual left edge, and the right
-     * edge that nine lines in ten stay within (the estimate of a line's
-     * end can overshoot, so the farthest one is not trusted).
+     * The body's left edge (the most common start) and right edge (the 90th
+     * percentile of line ends, since the end estimate can overshoot).
      *
      * @param  list<Line>  $lines
      * @return array{left: float, right: float}
@@ -495,12 +503,14 @@ final class PdfMarkdown
     {
         $gaps = [];
 
+        // Gaps between consecutive lines on the same page.
         foreach ($lines as $i => $line) {
             if ($i > 0 && $lines[$i - 1]['page'] === $line['page'] && $lines[$i - 1]['y'] > $line['y']) {
                 $gaps[] = $lines[$i - 1]['y'] - $line['y'];
             }
         }
 
+        // No gaps: a typical pitch.
         if ($gaps === []) {
             return 14.0;
         }
@@ -511,9 +521,8 @@ final class PdfMarkdown
     }
 
     /**
-     * Close the paragraph being collected: its lines run together, with a
-     * space only between two Latin words; one that began with a bullet is
-     * a list item.
+     * Close the paragraph: its lines joined (a space only between Latin
+     * words), a list item when it began with a bullet.
      *
      * @param  list<string>  $blocks
      * @param  list<Line>  $paragraph
@@ -522,6 +531,7 @@ final class PdfMarkdown
     {
         $text = '';
 
+        // Join the lines.
         foreach ($paragraph as $line) {
             if ($text !== '' && preg_match('/[A-Za-z0-9,.;:)]$/', $text) === 1 && preg_match('/^[A-Za-z0-9(]/', $line['text']) === 1) {
                 $text .= ' ';
@@ -530,6 +540,7 @@ final class PdfMarkdown
             $text .= $line['text'];
         }
 
+        // Add the block when there is text.
         if ($text !== '') {
             $blocks[] = ($paragraph[0]['bullet'] ? '- ' : '').$text;
         }
@@ -538,17 +549,16 @@ final class PdfMarkdown
     }
 
     /**
-     * The index of the last line of the table starting at a line, or null
-     * when no table starts there: at least two lines with two or more
-     * cells, taken together with the lines between and after them that
-     * belong to it although they have one cell: a value that wrapped
-     * (its cell in a column other than the first), or a short label in
-     * the first column with more of the table within two lines.
+     * The last line of a table starting at a line, or null: at least two
+     * multi-cell lines, with the one-cell lines that belong to them (a
+     * wrapped value outside the first column, or a short first-column label
+     * with more table within two lines).
      *
      * @param  list<Line>  $lines
      */
     private static function tableEnd(array $lines, int $start, float $bodySize): ?int
     {
+        // A table starts with a multi-cell line.
         if (count($lines[$start]['cells']) < 2) {
             return null;
         }
@@ -559,9 +569,11 @@ final class PdfMarkdown
         $end = $start;
         $count = count($lines);
 
+        // Extend the table line by line.
         for ($i = $start + 1; $i < $count; $i++) {
             $cells = $lines[$i]['cells'];
 
+            // A multi-cell line: a row, adding any new columns.
             if (count($cells) >= 2) {
                 foreach ($cells as $cell) {
                     if (self::column($columns, $cell['x'], $bodySize) === null) {
@@ -585,6 +597,7 @@ final class PdfMarkdown
 
             $column = self::column($columns, $cells[0]['x'], $bodySize);
 
+            // In no column: the table has ended.
             if ($column === null) {
                 break;
             }
@@ -598,12 +611,14 @@ final class PdfMarkdown
 
             $goesOn = false;
 
+            // Whether the table goes on within two lines.
             for ($ahead = $i + 1; $ahead <= min($i + 2, $count - 1); $ahead++) {
                 $aheadCells = $lines[$ahead]['cells'];
                 $aheadColumn = self::column($columns, $aheadCells[0]['x'], $bodySize);
                 $goesOn = $goesOn || count($aheadCells) >= 2 || ($aheadColumn !== null && abs($columns[$aheadColumn] - $first) > 1.5 * $bodySize);
             }
 
+            // Too long for a label, or the table does not go on.
             if (mb_strlen($cells[0]['text']) > 20 || ! $goesOn) {
                 break;
             }
@@ -613,21 +628,22 @@ final class PdfMarkdown
     }
 
     /**
-     * Whether cells cut at the columns of a table make a row of it: two or
-     * more, each in its own column from the first on in order, the first
-     * short enough for a label.
+     * Whether cells make a row: two or more, in increasing columns from the
+     * first, the first short enough for a label.
      *
      * @param  list<Cell>  $cells
      * @param  list<float>  $columns
      */
     private static function isRow(array $cells, array $columns, float $bodySize): bool
     {
+        // Too few cells, or the first too long.
         if (count($cells) < 2 || mb_strlen($cells[0]['text']) > 20) {
             return false;
         }
 
         $previous = -1;
 
+        // Each cell in a later column than the one before, the first in column 0.
         foreach ($cells as $index => $cell) {
             $column = self::columnOfCell($columns, $cell['x'], $bodySize, $index === 0);
 
@@ -642,8 +658,8 @@ final class PdfMarkdown
     }
 
     /**
-     * The column a cell belongs to, the first column taken more loosely
-     * for a first cell (a centred label starts where its length puts it).
+     * The column of a cell, the first column matched more loosely for a
+     * first cell (a centred label).
      *
      * @param  list<float>  $columns
      */
@@ -651,6 +667,7 @@ final class PdfMarkdown
     {
         $column = self::column($columns, $x, $bodySize);
 
+        // A first cell within 2.5 characters of the first column.
         if ($column === null && $first && $columns !== [] && abs(min($columns) - $x) <= 2.5 * $bodySize) {
             return (int) array_search(min($columns), $columns, true);
         }
@@ -659,8 +676,7 @@ final class PdfMarkdown
     }
 
     /**
-     * The column a cell belongs to: the one whose left edge is closest,
-     * when it is closer than a character and a half.
+     * The column whose left edge is closest, within 1.5 characters.
      *
      * @param  list<float>  $columns
      */
@@ -668,6 +684,7 @@ final class PdfMarkdown
     {
         $best = null;
 
+        // The closest within reach.
         foreach ($columns as $index => $column) {
             if (abs($column - $x) <= 1.5 * $bodySize && ($best === null || abs($column - $x) < abs($columns[$best] - $x))) {
                 $best = $index;
@@ -678,16 +695,15 @@ final class PdfMarkdown
     }
 
     /**
-     * The lines of a table as a Markdown table. The cells of the first
-     * column anchor the rows; every other cell joins the row whose anchor
-     * is nearest in height, so a label centred beside two lines of value
-     * gets both. As with the HTML tables, the first row serves as header.
+     * The lines of a table as a Markdown table: first-column cells anchor
+     * the rows, every other cell joins the row nearest in height (so a label
+     * centred beside two lines of value gets both); the first row is the header.
      *
      * @param  list<Line>  $lines
      */
     private static function table(array $lines, float $bodySize): string
     {
-        // The columns are where the lines with two or more cells start theirs.
+        // The columns are where the multi-cell lines start their cells.
         $columns = [];
 
         foreach ($lines as $line) {
@@ -701,10 +717,10 @@ final class PdfMarkdown
         sort($columns);
         $columns = self::mergeColumns($columns, $lines, $bodySize);
 
-        // With the columns known, a line is cut again wherever a piece starts in one: a label as wide as its column leaves no gap before the value.
+        // Cut the lines again at the columns: a label as wide as its column leaves no gap.
         $lines = array_map(fn (array $line): array => self::cellsAtColumns($line, $columns, $bodySize), $lines);
 
-        // Rows are anchored by the first column; a table without one anchors every line.
+        // Rows are anchored by first-column cells.
         $anchors = [];
 
         foreach ($lines as $line) {
@@ -713,18 +729,21 @@ final class PdfMarkdown
             }
         }
 
+        // None: every line is a row.
         if ($anchors === []) {
             $anchors = array_column($lines, 'y');
         }
 
         $rows = array_fill(0, count($anchors), array_fill(0, count($columns), ''));
 
+        // Put each cell into its row and column.
         foreach ($lines as $line) {
             foreach ($line['cells'] as $index => $cell) {
                 // A cell in no column goes to the nearest one.
                 $column = self::columnOfCell($columns, $cell['x'], $bodySize, $index === 0) ?? self::nearest($columns, $cell['x']);
                 $row = 0;
 
+                // The row whose anchor is nearest in height.
                 foreach ($anchors as $index => $anchor) {
                     if (abs($anchor - $line['y']) < abs($anchors[$row] - $line['y'])) {
                         $row = $index;
@@ -737,6 +756,7 @@ final class PdfMarkdown
 
         $markdown = [];
 
+        // Rows as Markdown, a separator after the header.
         foreach ($rows as $index => $row) {
             $markdown[] = '| '.implode(' | ', array_map(fn (string $cell): string => str_replace('|', '\\|', $cell), $row)).' |';
 
@@ -749,9 +769,8 @@ final class PdfMarkdown
     }
 
     /**
-     * The cells of a line cut at the columns of its table: a new cell
-     * starts at every piece that starts in a column other than the one
-     * the text so far is in.
+     * A line's cells cut at the table's columns: a piece starting in another
+     * column starts a new cell.
      *
      * @param  Line  $line
      * @param  list<float>  $columns
@@ -764,6 +783,7 @@ final class PdfMarkdown
         $cellX = 0.0;
         $column = null;
 
+        // Run the pieces together, cutting at a change of column.
         foreach ($line['pieces'] as $piece) {
             $at = self::column($columns, $piece['x'], $bodySize);
 
@@ -772,6 +792,7 @@ final class PdfMarkdown
                 $text = '';
             }
 
+            // A cell starts here.
             if (self::oneLine($text) === '') {
                 $cellX = $piece['x'];
                 $column = $at ?? $column;
@@ -780,6 +801,7 @@ final class PdfMarkdown
             $text .= $piece['text'];
         }
 
+        // Close the last cell.
         if (self::oneLine($text) !== '') {
             $cells[] = ['x' => $cellX, 'text' => self::oneLine($text)];
         }
@@ -788,9 +810,8 @@ final class PdfMarkdown
     }
 
     /**
-     * Two neighbouring columns that never share a line are one column
-     * whose cells are aligned differently (a centred heading over
-     * left-aligned values): the right one is dropped.
+     * Merge neighbouring columns that never share a line (a centred heading
+     * over left-aligned values) by dropping the right one.
      *
      * @param  list<float>  $columns
      * @param  list<Line>  $lines
@@ -798,14 +819,17 @@ final class PdfMarkdown
      */
     private static function mergeColumns(array $columns, array $lines, float $bodySize): array
     {
+        // Each neighbouring pair in turn.
         for ($index = 0; $index + 1 < count($columns);) {
             $shareALine = false;
 
+            // Whether any line has cells in both.
             foreach ($lines as $line) {
                 $at = array_map(fn (array $cell): ?int => self::column($columns, $cell['x'], $bodySize), $line['cells']);
                 $shareALine = $shareALine || (in_array($index, $at, true) && in_array($index + 1, $at, true));
             }
 
+            // Keep both and move on, or drop the right one.
             if ($shareALine) {
                 $index++;
             } else {
@@ -825,6 +849,7 @@ final class PdfMarkdown
     {
         $best = 0;
 
+        // The closest.
         foreach ($columns as $index => $column) {
             if (abs($column - $x) < abs($columns[$best] - $x)) {
                 $best = $index;
@@ -834,18 +859,13 @@ final class PdfMarkdown
         return $best;
     }
 
-    /**
-     * Text with its whitespace collapsed to single spaces, none before a
-     * closing mark (justification leaves one).
-     */
+    /** Whitespace collapsed to single spaces, none before a closing mark. */
     private static function oneLine(string $text): string
     {
         return trim((string) preg_replace(['/\s+/u', '/ (?=[、。，．）」』])/u'], [' ', ''], $text));
     }
 
-    /**
-     * Text with no whitespace at all, to compare what is printed with what was listed.
-     */
+    /** Text without whitespace, to compare printed and listed titles. */
     private static function squeeze(string $text): string
     {
         return (string) preg_replace('/\s+/u', '', $text);

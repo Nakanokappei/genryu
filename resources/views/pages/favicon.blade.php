@@ -1,4 +1,4 @@
-{{-- The favicon of the source a record came from (once fetched), shown before the record's title. --}}
+{{-- The source's favicon, once fetched. --}}
 @props(['source'])
 
 @if ($source?->favicon_path)

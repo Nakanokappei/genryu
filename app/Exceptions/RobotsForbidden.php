@@ -4,8 +4,5 @@ namespace App\Exceptions;
 
 use RuntimeException;
 
-/**
- * Thrown by the global HTTP request middleware before a request is sent
- * to a URL the host's robots.txt does not allow.
- */
+/** Thrown before a request to a URL the host's robots.txt disallows. */
 class RobotsForbidden extends RuntimeException {}

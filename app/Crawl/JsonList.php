@@ -5,18 +5,15 @@ namespace App\Crawl;
 use Illuminate\Support\Str;
 
 /**
- * An update list read from the JSON file a site draws its list from
- * (UI: "JSON list settings"): finding that file on a page, and reading
- * its entries.
+ * An update list read from the JSON file a page draws its list from: finding
+ * it and reading its entries with the source's JSON list settings.
  */
 class JsonList
 {
     /**
-     * Keys of the JSON list configuration: the URL of the JSON file, the
-     * path to the item array inside it (dot notation, empty for the root),
-     * the keys of the title, the link and the date inside an item, and how
-     * many items from the top one fetch may take (the list is expected
-     * newest first).
+     * Keys of the JSON list settings: the file's URL, the dot path to the item
+     * array (empty for the root), the title / link / date keys, and how many
+     * items from the top are taken (newest first).
      */
     public const SETTING_KEYS = ['url', 'items', 'title', 'link', 'date', 'max_items'];
 
@@ -26,10 +23,7 @@ class JsonList
     public const MINIMUM_ENTRIES = 3;
 
     /**
-     * The entries of a JSON list per the configuration: the item array at
-     * the configured path, each item's title / link / date by key (dot
-     * notation reaches into nested objects). Items without a title or a
-     * link are skipped; links resolve against the source page.
+     * The entries of a JSON list; items without a title or a link are skipped.
      *
      * @param  array<string, mixed>  $config
      * @return list<array{title: string, url: string, published_at: ?string}>
@@ -39,12 +33,14 @@ class JsonList
         $data = json_decode($json, true);
         $items = ($config['items'] ?? '') === '' ? $data : data_get($data, (string) $config['items']);
 
+        // No item array at the path.
         if (! is_array($items)) {
             return [];
         }
 
         $entries = [];
 
+        // Each object's title, link and date.
         foreach ($items as $item) {
             if (! is_array($item)) {
                 continue;
@@ -53,6 +49,7 @@ class JsonList
             $title = Str::squish((string) data_get($item, (string) ($config['title'] ?? 'title')));
             $href = trim((string) data_get($item, (string) ($config['link'] ?? 'url')));
 
+            // No title or no link: skip.
             if ($title === '' || $href === '') {
                 continue;
             }
@@ -65,10 +62,8 @@ class JsonList
     }
 
     /**
-     * Find the JSON list a page draws its entries from, deterministically:
-     * every ".json" the HTML refers to is fetched (a handful at most) and
-     * searched for an array of at least MINIMUM_ENTRIES objects that carry
-     * a title-like and a link-like key. The first such array wins.
+     * The first of the page's .json references (at most five) that holds an
+     * array of MINIMUM_ENTRIES objects with a title-like and a link-like key.
      *
      * @return array{config: array<string, mixed>, entries: list<array{title: string, url: string, published_at: ?string}>}|null
      */
@@ -77,16 +72,18 @@ class JsonList
         preg_match_all('#["\'=]([^"\'\s<>]+\.json(?:\?[^"\'\s<>]*)?)["\']#i', $html, $matches);
         $candidates = array_slice(array_unique(array_map(fn (string $href): string => Url::absolute(html_entity_decode($href), $pageUrl), $matches[1])), 0, 5);
 
+        // Each candidate in turn until one lists enough entries.
         foreach ($candidates as $candidate) {
             try {
                 $body = Crawler::get($candidate)->body();
             } catch (\Throwable) {
-                // A reference that cannot be fetched (or that robots.txt forbids) is simply not the list.
+                // Unfetchable or forbidden: not the list.
                 continue;
             }
 
             $found = self::findItemArray(json_decode($body, true), '');
 
+            // No item array in it.
             if ($found === null) {
                 continue;
             }
@@ -94,6 +91,7 @@ class JsonList
             $config = ['url' => $candidate, ...$found, 'max_items' => self::DEFAULT_MAX_ITEMS];
             $entries = self::entries($body, $config, $pageUrl);
 
+            // Enough entries to believe.
             if (count($entries) >= self::MINIMUM_ENTRIES) {
                 return ['config' => $config, 'entries' => $entries];
             }
@@ -103,19 +101,21 @@ class JsonList
     }
 
     /**
-     * The first array of objects with a title-like and a link-like key,
-     * searched breadth-first a few levels deep, with the keys it uses.
+     * The first array of objects with a title-like and a link-like key, up to
+     * four levels deep, with its path and keys.
      *
      * @return array{items: string, title: string, link: string, date: string}|null
      */
     private static function findItemArray(mixed $data, string $path, int $depth = 0): ?array
     {
+        // Not an array, or too deep.
         if (! is_array($data) || $depth > 3) {
             return null;
         }
 
         $objects = array_values(array_filter($data, 'is_array'));
 
+        // A list of enough objects: take it when its first has title and link keys.
         if (array_is_list($data) && count($objects) >= self::MINIMUM_ENTRIES) {
             $keys = array_keys($objects[0]);
             $title = self::keyLike($keys, '/title|headline|subject/i');
@@ -126,6 +126,7 @@ class JsonList
             }
         }
 
+        // Otherwise search each child.
         foreach ($data as $key => $value) {
             $found = self::findItemArray($value, ltrim($path.'.'.$key, '.'), $depth + 1);
 
@@ -138,6 +139,8 @@ class JsonList
     }
 
     /**
+     * The first string key matching the pattern.
+     *
      * @param  list<int|string>  $keys
      */
     private static function keyLike(array $keys, string $pattern): ?string

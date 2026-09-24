@@ -2,13 +2,7 @@
 
 namespace App\Enums;
 
-/**
- * The languages we publish in, in the order of the countries' 2023 R&D
- * spending (UNESCO), with what each needs: its name on the screens, the
- * zone its readers are in, how a quoted figure's source is labelled, its
- * coverage until 言語設定 is saved, and whether text is counted in
- * characters rather than words.
- */
+/** The languages we publish in, in display order. */
 enum Language: string
 {
     case English = 'en';
@@ -30,7 +24,7 @@ enum Language: string
     }
 
     /**
-     * Every language code with its name on the screens, in order.
+     * Every language code with its display name, in order.
      *
      * @return array<string, string>
      */
@@ -39,13 +33,13 @@ enum Language: string
         return array_combine(self::codes(), array_map(fn (self $language): string => $language->label(), self::cases()));
     }
 
-    /** The name of a language code on the screens, the code itself when it is not one of ours. */
+    /** A code's display name, or the code itself when unknown. */
     public static function nameOf(?string $code): string
     {
         return self::tryFrom((string) $code)?->label() ?? (string) $code;
     }
 
-    /** The name on the screens, in the language itself. */
+    /** The display name, in the language itself. */
     public function label(): string
     {
         return match ($this) {
@@ -59,7 +53,7 @@ enum Language: string
         };
     }
 
-    /** The zone a language version is published in: English by New York, the others by their capitals. */
+    /** The timezone a language version is published in. */
     public function timezone(): string
     {
         return match ($this) {
@@ -73,7 +67,7 @@ enum Language: string
         };
     }
 
-    /** The label before a quoted figure's source. */
+    /** The 出典 label before a quoted figure's source. */
     public function sourceLabel(): string
     {
         return match ($this) {
@@ -95,7 +89,7 @@ enum Language: string
         };
     }
 
-    /** Whether text in this language is counted in characters rather than words. */
+    /** Whether length is counted in characters rather than words. */
     public function countsCharacters(): bool
     {
         return in_array($this, [self::TraditionalChinese, self::Japanese, self::Korean, self::SimplifiedChinese], true);

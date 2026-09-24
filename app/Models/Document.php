@@ -14,23 +14,16 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 /**
- * 文書 (UI: "Documents"): a document found on a source's update list
- * (stage 2.1 of docs/HANDOVER.md) and fetched from the source (stage 2.2):
- * the HTML or PDF kept as the original file and read into Markdown, by
- * App\Jobs\FetchDocument in the background. Status null until a fetch is
- * queued, then fetching / fetched / failed (UI: 取得中 / 取得済み / 失敗).
- * A document whose title has an exclude keyword of the editorial policy is
- * listed as 対象外 (excluded_by) and not fetched. A fetched document is
- * screened by App\Jobs\ScreenDocument (UI: スクリーニング); the latest
- * screening (latest_screening_id) carries the decision 採用 / 不採用 / 要確認. A
- * person may record their own verdict (UI: 人の判定, human_decision adopt /
- * reject with a reason), which outranks the screening's at the gate.
+ * 文書 (UI "Documents"): an entry of a source's update list, kept as the
+ * original file and its Markdown. Status null, then fetching / fetched /
+ * failed (UI 取得中 / 取得済み / 失敗); excluded_by is the title filter rule
+ * that made it 対象外; human_decision is 人の判定.
  *
- * @property float|null $likeness らしさ: how much nearer the nearest "like" of the semantic filter is than the nearest "unlike" (App\Actions\MeasureLikeness)
- * @property array<string, mixed>|null $likeness_detail what the likeness was measured against: the nearest like and unlike, their similarities, the model
+ * @property float|null $likeness らしさ: nearest like minus nearest unlike
+ * @property array<string, mixed>|null $likeness_detail the nearest like and unlike, their similarities, the model
  * @property CarbonImmutable|null $published_at
  * @property bool $published_has_time
- * @property string|null $language the language the document is written in (言語), one of App\Enums\Language
+ * @property string|null $language 言語, one of App\Enums\Language
  * @property CarbonImmutable|null $human_decided_at
  */
 class Document extends Model
@@ -38,10 +31,10 @@ class Document extends Model
     /** @use HasFactory<DocumentFactory> */
     use HasFactory;
 
-    /** feed: the summary the feed gave (UI 全文へのリンク on the source), kept until the document is adopted and its full text fetched. */
+    /** feed: the feed's summary, kept until the full text is fetched. */
     public const FORMATS = ['html', 'pdf', 'feed'];
 
-    /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
+    /** Below this many characters a body is 本文が短い. */
     public const SHORT_BODY_CHARS = 1000;
 
     protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'latest_screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
@@ -51,12 +44,7 @@ class Document extends Model
         return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'likeness' => 'float', 'likeness_detail' => 'array', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
     }
 
-    /**
-     * 公開日時 / 公開日: when the source dated the document to the minute,
-     * the instant in the display timezone; when it gave only a day, that
-     * day as it was written (the value is midnight UTC and must not be
-     * moved to another timezone, which would show the day before or after).
-     */
+    /** 公開日時 in the display timezone, or 公開日 as written (a day is midnight UTC, never shifted). */
     public function publishedDisplay(): ?string
     {
         return match (true) {
@@ -78,7 +66,7 @@ class Document extends Model
         return $this->hasOne(Material::class);
     }
 
-    /** @return BelongsTo<Screening, $this> the latest screening of the document */
+    /** @return BelongsTo<Screening, $this> the latest screening */
     public function latestScreening(): BelongsTo
     {
         return $this->belongsTo(Screening::class, 'latest_screening_id');
@@ -90,32 +78,19 @@ class Document extends Model
         return $this->hasMany(Screening::class)->latest('id');
     }
 
-    /**
-     * Whether the fetched body is suspiciously short: the settings of the
-     * source caught a teaser, a header or a page whose body sits elsewhere.
-     * An excluded document is not worth the warning, nor a summary from
-     * the feed, which is short by nature.
-     */
+    /** 本文が短い: a fetched, non-excluded, non-feed body under SHORT_BODY_CHARS. */
     public function hasShortBody(): bool
     {
         return $this->status === 'fetched' && $this->excluded_by === null && $this->format !== 'feed' && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
     }
 
-    /**
-     * Whether the summary from the feed is to be replaced by the full
-     * text now: the document was adopted (by the screening or a person),
-     * the only point at which the full text is worth its fetch.
-     */
+    /** Whether an adopted feed summary is due its full-text fetch. */
     public function wantsFullText(): bool
     {
         return $this->format === 'feed' && $this->status === 'fetched' && $this->excluded_by === null && ! $this->isLeftOut() && $this->decision() === 'adopt';
     }
 
-    /**
-     * Whether the semantic filter leaves the document out (UI 対象外):
-     * its likeness was measured and falls below the threshold set on
-     * 文書. A document not measured yet is not held back.
-     */
+    /** Whether the semantic filter left it out: measured and below the threshold (unmeasured passes). */
     public function isLeftOut(): bool
     {
         return $this->likeness !== null && $this->likeness < EditorialPolicy::likenessThreshold();
@@ -127,54 +102,49 @@ class Document extends Model
         return $this->hasOne(DocumentEmbedding::class);
     }
 
-    /** @return HasOne<SpotCheck, $this> the document drawn for 抜き取り点検, when it was */
+    /** @return HasOne<SpotCheck, $this> its 抜き取り点検 draw, if drawn */
     public function spotCheck(): HasOne
     {
         return $this->hasOne(SpotCheck::class);
     }
 
-    /** @return HasOne<SemanticFilterExample, $this> the document as an example of the semantic filter, when a person made it one */
+    /** @return HasOne<SemanticFilterExample, $this> its semantic filter example, if marked */
     public function semanticFilterExample(): HasOne
     {
         return $this->hasOne(SemanticFilterExample::class);
     }
 
-    /**
-     * Every Markdown written to the document is kept as a revision, so
-     * what a screening or a material was made from stays as it was. The
-     * language is guessed the first time there is text to guess it from
-     * (App\Actions\DetectLanguage); once set, by the guess or by a
-     * person, it is left alone.
-     */
+    /** Detects the language once on save and records every new Markdown as a revision. */
     protected static function booted(): void
     {
         static::saving(function (Document $document): void {
+            // Detect the language only while it is unset.
             if ($document->language === null && $document->markdown !== null && $document->markdown !== '') {
                 $document->language = DetectLanguage::of($document->title."\n".$document->markdown);
             }
         });
 
         static::saved(function (Document $document): void {
+            // Record a revision when the Markdown is new or changed.
             if (($document->wasRecentlyCreated || $document->wasChanged('markdown')) && $document->markdown !== null && $document->markdown !== '') {
                 $document->recordRevision();
             }
         });
     }
 
-    /**
-     * The document's Markdown as a revision: the latest one when the
-     * text is unchanged, else a new one.
-     */
+    /** The current Markdown as a revision: the latest one if unchanged, else a new one. */
     public function recordRevision(): ?DocumentRevision
     {
         $markdown = (string) $this->markdown;
 
+        // Nothing to record.
         if ($markdown === '') {
             return null;
         }
 
         $latest = $this->revisions()->latest('id')->first();
 
+        // Reuse the latest revision when the text is the same.
         if ($latest !== null && $latest->sha256 === hash('sha256', $markdown)) {
             return $latest;
         }
@@ -188,26 +158,19 @@ class Document extends Model
         return $this->hasMany(DocumentRevision::class);
     }
 
-    /** @return BelongsTo<User, $this> who recorded the human decision */
+    /** @return BelongsTo<User, $this> who recorded 人の判定 */
     public function humanDecider(): BelongsTo
     {
         return $this->belongsTo(User::class, 'human_decided_by');
     }
 
-    /**
-     * The decision that stands (UI 判定): a person's when there is one,
-     * else the latest screening's; null when neither has decided.
-     */
+    /** 判定: 人の判定 if any, else the latest screening's decision. */
     public function decision(): ?string
     {
         return $this->human_decision ?? ($this->latestScreening?->status === 'screened' ? $this->latestScreening->decision : null);
     }
 
-    /**
-     * Whether the gate lets the document on to the detailed analysis: a
-     * rejected document does not go; one not screened yet, or to be
-     * reviewed, is not stopped here.
-     */
+    /** Whether the standing decision is reject (the gate before extraction). */
     public function isRejected(): bool
     {
         return $this->decision() === 'reject';
@@ -248,7 +211,7 @@ class Document extends Model
     }
 
     /**
-     * Documents the semantic filter lets through: not measured yet, or at or above the threshold.
+     * Documents the semantic filter lets through (see isLeftOut()).
      *
      * @param  Builder<self>  $query
      */

@@ -9,14 +9,15 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 意味フィルタ — らしい / らしくない: one side of the semantic filter on a screen of its own, its definitions (one per line) and the examples a person marked on that side. The embedding model and the threshold are on 文書.
+// 意味フィルタ (Semantic filter): one side's definitions and examples.
 new #[Title('意味フィルタ')] class extends Component {
-    /** like (UI らしい) or unlike (UI らしくない), from the URL */
+    /** like (UI: らしい) or unlike (UI: らしくない) */
     public string $side = 'like';
 
-    /** The definitions of this side, one per line. */
+    /** This side's definitions, one per line. */
     public string $definitions = '';
 
+    // Open one side.
     public function mount(string $side): void
     {
         abort_unless(array_key_exists($side, SemanticFilterExample::SIDES), 404);
@@ -24,7 +25,7 @@ new #[Title('意味フィルタ')] class extends Component {
         $this->definitions = EditorialPolicy::bodyFor(SemanticFilterExample::layerOf($side));
     }
 
-    // Saved, every embedded document is measured again: only a new definition line calls the model.
+    // Save the definitions and measure again.
     public function save(MeasureLikeness $measure): void
     {
         EditorialPolicy::query()->updateOrCreate(['layer' => SemanticFilterExample::layerOf($this->side)], ['body' => $this->definitions]);
@@ -33,7 +34,7 @@ new #[Title('意味フィルタ')] class extends Component {
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));
     }
 
-    // Take a document off this side's examples; every embedded document is measured again without it.
+    // Remove an example and measure again.
     public function removeExample(int $exampleId, MeasureLikeness $measure): void
     {
         SemanticFilterExample::query()->whereKey($exampleId)->where('side', $this->side)->delete();

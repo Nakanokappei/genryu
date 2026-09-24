@@ -19,9 +19,7 @@ class DocumentFactory extends Factory
         ];
     }
 
-    /**
-     * An entry whose document has been fetched and read into Markdown.
-     */
+    /** A document fetched and read into Markdown. */
     public function fetched(): static
     {
         return $this->state(fn (): array => [

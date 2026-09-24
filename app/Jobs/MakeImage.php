@@ -18,15 +18,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * トップ画像 (UI: "Top image", 編成 › 画像): in the background, a scheduled
- * article gets its top image in two steps — the writer chooses the scene
- * from the article (App\Actions\ProposeScene), the image model draws it
- * in the style of the time band the article's slot falls in
- * (App\Actions\DrawImage, ImageStyle). The image is kept on the local
- * disk and shared by every language version, which go out at the same
- * local time; the article records the time it was made for, so a slot
- * moved by the schedule sends it back to 画像作成中. The outcome lands on
- * the drawing (作成中 / 作成済み / 失敗).
+ * トップ画像 (UI: "Top image", 編成 › 画像): choose a scene from a scheduled
+ * original and draw it in the style of its slot's time band.
  */
 class MakeImage implements ShouldQueue
 {
@@ -38,11 +31,7 @@ class MakeImage implements ShouldQueue
 
     public function __construct(public ArticleImage $image) {}
 
-    /**
-     * Queue a drawing for a scheduled original: the row appears at once as
-     * 作成中, pinning the prompt version, both models, and the time and
-     * band it is made for.
-     */
+    /** Create the drawing (作成中) pinning prompt, both models, time and band, and queue it. */
     public static function queueFor(Article $article): ArticleImage
     {
         $time = (string) $article->scheduledLocal()?->format('H:i');
@@ -61,12 +50,14 @@ class MakeImage implements ShouldQueue
         return $image;
     }
 
+    /** Propose the scene, draw it, store it, and give it to the article; a failure lands on the drawing. */
     public function handle(ProposeScene $propose, DrawImage $draw): void
     {
         $image = $this->image;
         $article = $image->article;
 
         try {
+            // Only a scheduled original.
             if ($article->translated_from_id !== null || $article->body === null || $article->scheduled_at === null) {
                 throw new RuntimeException(__('Only a scheduled original article gets a top image.'));
             }
@@ -77,6 +68,7 @@ class MakeImage implements ShouldQueue
             $scene = $propose($policy, (string) $image->scene_model, $article, (array) $article->material?->parts, $style);
             $sceneText = trim((string) ($scene['json']['scene'] ?? ''));
 
+            // No scene, no drawing.
             if ($sceneText === '') {
                 throw new RuntimeException(__('The agent did not return a scene.'));
             }
@@ -100,7 +92,7 @@ class MakeImage implements ShouldQueue
                 'estimated_total_cost' => self::cost($image, $scene['usage'], $drawn['usage']),
             ]);
 
-            // The article carries its image, and the time of day it was made for.
+            // The image and the time of day it was made for.
             $article->update(['image_path' => $path, 'image_time' => $image->time]);
         } catch (Throwable $exception) {
             $image->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
@@ -108,8 +100,7 @@ class MakeImage implements ShouldQueue
     }
 
     /**
-     * What the two calls cost in USD: the scene at the writer's prices, the
-     * drawing at the image model's; unknown when either price is.
+     * The cost of both calls in USD; null when either price is unknown.
      *
      * @param  array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}  $scene
      * @param  array{input_tokens: ?int, output_tokens: ?int, latency_ms: int}  $drawn
@@ -117,9 +108,10 @@ class MakeImage implements ShouldQueue
     private static function cost(ArticleImage $image, array $scene, array $drawn): ?float
     {
         $writing = Usage::estimatedCost((string) $image->scene_model, $scene)['estimated_total_cost'];
-        // Looked up by key, not by dot path: the model ids have dots in them.
+        // By key, not dot path: model ids contain dots.
         $prices = ((array) config('services.openai.image_prices'))[$image->image_model] ?? null;
 
+        // Any price or token count unknown: no cost.
         if ($writing === null || ! is_array($prices) || $drawn['input_tokens'] === null || $drawn['output_tokens'] === null) {
             return null;
         }

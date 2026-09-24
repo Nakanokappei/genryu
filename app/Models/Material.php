@@ -10,23 +10,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * 素材情報 (UI: "Materials"): what a document yields for the articles,
- * built by App\Jobs\ExtractMaterial per the structuring layer of the
- * editorial policy and stored as JSON (data): the parts an article is
- * made of — the angle it would be written on, what was true before,
- * what this document changes, what may follow, the facts the primary
- * source gives, the background the model fills in from its own general
- * knowledge, and what it infers from both: who gains, who loses, what
- * everyday life looks like if this holds. Beside them, the figures of the
- * source (図版, `figures`: URL, alt text and caption), gathered by
- * App\Actions\CollectFigures from its Markdown rather than by the model. Nothing about itself: a part
- * the model cannot write plainly is absent rather than hedged. Pinned to the
- * document revision it was made from, the prompt version and the model;
- * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
- * with the checks it failed (failed_checks) and the usage of the calls.
+ * 素材情報 (UI "Materials"): the parts an article is made of, extracted
+ * from one document revision. Status extracting / extracted / failed
+ * (UI 抽出中 / 抽出済み / 失敗).
  *
- * @property array<string, mixed>|null $parts the parts of the article, only those the model could write
- * @property list<string>|null $failed_checks the problems the last checks found, empty when they passed
+ * @property array<string, mixed>|null $parts the parts the model could write, plus figures (図版)
+ * @property list<string>|null $failed_checks the last validation's problems, empty when it passed
  */
 class Material extends Model
 {
@@ -44,8 +33,7 @@ class Material extends Model
     }
 
     /**
-     * The material part by part, in the order the policy asks for them
-     * (jsonb stores keys sorted by length and letter).
+     * The parts in ProposeMaterial::PARTS order (jsonb sorts keys by length).
      *
      * @return array<string, string|list<string>>
      */
@@ -54,6 +42,7 @@ class Material extends Model
         $data = (array) $this->parts;
         $ordered = [];
 
+        // Pick the parts present, in schema order.
         foreach (ProposeMaterial::PARTS as $part) {
             if (array_key_exists($part, $data)) {
                 $ordered[$part] = $data[$part];
@@ -64,9 +53,7 @@ class Material extends Model
     }
 
     /**
-     * How many lines stand on the primary source, how many on the
-     * model's own general knowledge, and how many on inference from
-     * both: what this PoC is out to measure.
+     * Line counts by what they stand on: primary source, general knowledge, inference.
      *
      * @return array<string, int>
      */
@@ -74,6 +61,7 @@ class Material extends Model
     {
         $counts = array_fill_keys(ProposeMaterial::LISTS, 0);
 
+        // Add each list's lines to what it stands on.
         foreach (ProposeMaterial::LISTS as $part => $stands) {
             $counts[$stands] += count((array) ($this->parts[$part] ?? []));
         }
@@ -82,7 +70,7 @@ class Material extends Model
     }
 
     /**
-     * The figures of the source, in the order they appear there.
+     * The source's figures (図版), in source order.
      *
      * @return list<array{url: string, alt: string, caption: ?string}>
      */

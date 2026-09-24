@@ -9,33 +9,24 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 /**
- * らしさ (UI: "Likeness"), the measure of the 意味フィルタ: how much nearer
- * a document is to what is like this media than to what is unlike it.
- * The document's title and text are embedded once (App\Actions\Embed,
- * kept as its DocumentEmbedding) and compared with every definition of
- * the semantic filter and every example a person marked; the likeness is
- * the similarity of the nearest "like" minus that of the nearest
- * "unlike". A document is never its own example. The absolute
- * similarities mean little (unrelated texts score 0.1 to 0.3), which is
- * why the two sides are set against each other rather than against a
- * fixed bar.
+ * らしさ (UI "Likeness") for the 意味フィルタ (UI "Semantic filter"): the
+ * similarity to the nearest "like" definition or example minus that to
+ * the nearest "unlike".
  */
 class MeasureLikeness
 {
-    /** How much of a document is embedded: its title and the start of its text. */
+    /** Characters of title and text that are embedded. */
     public const MAX_CHARS = 8000;
 
     public function __construct(private Embed $embed) {}
 
-    /**
-     * Measure one document, embedding it first when it has no embedding
-     * for the model the filter runs on, and keep the likeness on it.
-     */
+    /** Measures and stores a document's likeness, embedding it first if needed. */
     public function __invoke(Document $document): float
     {
         $filter = EditorialPolicy::semanticFilter();
         $embedding = $document->embedding;
 
+        // No embedding for the filter's model yet.
         if ($embedding === null || $embedding->model !== $filter['model']) {
             ['vectors' => [$vector], 'tokens' => $tokens] = ($this->embed)([self::text($document)], $filter['model']);
             $embedding = DocumentEmbedding::query()->updateOrCreate(['document_id' => $document->id], ['model' => $filter['model'], 'vector' => $vector, 'tokens' => $tokens]);
@@ -45,9 +36,7 @@ class MeasureLikeness
     }
 
     /**
-     * Measure again every document that has an embedding for the model,
-     * after the definitions, the examples or the threshold changed: no
-     * document is embedded again, only the definitions are (when new).
+     * Re-measures every document embedded with the filter's model, without re-embedding.
      *
      * @return array{measured: int, below: int}
      */
@@ -68,10 +57,7 @@ class MeasureLikeness
         return ['measured' => $measured, 'below' => $below];
     }
 
-    /**
-     * What a document is judged on: its title and text, the Markdown's own
-     * title line and date line left out, cut at MAX_CHARS.
-     */
+    /** The text embedded: title and body without the Markdown's title and date lines, cut at MAX_CHARS. */
     public static function text(Document $document): string
     {
         $body = (string) preg_replace(['/^#\s.*$/m', '/^\d{4}-\d{2}-\d{2}(T\S*)?$/m'], '', (string) $document->markdown);
@@ -80,8 +66,7 @@ class MeasureLikeness
     }
 
     /**
-     * Compare a document's vector with the definitions and the examples,
-     * and keep the likeness and what it was measured against.
+     * Computes and stores the likeness and the nearest like / unlike.
      *
      * @param  list<float>  $vector
      * @param  array{definitions: list<array{side: string, text: string}>, model: string, threshold: float}  $filter
@@ -90,6 +75,7 @@ class MeasureLikeness
     {
         $nearest = ['like' => null, 'unlike' => null];
 
+        // Nearest candidate on each side.
         foreach ([...$this->definitions($filter), ...$this->examples($filter['model'], $document->id)] as $candidate) {
             $similarity = self::dot($vector, $candidate['vector']);
 
@@ -105,9 +91,7 @@ class MeasureLikeness
     }
 
     /**
-     * The definitions with their vectors. A definition is embedded once
-     * per model and kept in the cache by its text, so editing one line
-     * embeds that line only.
+     * The definitions with their vectors, cached per model and text.
      *
      * @param  array{definitions: list<array{side: string, text: string}>, model: string, threshold: float}  $filter
      * @return list<array{side: string, label: string, vector: list<float>}>
@@ -116,6 +100,7 @@ class MeasureLikeness
     {
         $missing = array_values(array_filter($filter['definitions'], fn (array $definition): bool => ! Cache::has(self::cacheKey($filter['model'], $definition['text']))));
 
+        // Embed and cache the definitions not cached yet.
         if ($missing !== []) {
             $vectors = ($this->embed)(array_column($missing, 'text'), $filter['model'])['vectors'];
 
@@ -128,9 +113,7 @@ class MeasureLikeness
     }
 
     /**
-     * The examples a person marked, with their documents' vectors, the
-     * document being measured left out (it would be nearest to itself).
-     * An example not embedded yet with this model does not count.
+     * The examples embedded with this model, except the document being measured.
      *
      * @return list<array{side: string, label: string, vector: list<float>}>
      */
@@ -151,7 +134,7 @@ class MeasureLikeness
     }
 
     /**
-     * A vector read back from the cache or from JSON, as numbers.
+     * A cached or decoded vector as floats.
      *
      * @return list<float>
      */
@@ -160,12 +143,15 @@ class MeasureLikeness
         return array_map(floatval(...), array_values(is_array($value) ? $value : []));
     }
 
+    /** Cache key of a definition's vector. */
     private static function cacheKey(string $model, string $text): string
     {
         return 'semantic-filter:'.$model.':'.hash('sha256', $text);
     }
 
     /**
+     * Dot product of two vectors.
+     *
      * @param  list<float>  $a
      * @param  list<float>  $b
      */

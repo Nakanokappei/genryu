@@ -5,16 +5,15 @@ namespace App\Actions;
 use App\OpenAi\ChatCompletions;
 
 /**
- * The agent behind the document settings: given one document page of a
- * source, a cheap model proposes the CSS selectors of the element holding
- * the body and of the one holding its date, of things inside the body to
- * drop, and of fixed text to move after the body. It only proposes;
- * App\Jobs\FetchDocument verifies the proposal on the page before anything
- * is saved.
+ * The agent that proposes a source's document settings (UI 本文 / 日付 /
+ * 除外 / 固定テキスト selectors) from one document page. The caller
+ * verifies them on the page before saving.
  */
 class ProposeDocumentSettings
 {
     /**
+     * Asks the model and returns the proposed selectors.
+     *
      * @return array{content: string, date: string, remove: string, fixed_text: string}
      */
     public function __invoke(string $html, string $url): array
@@ -38,6 +37,7 @@ class ProposeDocumentSettings
         return $settings;
     }
 
+    /** The fixed instruction. */
     private static function instructions(): string
     {
         return <<<'TEXT'

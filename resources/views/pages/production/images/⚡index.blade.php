@@ -10,18 +10,19 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-// 画像 (Images) of 編成 (Production): the image layer of the editorial policy (how the scene is chosen, and the models that write it and draw it), the style of each time band of the day, and the scheduled articles with their top images. An article is drawn in the style of the band its slot falls in; nothing is drawn by hand here.
+// 画像 (Images): the image layer, the styles by time band, and the scheduled articles' top images.
 new #[Title('画像')] class extends Component {
-    /** The developer prompt of the scene writer, and the two models. */
+    /** The image layer's prompt, scene model and image model. */
     public string $image = '';
 
     public string $sceneModel = EditorialPolicy::DEFAULT_MODEL;
 
     public string $imageModel = EditorialPolicy::DEFAULT_IMAGE_MODEL;
 
-    /** 時間帯ごとの絵柄: each band's name, start and style. @var array<string, array{name: string, starts_at: string, style: string}> */
+    /** UI: 時間帯ごとの絵柄. @var array<string, array{name: string, starts_at: string, style: string}> */
     public array $bands = [];
 
+    // Load the layer and the bands.
     public function mount(): void
     {
         $this->image = EditorialPolicy::bodyFor('image');
@@ -30,6 +31,7 @@ new #[Title('画像')] class extends Component {
         $this->bands = ImageStyle::bands();
     }
 
+    // Save the layer, the models and the bands.
     public function savePolicy(): void
     {
         $this->validate([
@@ -51,7 +53,7 @@ new #[Title('画像')] class extends Component {
     }
 
     /**
-     * The scheduled originals not yet published, soonest first, with their latest drawing.
+     * Scheduled, unpublished originals, soonest first.
      *
      * @return Collection<int, Article>
      */
@@ -62,7 +64,7 @@ new #[Title('画像')] class extends Component {
             ->with('material.document.source', 'image')->orderBy('scheduled_at')->orderBy('id')->get();
     }
 
-    // Draw every scheduled article that has no image for its time of day and none on the way.
+    // Queue an image for every article waiting for one (画像作成中).
     public function make(): void
     {
         $articles = $this->articles->filter(fn (Article $article): bool => $article->publicationStatus() === 'imaging' && $article->image?->status !== 'making');
@@ -72,7 +74,7 @@ new #[Title('画像')] class extends Component {
         Flux::toast(variant: 'success', text: __(':count images queued.', ['count' => $articles->count()]));
     }
 
-    // Draw one article again, as after its image did not come out well.
+    // Queue one article's image again.
     public function remake(int $articleId): void
     {
         MakeImage::queueFor($this->articles->firstOrFail('id', $articleId));
@@ -95,7 +97,7 @@ new #[Title('画像')] class extends Component {
             <x-pages::model-select wire:model="imageModel" :label="__('Image model')" :models="\App\Models\EditorialPolicy::IMAGE_MODELS" />
         </div>
 
-        {{-- 時間帯ごとの絵柄: each band runs from its start to the next one's; the last runs past midnight to the first. --}}
+        {{-- 時間帯ごとの絵柄: each band runs to the next one's start. --}}
         <div class="space-y-2">
             <flux:label>{{ __('Style by time of day') }}</flux:label>
             @foreach ($bands as $band => $settings)

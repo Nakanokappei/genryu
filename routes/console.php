@@ -17,11 +17,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// The top images are ours and take room: an image drawn more than MediaController::WINDOW_DAYS days ago goes, as the media site shows no further back.
+// Deletes the top images drawn more than MediaController::WINDOW_DAYS days ago.
 Artisan::command('media:prune-images', function () {
     $cutoff = now()->subDays(MediaController::WINDOW_DAYS);
     $pruned = 0;
 
+    // Delete each old file and clear the paths pointing at it.
     ArticleImage::query()->whereNotNull('path')->where('created_at', '<', $cutoff)->each(function (ArticleImage $image) use (&$pruned): void {
         Storage::disk('local')->delete((string) $image->path);
         Article::query()->where('image_path', $image->path)->update(['image_path' => null]);
@@ -34,30 +35,27 @@ Artisan::command('media:prune-images', function () {
 
 Schedule::command('media:prune-images')->daily();
 
-/*
- * Prompts are assets (decided 2026-09-25): the ones edited on the screens
- * — the layers of the editorial policy, the styles of the top images,
- * the additional prompts per language — live in the database and never in
- * the repository, which is public. These two commands copy them to and
- * from a folder kept out of Git (prompts/, in .gitignore), to back them
- * up or to set up another environment. One Markdown file per prompt.
- */
+// Copies the prompts (policy layers, image styles, language prompts) between the database and prompts/, one Markdown file each.
 Artisan::command('prompts:export {--path=prompts}', function () {
     $root = base_path(is_string($this->option('path')) ? $this->option('path') : 'prompts');
     $files = [];
 
+    // Policy layers.
     foreach (EditorialPolicy::query()->get() as $policy) {
         $files["policies/{$policy->layer}.md"] = (string) $policy->body;
     }
 
+    // Image styles.
     foreach (ImageStyle::query()->get() as $style) {
         $files["image-styles/{$style->band}.md"] = (string) $style->style;
     }
 
+    // Additional prompts per language.
     foreach (DB::table('language_settings')->whereNotNull('additional_prompt')->get() as $language) {
         $files["languages/{$language->language}.md"] = (string) $language->additional_prompt;
     }
 
+    // Write the non-empty ones.
     foreach (array_filter($files, fn (string $text): bool => trim($text) !== '') as $name => $text) {
         File::ensureDirectoryExists(dirname("{$root}/{$name}"));
         File::put("{$root}/{$name}", rtrim($text)."\n");
@@ -70,11 +68,13 @@ Artisan::command('prompts:import {--path=prompts}', function () {
     $root = base_path(is_string($this->option('path')) ? $this->option('path') : 'prompts');
     $read = 0;
 
+    // Policy layers.
     foreach (File::glob("{$root}/policies/*.md") as $file) {
         EditorialPolicy::query()->updateOrCreate(['layer' => basename($file, '.md')], ['body' => rtrim(File::get($file))]);
         $read++;
     }
 
+    // Image styles, keeping a band's saved name and start.
     foreach (File::glob("{$root}/image-styles/*.md") as $file) {
         $band = basename($file, '.md');
         $defaults = ImageStyle::DEFAULTS[$band] ?? ['name' => $band, 'starts_at' => '00:00'];
@@ -82,6 +82,7 @@ Artisan::command('prompts:import {--path=prompts}', function () {
         $read++;
     }
 
+    // Additional prompts per language, keeping the coverage.
     foreach (File::glob("{$root}/languages/*.md") as $file) {
         $language = basename($file, '.md');
         DB::table('language_settings')->updateOrInsert(['language' => $language], ['additional_prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language), 'updated_at' => now()]);

@@ -17,12 +17,8 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Configure a new source in the background: find its feed or the JSON
- * list it draws its entries from, both deterministically, or have the
- * agent propose HTML list settings and verify them on the page, then
- * read the update list for the first time.
- * The outcome lands on the source (status 設定中 / 設定済み / 失敗) rather
- * than in the queue's failed-jobs table, so the screen can show it.
+ * Configure a new source: find its feed or JSON list, else have the agent
+ * propose HTML list settings verified on the page; then read the update list.
  */
 class ConfigureSource implements ShouldQueue
 {
@@ -39,34 +35,34 @@ class ConfigureSource implements ShouldQueue
 
     public function __construct(public Source $source) {}
 
+    /** Find how the source lists its updates, save it, and read the list; a failure lands on the source. */
     public function handle(FetchUpdates $fetch, ProposeListSettings $propose, FetchFavicon $favicon): void
     {
         $source = $this->source;
 
         try {
             $html = Crawler::get($source->url)->body();
-            // The site's icon, for the 情報源 screen; nothing depends on it.
             $favicon($source, $html);
             $feed = $source->list_method === 'html' ? null : Feed::discover($source->url, $html);
 
+            // A feed, else a JSON list, else HTML list settings from the agent.
             if ($feed !== null) {
-                // How many feed entries the page itself links to: a probed feed
-                // that shares nothing with the page is probably another list.
+                // Feed entries the page also links to, shown so a wrong feed stands out.
                 $overlap = count(array_filter(Feed::entries($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
 
                 $source->update(['feed_url' => $feed[0], 'html_list_settings' => null, 'json_list_settings' => null, 'status' => 'configured', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
             } elseif (($json = JsonList::discover($html, $source->url)) !== null) {
-                // 三菱電機: the page holds no entries, a script draws them from a JSON file.
                 $source->update(['feed_url' => null, 'html_list_settings' => null, 'json_list_settings' => $json['config'], 'status' => 'configured', 'status_message' => __('JSON list found: :url (:count entries)', ['url' => $json['config']['url'], 'count' => count($json['entries'])])]);
             } else {
                 $proposal = $propose($html, $source->url);
                 [$proposal, $entries] = self::verify($html, $proposal, $source->url);
 
+                // Too few entries: the proposal is not believed.
                 if (count($entries) < self::MINIMUM_ENTRIES) {
                     throw new RuntimeException(__('The proposed settings matched :count entries on the page; at least :minimum are needed.', ['count' => count($entries), 'minimum' => self::MINIMUM_ENTRIES]));
                 }
 
-                // The first titles let the operator see at a glance whether the right list was chosen.
+                // The first titles, to show whether the right list was chosen.
                 $sample = implode(' / ', array_map(fn (array $entry): string => mb_substr($entry['title'], 0, 40), array_slice($entries, 0, 3)));
 
                 $source->update([
@@ -85,11 +81,8 @@ class ConfigureSource implements ShouldQueue
     }
 
     /**
-     * Apply the proposal to the page. The agent usually gets the item right
-     * and the title wrong (CNRS: an anchor wrapping a heading, proposed as
-     * a heading holding an anchor), so when the proposed title or date
-     * selector finds nothing, generic ones are tried in a fixed order and
-     * the settings that actually worked are what gets saved.
+     * Apply the proposal to the page, falling back to generic title and date
+     * selectors; return the first settings that work, else those that found most.
      *
      * @param  array<string, string>  $proposal
      * @return array{0: array<string, string>, 1: list<array{title: string, url: string, published_at: ?string}>}
@@ -98,16 +91,19 @@ class ConfigureSource implements ShouldQueue
     {
         $best = [$proposal, []];
 
+        // Each title selector with each date selector, the proposal's first.
         foreach (array_unique([$proposal['title'], 'h1, h2, h3, h4', 'a[href]']) as $title) {
             foreach (array_unique([$proposal['date'], 'time', '']) as $date) {
                 $settings = [...$proposal, 'title' => $title, 'date' => $date];
                 $entries = HtmlList::preview($html, $settings, $url);
                 $dated = count(array_filter($entries, fn (array $entry): bool => $entry['published_at'] !== null));
 
+                // Enough entries, and dated when a date selector is set.
                 if (count($entries) >= self::MINIMUM_ENTRIES && ($date === '' || $dated > 0)) {
                     return [$settings, $entries];
                 }
 
+                // Otherwise remember the one that found most.
                 if (count($entries) > count($best[1])) {
                     $best = [$settings, $entries];
                 }

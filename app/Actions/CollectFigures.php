@@ -3,15 +3,9 @@
 namespace App\Actions;
 
 /**
- * 図版 (UI: "figures"): the figures of a primary source, gathered for its
- * material. A deterministic step, so no model is called: the document's
- * Markdown already carries every image of the body with an absolute URL
- * (App\Actions\ReadDocument), and each one is kept with its alt text and
- * its caption — the text that follows the image on its line, or the next
- * line when it reads as one (図1 …, Fig. 2 …). Icons and logos the pages
- * dress their text with are left out by name, and an image shown twice is
- * kept once, with the alt text and caption of whichever showing had them. A PDF's figures are drawings inside the file, with no URL of
- * their own, so a PDF document yields none.
+ * 図版 (UI "Figures"): the images of a document's Markdown, with alt text
+ * and caption, for its material. No model; icons and logos are left out
+ * by name. A PDF yields none (its images have no URL).
  */
 class CollectFigures
 {
@@ -32,6 +26,7 @@ class CollectFigures
         $figures = [];
 
         foreach ($lines as $index => $line) {
+            // Lines without an image are skipped.
             if (preg_match_all('/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/u', $line, $images, PREG_SET_ORDER | PREG_OFFSET_CAPTURE) === 0) {
                 continue;
             }
@@ -41,13 +36,14 @@ class CollectFigures
                 $url = (string) preg_replace('/#.*\z/u', '', $image[2][0]);
                 $alt = trim($image[1][0]);
 
+                // Icons, logos and the like are not figures.
                 if (preg_match(self::NOT_A_FIGURE, basename((string) parse_url($url, PHP_URL_PATH)).' '.$alt) === 1) {
                     continue;
                 }
 
                 $caption = $position === array_key_last($images) ? self::caption($line, $image, $lines, $index) : null;
 
-                // Shown twice, it is kept once, with what either showing said of it.
+                // An image shown twice is kept once, with whichever alt and caption it had.
                 $figures[$url] = [
                     'url' => $url,
                     'alt' => ($figures[$url]['alt'] ?? '') !== '' ? $figures[$url]['alt'] : $alt,
@@ -60,8 +56,7 @@ class CollectFigures
     }
 
     /**
-     * The caption of the last image on a line: the text after it on the
-     * same line, else the next non-empty line when it reads as a caption.
+     * The caption of the last image on a line: text after it, else the next line if it reads as a caption.
      *
      * @param  array<int, array{0: string, 1: int}>  $image
      * @param  list<string>  $lines
@@ -74,6 +69,7 @@ class CollectFigures
             return $after;
         }
 
+        // The next non-empty line, if it starts like a caption.
         foreach (array_slice($lines, $index + 1) as $next) {
             $next = trim($next);
 

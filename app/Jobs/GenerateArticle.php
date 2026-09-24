@@ -18,29 +18,9 @@ use RuntimeException;
 use Throwable;
 
 /**
- * 記事を生成 (UI: "Generate article", stage 2.4 of docs/HANDOVER.md): an
- * article is made in three steps, each in the background. The headline
- * comes first, from the material (App\Jobs\RefineHeadline); this job then
- * has the agent write the body under that headline per the article
- * generation layer of the editorial policy, checks that a body came back,
- * and keeps it; the translations and the quality check follow. The article pins the prompt
- * versions and the models it was written with and keeps the usage of the
- * body's call, as a screening and a material do. The outcome lands on the
- * article (status 生成中 / 下書き / 失敗) so the screens can show it.
- *
- * The shape and the length of the body are checked here, not trusted
- * to the model (App\Actions\ValidateArticle, 2026-09-23: an opening that
- * swallowed 承, a missing sources section): a body with problems is
- * written again with them in hand, up to MAX_REWRITES times, and the one
- * with the fewest problems, then the nearest length, is kept. Nothing
- * waits for a person, so a body that still has problems is kept and
- * they are shown in its status message.
- *
- * The lead comes back in the same answer, after the body (the schema
- * names it second, and a model writes the properties in that order), as
- * a summary of the body it has just written (2026-09-25: written before
- * the body, it ran into the opening, which began with "しかし"); it is
- * put above the body with Article::LEAD_SEPARATOR between them.
+ * 記事を生成 (UI: "Generate article"): write the original article's body
+ * and lead under its settled headline, check and rewrite it, then queue
+ * the translations and the quality check.
  */
 class GenerateArticle implements ShouldQueue
 {
@@ -55,14 +35,7 @@ class GenerateArticle implements ShouldQueue
 
     public function __construct(public Article $article) {}
 
-    /**
-     * Queue the writing of a material's article: the row appears at once
-     * as 生成中, whether it is new or being written again, and the
-     * headline is written first; this job follows it. This is the
-     * original — the one written from the material, in the language of
-     * the primary source — so it is the material's article that has no
-     * article behind it; the translations are queued once it is written.
-     */
+    /** Create or reset the material's original article (生成中) and queue its headline first. */
     public static function queueFor(Material $material): Article
     {
         $article = Article::query()->updateOrCreate(
@@ -78,12 +51,14 @@ class GenerateArticle implements ShouldQueue
         return RefineHeadline::queueFor($article);
     }
 
+    /** Write the body, rewrite it while it has problems, keep the best, and queue what follows. */
     public function handle(ProposeArticle $propose, ValidateArticle $validate): void
     {
         $article = $this->article;
         $material = $article->material;
 
         try {
+            // An extracted material and a headline are needed.
             if ($material === null || $material->status !== 'extracted' || $material->parts === null) {
                 throw new RuntimeException(__('The material has not been extracted yet.'));
             }
@@ -92,14 +67,14 @@ class GenerateArticle implements ShouldQueue
                 throw new RuntimeException(__('The headline has not been written yet.'));
             }
 
-            // The policy read is the version pinned when the job was queued, not whatever the screen holds by now.
+            // The pinned policy version.
             $policy = Prompt::textOf($article->prompt, 'article');
 
             $document = $material->document;
             $model = (string) $article->model;
-            // A first write, or a rewrite of a body with what is wrong with it.
+            // A first write, or a rewrite with the problems.
             $write = fn (?string $previous = null, string $problems = ''): array => $propose($policy, $model, (array) $material->parts, (string) $article->headline, $document->title, $document->url, $previous === null ? null : ['body' => $previous, 'problem' => $problems], $document->language);
-            // A written body with what the checks found in it, and how to rank it: fewer problems first, then a length nearer the range.
+            // A written body with its problems and its distance from the length range, for ranking.
             $check = function (array $result) use ($validate, $article, $document): array {
                 $body = trim((string) ($result['json']['body'] ?? ''));
                 $language = $result['json']['language'] ?? null;
@@ -115,6 +90,7 @@ class GenerateArticle implements ShouldQueue
             };
             $written = $check($write());
 
+            // No body at all fails the article.
             if ($written['body'] === '') {
                 throw new RuntimeException(__('The agent did not return a body.'));
             }
@@ -122,11 +98,12 @@ class GenerateArticle implements ShouldQueue
             $best = $written;
             $usages = [$written['result']['usage']];
 
-            // A body with problems is written again with them in hand, from the last one written.
+            // Rewrite from the last body while it has problems.
             for ($rewrite = 1; $rewrite <= self::MAX_REWRITES && $written['problems'] !== []; $rewrite++) {
                 $written = $check($write($written['body'], implode("\n", array_map(fn (string $problem): string => "- {$problem}", $written['problems']))));
                 $usages[] = $written['result']['usage'];
 
+                // Keep the best: fewer problems, then nearer the length.
                 if ($written['body'] !== '' && [count($written['problems']), $written['off']] < [count($best['problems']), $best['off']]) {
                     $best = $written;
                 }
@@ -134,14 +111,14 @@ class GenerateArticle implements ShouldQueue
 
             $result = $best['result'];
             $body = $best['body'];
-            // Every call is paid for, so every call is counted.
+            // The usage of every call.
             $result['usage'] = Usage::sum($usages);
 
             $article->update([
-                // The lead the writer summed the body up in, above it; none if it left the lead out.
+                // The lead above the body, when there is one.
                 'body' => Article::separateBlocks($best['lead'] !== '' ? Article::withLead($best['lead'], $body) : $body),
                 'figures' => self::figures((array) ($result['json']['figures'] ?? []), $material->figures()),
-                // The language the agent says it wrote in, which is the material's and so the primary source's.
+                // The language the agent says it wrote in (the primary source's).
                 'language' => in_array($result['json']['language'] ?? null, Language::codes(), true) ? $result['json']['language'] : null,
                 'status' => 'written',
                 'status_message' => __('Generated by :model.', ['model' => $model]).($best['problems'] === [] ? '' : ' '.__('The article did not pass the checks: :errors', ['errors' => implode(' ', $best['problems'])])),
@@ -154,7 +131,7 @@ class GenerateArticle implements ShouldQueue
             return;
         }
 
-        // Nothing waits for a person: the languages we publish in follow the written article, and 編成 scores it (品質チェック).
+        // Queue the translations and the quality check.
         foreach (LanguageSetting::translationTargets($article->refresh()->language) as $language) {
             TranslateArticle::queueFor($article, $language);
         }
@@ -163,13 +140,8 @@ class GenerateArticle implements ShouldQueue
     }
 
     /**
-     * The figures the writer chose to quote, checked: a number the
-     * source's figures have, a section an article has, each figure once,
-     * at most Article::MAX_FIGURES. The URL, the alt text and the caption
-     * are taken from the material, never from the model's answer. A source
-     * with figures always has one in its article (decided 2026-09-25):
-     * when the writer chose none that holds, the first stands in the
-     * section on the new technology.
+     * The valid figures the writer chose, taken from the material; the first
+     * figure in the technology section when none was chosen.
      *
      * @param  array<int, mixed>  $chosen
      * @param  list<array<string, mixed>>  $figures
@@ -179,6 +151,7 @@ class GenerateArticle implements ShouldQueue
     {
         $kept = [];
 
+        // Keep a choice with a known figure and section, each once, up to MAX_FIGURES.
         foreach ($chosen as $choice) {
             $number = is_array($choice) && is_int($choice['figure'] ?? null) ? $choice['figure'] : 0;
             $section = is_array($choice) ? ($choice['section'] ?? null) : null;
@@ -191,6 +164,7 @@ class GenerateArticle implements ShouldQueue
             $kept[$number] = self::figure($figure, (string) $section);
         }
 
+        // Fall back to the first figure.
         if ($kept === [] && $figures !== []) {
             $kept[1] = self::figure($figures[0], 'technology');
         }

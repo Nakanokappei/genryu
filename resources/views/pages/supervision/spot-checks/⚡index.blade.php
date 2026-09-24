@@ -10,22 +10,24 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
-// 抜き取り点検 (Spot check): a day's documents, drawn from what the semantic filter measured, judged one at a time by a person — like this media, cannot tell, unlike it — with the keys 4 / 5 / 6. The likeness stays hidden until the verdict is given, so it cannot sway it. Once all are judged the day is closed with 確定 (Enter), and a closed day cannot be changed until it is reopened.
+// 抜き取り点検 (Spot check): judge a day's draw one document at a time, then confirm (確定) the day.
 new #[Title('抜き取り点検')] class extends Component {
     /** The day whose draw is shown (Y-m-d, display timezone), in the URL. */
     #[Url]
     public string $day = '';
 
-    /** The spot check in view; none once every one of the day is judged (the day is then to be confirmed, or is confirmed). */
+    /** The spot check in view; null once the day is all judged. */
     #[Url]
     public ?int $check = null;
 
+    // Open the latest day on its first undecided document.
     public function mount(): void
     {
         $this->day = $this->day !== '' ? $this->day : (string) (SpotCheck::query()->max('drawn_on') ?? $this->today());
         $this->check ??= $this->isConfirmed() ? null : $this->firstUndecided()?->id;
     }
 
+    // Today in the display timezone.
     private function today(): string
     {
         return CarbonImmutable::now((string) config('app.display_timezone'))->toDateString();
@@ -44,7 +46,7 @@ new #[Title('抜き取り点検')] class extends Component {
             : __(':drawn documents drawn from the :population the semantic filter measured today.', $result));
     }
 
-    // Record the verdict on the document in view, then move on to the next one of the day; after the last, back to one not judged yet.
+    // Record the verdict and move to the next document.
     public function decide(string $verdict): void
     {
         abort_unless(array_key_exists($verdict, SpotCheck::VERDICTS), 422);
@@ -58,11 +60,11 @@ new #[Title('抜き取り点検')] class extends Component {
         $ids = $this->checks->pluck('id')->values();
         $next = $ids->get((int) $ids->search($current->id) + 1);
         unset($this->checks, $this->current);
-        // After the last one: back to one not judged yet, or, all judged, to the confirmation.
+        // After the last: an undecided one, else the confirmation.
         $this->check = $next ?? $this->firstUndecided()?->id;
     }
 
-    // Close the day: every document of it judged, the verdicts are final until the day is reopened.
+    // Confirm the day once every document is judged.
     public function confirm(): void
     {
         if ($this->checks->isEmpty() || $this->firstUndecided() !== null || $this->isConfirmed()) {
@@ -76,19 +78,20 @@ new #[Title('抜き取り点検')] class extends Component {
         Flux::toast(variant: 'success', text: __('The spot check of :day is confirmed.', ['day' => $this->day]));
     }
 
-    // Reopen a confirmed day, to change a verdict.
+    // Reopen a confirmed day.
     public function reopen(): void
     {
         SpotCheck::query()->whereDate('drawn_on', $this->day)->update(['confirmed_at' => null, 'confirmed_by' => null]);
         unset($this->checks, $this->current);
     }
 
+    // Whether the day is confirmed.
     private function isConfirmed(): bool
     {
         return $this->checks->isNotEmpty() && $this->checks->first()->confirmed_at !== null;
     }
 
-    // The previous (-1) or next (+1) document of the day; past the last one, the confirmation.
+    // Move to the previous (-1) or next (+1) document; past the last, the confirmation.
     public function move(int $step): void
     {
         $ids = $this->checks->pluck('id')->values();
@@ -98,18 +101,21 @@ new #[Title('抜き取り点検')] class extends Component {
         unset($this->current);
     }
 
+    // Show one document of the draw.
     public function show(int $id): void
     {
         $this->check = $id;
         unset($this->current);
     }
 
+    // Open the chosen day.
     public function updatedDay(): void
     {
         unset($this->checks, $this->current);
         $this->check = $this->isConfirmed() ? null : $this->firstUndecided()?->id;
     }
 
+    // The first document of the day without a verdict.
     private function firstUndecided(): ?SpotCheck
     {
         return $this->checks->first(fn (SpotCheck $check): bool => $check->verdict === null);
@@ -122,6 +128,7 @@ new #[Title('抜き取り点検')] class extends Component {
         return SpotCheck::query()->whereDate('drawn_on', $this->day)->with('document.source')->orderBy('id')->get();
     }
 
+    // The spot check in view.
     #[Computed]
     public function current(): ?SpotCheck
     {
@@ -136,7 +143,7 @@ new #[Title('抜き取り点検')] class extends Component {
     }
 
     /**
-     * 結果の数字: what the confirmed days say about the semantic filter.
+     * 結果の数字 of the confirmed days.
      *
      * @return array<string, mixed>
      */
@@ -146,7 +153,7 @@ new #[Title('抜き取り点検')] class extends Component {
         return app(SpotCheckFigures::class)();
     }
 
-    // Poll while a translation is still on its way.
+    // Polled while translations are pending.
     public function refreshChecks(): void
     {
         unset($this->checks, $this->current);
@@ -208,7 +215,7 @@ new #[Title('抜き取り点検')] class extends Component {
                 @endforeach
                 <flux:button size="sm" icon="chevron-right" wire:click="move(1)" :aria-label="__('Next')" />
             </div>
-            {{-- The likeness only once judged, so it cannot sway the verdict. --}}
+            {{-- The likeness, shown only once judged. --}}
             @if ($current->verdict !== null)
                 <flux:text size="sm" class="text-neutral-500">
                     {{ __('The semantic filter, when drawn: likeness :likeness against a threshold of :threshold, :result.', ['likeness' => sprintf('%+.3f', $current->likeness), 'threshold' => sprintf('%+.2f', $current->threshold), 'result' => $current->let_through ? __('let through') : __('left out')]) }}
@@ -217,7 +224,7 @@ new #[Title('抜き取り点検')] class extends Component {
             <flux:text size="sm" class="text-neutral-500">{{ __('Keys: 4 like, 5 cannot tell, 6 unlike; ← → to move.') }}</flux:text>
         </div>
     @elseif ($this->checks->isNotEmpty())
-        {{-- Every one judged: the day is to be confirmed, or is confirmed. --}}
+        {{-- All judged: confirm, or confirmed. --}}
         @php($first = $this->checks->first())
         <div class="space-y-4 rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
             <flux:heading size="lg">{{ $first->confirmed_at !== null ? __('The spot check of this day is confirmed') : __('Every document of this day is judged') }}</flux:heading>
@@ -237,7 +244,7 @@ new #[Title('抜き取り点検')] class extends Component {
         <flux:text class="text-neutral-500">{{ __('Nothing drawn for this day yet.') }}</flux:text>
     @endif
 
-    {{-- The day's draw at a glance: pick one to look at it again. --}}
+    {{-- The day's draw; pick one to revisit. --}}
     @if ($this->checks->isNotEmpty())
         <div class="divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-700 dark:border-neutral-700">
             @foreach ($this->checks as $check)
@@ -249,7 +256,7 @@ new #[Title('抜き取り点検')] class extends Component {
         </div>
     @endif
 
-    {{-- 結果の数字: the confirmed days only, every drawn document weighted by the documents of its stratum it stands for. --}}
+    {{-- 結果の数字 --}}
     @php($figures = $this->figures)
     @php($percent = fn (?float $share): string => $share === null ? '—' : number_format(100 * $share, 0).'%')
     <div class="space-y-4 rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">

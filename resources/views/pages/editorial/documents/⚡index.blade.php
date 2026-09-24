@@ -17,20 +17,21 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 
-// 文書 (Documents): the content filtering of the editorial policy (the developer prompt and the model of the スクリーニング, the LLM gate that reads the fetched documents and decides 採用 / 不採用 / 要確認; the title filter is on 情報源), with the figures of the screenings run so far, and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format, fetched time and decision, each with its state (fetched / fetching / failed / excluded by the title filter).
+// 文書 (Documents): the semantic filter, the content filtering and the list of documents.
 new #[Title('文書')] class extends PagedList {
-    /** The embedding model of the semantic filter (UI 埋め込みモデル), one of EditorialPolicy::EMBEDDING_MODELS. */
+    /** UI: 埋め込みモデル */
     public string $semanticFilterModel = EditorialPolicy::DEFAULT_EMBEDDING_MODEL;
 
-    /** The threshold of likeness (UI 閾値): below it a document goes no further. */
+    /** UI: 閾値 (likeness) */
     public string $semanticFilterThreshold = '';
 
-    // Content filtering: the developer prompt (OpenAI's name for the system prompt) of the screening gate.
+    // The developer prompt of the screening (UI: コンテンツフィルタリング).
     public string $contentFiltering = '';
 
-    /** The model of the first pass (UI: 初回判定モデル), one of EditorialPolicy::screeningModels(). */
+    /** UI: 初回判定モデル */
     public string $contentFilteringModel = EditorialPolicy::DEFAULT_MODEL;
 
+    // Load the policy settings.
     public function mount(): void
     {
         $filter = EditorialPolicy::semanticFilter();
@@ -40,6 +41,7 @@ new #[Title('文書')] class extends PagedList {
         $this->contentFilteringModel = EditorialPolicy::modelFor('content_filtering');
     }
 
+    // Save the content filtering prompt and model.
     public function saveContentFiltering(): void
     {
         $this->validate(['contentFilteringModel' => EditorialPolicy::modelRule(EditorialPolicy::screeningModels())]);
@@ -48,7 +50,7 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Saved, the model and the threshold are applied again to every document already embedded (the definitions are on a screen of each side).
+    // Save the model and threshold, and measure the embedded documents again.
     public function saveSemanticFilter(MeasureLikeness $measure): void
     {
         $this->validate([
@@ -62,7 +64,7 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));
     }
 
-    // Measure every fetched document the semantic filter has not measured yet; the ones at or above the threshold go on to the screening.
+    // Queue the semantic filter for the fetched documents not measured yet.
     public function applySemanticFilter(): void
     {
         $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('likeness')->get();
@@ -72,8 +74,7 @@ new #[Title('文書')] class extends PagedList {
     }
 
     /**
-     * How the semantic filter stands: documents measured, how many fall
-     * below the threshold, and the examples a person marked.
+     * Counts of the semantic filter: measured, below, examples, definitions.
      *
      * @return array{measured: int, below: int, like: int, unlike: int, like_definitions: int, unlike_definitions: int}
      */
@@ -91,7 +92,7 @@ new #[Title('文書')] class extends PagedList {
         ];
     }
 
-    // The gate: queue the screening of every fetched document that has none yet (an excluded one, or one the semantic filter left out, never gets there).
+    // Queue the screening of the fetched documents not screened yet.
     public function screenDocuments(): void
     {
         $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('latest_screening_id')
@@ -102,7 +103,7 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', text: __(':count documents queued for screening.', ['count' => $documents->count()]));
     }
 
-    // A changed prompt can rescue a document it would now adopt: queue again every reject an older version of the prompt decided.
+    // Screen again the rejects decided by an older prompt version.
     public function rescreenRejected(): void
     {
         $prompt = Prompt::forLayer('content_filtering');
@@ -125,7 +126,7 @@ new #[Title('文書')] class extends PagedList {
         return app(ScreeningFigures::class)();
     }
 
-    /** The sortable columns (UI 情報源／タイトル / 公開日 / 形式 / 取得日時) and the SQL each one orders by; the source's documents are ordered by title within it. */
+    /** The sortable columns and the SQL each orders by. */
     public const SORTS = ['source' => 'sources.name', 'published_at' => 'published_at', 'format' => 'format', 'fetched_at' => 'fetched_at'];
 
     #[Url]
@@ -134,7 +135,7 @@ new #[Title('文書')] class extends PagedList {
     #[Url]
     public string $direction = 'desc';
 
-    // The filters, kept in the URL like the page size; an empty value means "any".
+    // Filters, kept in the URL; empty means any.
     #[Url]
     public string $source = '';
 
@@ -153,31 +154,30 @@ new #[Title('文書')] class extends PagedList {
     #[Url]
     public string $fetchedTo = '';
 
-    /** The decision that stands (UI 判定): a person's, else the latest screening's: adopt / reject / review, or none for the documents nobody has decided. */
+    /** UI: 判定 — adopt / reject / review, or none */
     #[Url]
     public string $decision = '';
 
-    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Document> */
+    /** @return \Illuminate\Contracts\Pagination\LengthAwarePaginator<int, Document> the filtered, sorted page */
     #[Computed]
     public function documents()
     {
         $sort = array_key_exists($this->sort, self::SORTS) ? $this->sort : 'fetched_at';
         $direction = $this->direction === 'asc' ? 'asc' : 'desc';
 
-        // Every listed document, whatever its state; the source's name is ordered through the sources table, and id breaks ties so pages never overlap.
+        // Every document, whatever its state; id breaks ties.
         return Document::query()->with('source', 'material', 'latestScreening')
             ->when($sort === 'source', fn ($query) => $query->join('sources', 'sources.id', '=', 'documents.source_id')->select('documents.*'))
             ->when($this->source !== '', fn ($query) => $query->where('documents.source_id', $this->source))
             ->when($this->format !== '', fn ($query) => $query->where('format', $this->format))
             ->when($this->publishedFrom !== '', fn ($query) => $query->whereDate('published_at', '>=', $this->publishedFrom))
             ->when($this->publishedTo !== '', fn ($query) => $query->whereDate('published_at', '<=', $this->publishedTo))
-            // The fetched time is stored in UTC and filtered by days of the display timezone.
+            // Fetched days are in the display timezone.
             ->when($this->fetchedFrom !== '', fn ($query) => $query->where('fetched_at', '>=', $this->displayDay($this->fetchedFrom)))
             ->when($this->fetchedTo !== '', fn ($query) => $query->where('fetched_at', '<', $this->displayDay($this->fetchedTo)->addDay()))
-            // The decision that stands: a person's, else the latest screening's.
             ->when($this->decision === 'none', fn ($query) => $query->undecided())
             ->when(in_array($this->decision, Screening::DECISIONS, true), fn ($query) => $query->decidedAs($this->decision))
-            // A document without a date goes last either way rather than heading the list (PostgreSQL puts nulls first in descending order).
+            // Nulls last in either direction.
             ->orderByRaw(self::SORTS[$sort].' '.$direction.' NULLS LAST')
             ->when($sort === 'source', fn ($query) => $query->orderBy('documents.title', $direction))
             ->orderBy('documents.id', $direction)
@@ -197,7 +197,7 @@ new #[Title('文書')] class extends PagedList {
         return CarbonImmutable::parse($date, (string) config('app.display_timezone'))->startOfDay()->utc();
     }
 
-    // Clicking a heading sorts by it; clicking it again turns the order round.
+    // Sort by a column; again reverses the order.
     public function sortBy(string $column): void
     {
         $this->direction = $this->sort === $column && $this->direction === 'desc' ? 'asc' : 'desc';
@@ -205,7 +205,7 @@ new #[Title('文書')] class extends PagedList {
         $this->resetPage();
     }
 
-    // 言語: a person sets right the language a document was guessed to be in; it decides which languages its article is published in.
+    // Correct a document's language (UI: 言語).
     public function setLanguage(int $documentId, string $language): void
     {
         abort_unless(in_array($language, \App\Enums\Language::codes(), true), 422);
@@ -213,7 +213,7 @@ new #[Title('文書')] class extends PagedList {
         unset($this->documents);
     }
 
-    // A changed filter starts again from the first page.
+    // Back to the first page when a filter changes.
     public function updated(string $property): void
     {
         if (in_array($property, ['source', 'publishedFrom', 'publishedTo', 'format', 'fetchedFrom', 'fetchedTo', 'decision'], true)) {
@@ -226,11 +226,11 @@ new #[Title('文書')] class extends PagedList {
 <section class="w-full space-y-6" @if ($this->documents->contains('status', 'fetching') || $this->documents->contains(fn ($document) => $document->latestScreening?->status === 'screening')) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
 
-    {{-- The semantic filter comes before the content filtering: an embedding set against definitions of what is and is not like this media, cheap enough for every document. --}}
+    {{-- 意味フィルタ --}}
     <form wire:submit="saveSemanticFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Semantic filter') }}</flux:heading>
         <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions and the examples of each side. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
-        {{-- The two sides are set on screens of their own: what this media is like, and what it is not like. --}}
+        {{-- Links to the らしい / らしくない screens. --}}
         <div class="grid gap-3 sm:grid-cols-2">
             @foreach (\App\Models\SemanticFilterExample::SIDES as $side => $label)
                 <a href="{{ route('editorial.semantic-filter.show', $side) }}" class="rounded-lg border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800" wire:navigate>
@@ -250,7 +250,7 @@ new #[Title('文書')] class extends PagedList {
         </div>
     </form>
 
-    {{-- Content filtering sits with the documents because it judges what was fetched: the criteria an LLM reads a document by. --}}
+    {{-- コンテンツフィルタリング --}}
     <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
         <flux:text>{{ __('The developer prompt and the model of the screening: an LLM reads a fetched document and decides whether it goes on to the material (adopt), stops here (reject) or needs a look (review). The prompt is the same for every document and is served from the cache; a changed prompt is a new version, and the figures below are kept per version. The title filter, applied before fetching, is on the Sources screen.') }}</flux:text>
@@ -263,7 +263,7 @@ new #[Title('文書')] class extends PagedList {
             <flux:button type="button" wire:click="rescreenRejected" icon="arrow-path" wire:confirm="{{ __('Screen again every document an older version of the prompt rejected? Each one is one call to the model.') }}">{{ __('Judge the rejected documents again') }}</flux:button>
         </div>
 
-        {{-- The figures per prompt version, and the reason classes counted. --}}
+        {{-- Screening figures per prompt version. --}}
         @if ($this->screeningFigures['versions'] !== [])
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
@@ -291,7 +291,7 @@ new #[Title('文書')] class extends PagedList {
                     </tbody>
                 </table>
             </div>
-            {{-- The reason classes, as the latest screening of each document named them. --}}
+            {{-- Reason classes of the latest screenings. --}}
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead class="text-neutral-500">
@@ -317,7 +317,6 @@ new #[Title('文書')] class extends PagedList {
         @endif
     </form>
 
-    {{-- The filters: one per sortable column, applied as soon as they change. --}}
     <div class="flex flex-wrap items-end gap-3">
         <flux:select wire:model.live="source" :label="__('Source')" size="sm" class="w-64!">
             <flux:select.option value="">{{ __('All') }}</flux:select.option>
@@ -344,7 +343,7 @@ new #[Title('文書')] class extends PagedList {
         </flux:select>
     </div>
 
-    {{-- Two rows per document: the title on its own line (whole, it has the width now), the rest beneath it, so the table is not cramped. --}}
+    {{-- Two rows per document: the title, then the details. --}}
     <x-pages::table
         :columns="[['label' => __('Source / Title'), 'sort' => 'source'], ['label' => __('Published on'), 'sort' => 'published_at'], __('Status'), __('Decision'), __('Language'), ['label' => __('Format'), 'sort' => 'format'], ['label' => __('Fetched at'), 'sort' => 'fetched_at'], __('Material')]"
         :sort="$sort" :direction="$direction" :empty="$this->documents->isEmpty()">

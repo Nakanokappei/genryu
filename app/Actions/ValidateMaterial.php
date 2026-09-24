@@ -3,15 +3,8 @@
 namespace App\Actions;
 
 /**
- * The checks a material goes through before it is kept. A material is
- * the parts of an article, so the three an article cannot be written
- * without have to be there: the angle it is written on, the change it
- * reports, and the facts the primary source gives. The rest may be
- * absent — a document that says nothing about what came before leaves
- * `before` out rather than guessing. Whether the angle is a good one is
- * a person's call (人の判定), never a validator's. Each problem is one
- * line the agent can act on, and the repair call is given them as they
- * are.
+ * Checks a material has the required parts and nothing but parts; each
+ * problem is one line handed to the repair call.
  */
 class ValidateMaterial
 {
@@ -28,11 +21,12 @@ class ValidateMaterial
     {
         $errors = [];
 
+        // Required parts missing.
         foreach (array_diff(self::REQUIRED, array_keys($material)) as $missing) {
             $errors[] = "{$missing}: missing; an article cannot be written without it";
         }
 
-        // Nothing but the parts: a material carries no notes on itself.
+        // Keys that are not parts.
         foreach (array_diff(array_keys($material), ProposeMaterial::PARTS) as $extra) {
             $errors[] = "{$extra}: not one of the parts asked for";
         }

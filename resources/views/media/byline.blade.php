@@ -1,4 +1,4 @@
-{{-- Where an article comes from and when it is out (or is to be). --}}
+{{-- An article's source and publication time. --}}
 @php($media = \App\Http\Controllers\MediaController::class)
 <p class="flex flex-wrap items-center gap-x-2 text-xs text-[#6b665e]">
     <span class="font-semibold tracking-wide text-[#8a2f1d] uppercase">{{ $article->material?->document?->source?->name }}</span>

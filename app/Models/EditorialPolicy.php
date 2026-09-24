@@ -7,20 +7,9 @@ use Illuminate\Support\Once;
 use Illuminate\Validation\Rule;
 
 /**
- * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
- * of text per layer (docs/HANDOVER.md §1). The selection layer (UI:
- * 取捨選択) is two bodies: the title filter (exclude rules that keep a
- * document from being fetched, set on the 情報源 screen) and the content
- * filtering (the developer prompt of the スクリーニング, set on the 文書
- * screen). The prompts are written in English and answer in the language
- * of the document they read; the screens around them are Japanese.
- * The structuring layer is the prompt that turns a document into a
- * material (stage 2.3, set on the 素材情報 screen): the parts an article
- * is made of. The headline layer turns a material into the headline of
- * its article, in the language of its primary source, and judges it; the
- * article layer writes the body under that headline; the translation
- * layer turns the article into the other languages we publish in (stage
- * 2.4). All three are set on the 記事 screen, in that order.
+ * Editorial policy: one body (and model) per layer, each edited on the
+ * screen it governs (title filter on 情報源, content filtering on 文書,
+ * structuring on 素材情報, headline / article / translation on 記事, …).
  */
 class EditorialPolicy extends Model
 {
@@ -39,13 +28,7 @@ class EditorialPolicy extends Model
         'image' => 'Image',
     ];
 
-    /**
-     * What a layer says until someone edits it on the screen: nothing.
-     * Prompts are assets and never go into the repository (decided
-     * 2026-09-25, the repository is public); they live in the database
-     * and are copied to and from prompts/, kept out of Git, by
-     * prompts:export and prompts:import.
-     */
+    /** Every layer is empty until edited: prompts live in the database only. */
     public const DEFAULTS = [
         'title_filter' => '',
         'semantic_like' => '',
@@ -59,13 +42,7 @@ class EditorialPolicy extends Model
         'translation' => '',
     ];
 
-    /**
-     * The models the content filtering can run on (UI: 初回判定モデル), by the id
-     * the API takes, weakest first: the name shown, and what each one is
-     * for. A document the screening sends to review (要確認) is judged
-     * again by the next model up, so the strongest cannot be the model
-     * of the screening itself.
-     */
+    /** The text models by API id, weakest first, with name and description (UI 初回判定モデル). */
     public const TEXT_MODELS = [
         'gpt-5.6-luna' => ['name' => 'GPT-5.6 Luna', 'description' => 'For bulk work where cost matters most'],
         'gpt-5.6-terra' => ['name' => 'GPT-5.6 Terra', 'description' => 'A balance of judgement and cost'],
@@ -73,10 +50,7 @@ class EditorialPolicy extends Model
         'gpt-6-astra' => ['name' => 'GPT-6 Astra', 'description' => 'For work that needs especially hard reasoning'],
     ];
 
-    /**
-     * The models that draw a top image (UI 画像モデル), by the id the Images
-     * API takes: the name shown and what each one is for.
-     */
+    /** The image models by API id (UI 画像モデル). */
     public const IMAGE_MODELS = [
         'gpt-image-2.5-flare' => ['name' => 'GPT Image 2.5 Flare', 'description' => 'Fast, high-quality everyday image generation'],
         'gpt-image-2.5-sunburst' => ['name' => 'GPT Image 2.5 Sunburst', 'description' => 'The most capable, where precision matters most'],
@@ -85,12 +59,11 @@ class EditorialPolicy extends Model
     /** The image model until one is chosen. */
     public const DEFAULT_IMAGE_MODEL = 'gpt-image-2.5-flare';
 
-    /** The model the content filtering runs on until one is chosen. */
+    /** The text model until one is chosen. */
     public const DEFAULT_MODEL = 'gpt-5.6-terra';
 
     /**
-     * The models that can be chosen for the screening: all but the
-     * strongest, which is kept for reviewing.
+     * The models the screening can run on: all but the strongest, kept for the second pass.
      *
      * @return list<string>
      */
@@ -110,10 +83,7 @@ class EditorialPolicy extends Model
         return ['required', Rule::in(array_is_list($models) ? $models : array_keys($models))];
     }
 
-    /**
-     * The model one up from a model, for judging again a document the
-     * screening sent to review; the strongest model is its own next.
-     */
+    /** The next model up for the second pass (the strongest stays itself). */
     public static function nextModelUp(string $model): string
     {
         $ids = array_keys(self::TEXT_MODELS);
@@ -122,12 +92,7 @@ class EditorialPolicy extends Model
         return $ids[min(count($ids) - 1, ($index === false ? 0 : $index) + 1)];
     }
 
-    /**
-     * The embedding models the semantic filter can run on (UI 埋め込みモデル),
-     * by the id the Embeddings API takes. Likeness from one model is not
-     * comparable with another's: a changed model embeds every document
-     * again, and the threshold wants looking at.
-     */
+    /** The embedding models by API id (UI 埋め込みモデル); likeness is not comparable across them. */
     public const EMBEDDING_MODELS = [
         'text-embedding-3-large' => ['name' => 'text-embedding-3-large', 'description' => 'Finer distinctions, at a few cents a day for arXiv'],
         'text-embedding-3-small' => ['name' => 'text-embedding-3-small', 'description' => 'Cheaper, coarser'],
@@ -136,34 +101,25 @@ class EditorialPolicy extends Model
     /** The embedding model until one is chosen. */
     public const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-large';
 
-    /**
-     * The threshold of likeness (UI 閾値) until one is chosen: set on
-     * 2026-09-24 from 600 arXiv papers, where below +0.10 few primary
-     * sources were worth reading.
-     */
+    /** 閾値 of likeness until one is chosen. */
     public const DEFAULT_THRESHOLD = 0.10;
 
     protected $fillable = ['layer', 'body', 'model', 'image_model', 'threshold'];
 
-    /**
-     * The threshold of likeness, read once per request: every row of a
-     * list of documents asks for it. A saved policy forgets it.
-     */
+    /** The likeness threshold, memoised per request (a save flushes it). */
     public static function likenessThreshold(): float
     {
         return once(fn (): float => self::semanticFilter()['threshold']);
     }
 
+    /** Flushes memoised values on save. */
     protected static function booted(): void
     {
         static::saved(fn () => Once::flush());
     }
 
     /**
-     * The semantic filter as set (or the defaults): its definitions, one
-     * per line on a screen of each side (layers semantic_like, UI らしい,
-     * and semantic_unlike, UI らしくない), and the embedding model and the
-     * threshold of likeness set on 文書 (layer semantic_filter).
+     * The semantic filter: the definitions of both sides (one per line), its model and threshold.
      *
      * @return array{definitions: list<array{side: string, text: string}>, model: string, threshold: float}
      */
@@ -172,6 +128,7 @@ class EditorialPolicy extends Model
         $policy = static::query()->where('layer', 'semantic_filter')->first();
         $definitions = [];
 
+        // Every non-blank line of each side is a definition.
         foreach (array_keys(SemanticFilterExample::SIDES) as $side) {
             foreach (preg_split('/\R/u', self::bodyFor(SemanticFilterExample::layerOf($side))) ?: [] as $line) {
                 if (trim($line) !== '') {
@@ -187,33 +144,26 @@ class EditorialPolicy extends Model
         ];
     }
 
-    /** The model that draws the top images: what was chosen on 画像, or the default. */
+    /** The image model chosen on 画像, or the default. */
     public static function imageModel(): string
     {
         return (string) (static::query()->where('layer', 'image')->value('image_model') ?? self::DEFAULT_IMAGE_MODEL);
     }
 
-    /**
-     * The model a layer runs on: what was chosen, or the default.
-     */
+    /** A layer's model, or the default. */
     public static function modelFor(string $layer): string
     {
         return (string) (static::query()->where('layer', $layer)->value('model') ?? self::DEFAULT_MODEL);
     }
 
-    /**
-     * The body of a layer: what was saved, or the default until then.
-     */
+    /** A layer's body, or the default. */
     public static function bodyFor(string $layer): string
     {
         return (string) (static::query()->where('layer', $layer)->value('body') ?? self::DEFAULTS[$layer] ?? '');
     }
 
     /**
-     * The exclude keywords (UI: "Exclude keywords"): one rule per line; a
-     * line of several words separated by semicolons is one rule that
-     * needs all of them in the title (掲載 alone would take real news
-     * with it, 寄稿; 掲載 does not).
+     * The title filter's rules (UI "Exclude keywords"): one per line, words separated by semicolons all required.
      *
      * @return list<list<string>> each rule's words
      */
@@ -221,6 +171,7 @@ class EditorialPolicy extends Model
     {
         $rules = [];
 
+        // Each non-empty line becomes a rule of its words.
         foreach (preg_split('/\R/u', self::bodyFor('title_filter')) ?: [] as $line) {
             $words = array_values(array_filter(array_map(trim(...), preg_split('/[;；]/u', $line) ?: []), fn (string $word): bool => $word !== ''));
 
@@ -233,15 +184,13 @@ class EditorialPolicy extends Model
     }
 
     /**
-     * The first exclude rule whose words a document's title all contains
-     * (case does not matter), written as "word; word", or null when the
-     * document is to be fetched. The rules are read from the policy
-     * unless given (a caller going through many titles reads them once).
+     * The first rule whose words are all in the title, as "word; word", or null.
      *
      * @param  list<list<string>>|null  $rules
      */
     public static function excludedBy(string $title, ?array $rules = null): ?string
     {
+        // First rule that matches every word wins.
         foreach ($rules ?? self::excludeKeywords() as $words) {
             if (array_all($words, fn (string $word): bool => preg_match(self::wordPattern($word), $title) === 1)) {
                 return implode('; ', $words);
@@ -251,14 +200,7 @@ class EditorialPolicy extends Model
         return null;
     }
 
-    /**
-     * A keyword as a whole word: serving must not be found in observing,
-     * nor LLM in LLMs. A trailing * lets the word go on (memoriz* for
-     * memorize and memorization, LLM* for LLMs). A keyword that begins
-     * or ends in Chinese, Japanese or Korean has no word boundary on that
-     * side, since those scripts write words without spaces (掲載 is in
-     * 掲載されました).
-     */
+    /** A keyword as a whole-word regex; a trailing * allows a suffix, and CJK ends get no boundary. */
     private static function wordPattern(string $word): string
     {
         $isPrefix = str_ends_with($word, '*');

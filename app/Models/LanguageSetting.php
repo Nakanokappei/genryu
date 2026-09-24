@@ -6,20 +6,9 @@ use App\Enums\Language;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * 言語設定 (UI: "Language settings"), set at the top of 記事: for each
- * language we publish in, which primary sources get an article in it
- * (coverage: all = すべての一次情報の記事を用意する, own = その言語の一次情報のみ
- * 記事を用意する, none = 記事を作らない), and the additional prompt (言語別の
- * 追加プロンプト) every writer — headline, body and translation — is given
- * when it writes in that language: what belongs to the language, such as
- * だ・である調, rather than to the article. One row per language. The
- * prompts live in the database, never in the repository (see
- * EditorialPolicy::DEFAULTS).
- *
- * An article is written first in the language of its primary source and
- * translated from there, so the original is written whenever any
- * language wants the source, even one that does not publish the original
- * itself; it is then a working copy only.
+ * 言語設定 (UI "Language settings"), one row per language: its coverage
+ * (all / own / none, UI すべての一次情報の記事を用意する / その言語の一次情報のみ
+ * 記事を用意する / 記事を作らない) and 言語別の追加プロンプト (additional_prompt).
  */
 class LanguageSetting extends Model
 {
@@ -33,9 +22,10 @@ class LanguageSetting extends Model
         return (string) (static::query()->where('language', $language)->value('coverage') ?? Language::tryFrom($language)?->defaultCoverage() ?? 'none');
     }
 
-    /** The additional prompt for writing in a language, empty when there is none. */
+    /** A language's additional prompt, or ''. */
     public static function additionalPrompt(?string $language): string
     {
+        // No language, no prompt.
         if ($language === null) {
             return '';
         }
@@ -46,10 +36,7 @@ class LanguageSetting extends Model
     }
 
     /**
-     * The additional prompt for a language as the message a writer is
-     * given after the cached policy and before the fixed instruction —
-     * the order the 記事 screen shows them in — or none when there is no
-     * prompt for that language.
+     * The additional prompt as a developer message (sent between the cached policy and the instruction).
      *
      * @return list<array{role: string, content: string}>
      */
@@ -71,8 +58,7 @@ class LanguageSetting extends Model
     }
 
     /**
-     * The languages an article written in a source's language is
-     * translated into: every other language that takes all sources.
+     * The languages to translate into: every other language whose coverage is all.
      *
      * @return list<string>
      */
@@ -81,7 +67,7 @@ class LanguageSetting extends Model
         return array_values(array_filter(Language::codes(), fn (string $language): bool => $language !== $sourceLanguage && self::coverage($language) === 'all'));
     }
 
-    /** Whether an article is to be written at all for a source in this language: some language wants it. */
+    /** Whether any language wants an article from a source in this language. */
     public static function wantsArticle(?string $sourceLanguage): bool
     {
         return ($sourceLanguage !== null && self::publishes($sourceLanguage, $sourceLanguage)) || self::translationTargets($sourceLanguage) !== [];

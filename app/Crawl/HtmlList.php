@@ -7,27 +7,21 @@ use Dom\HTMLDocument;
 use Illuminate\Support\Str;
 
 /**
- * An update list read from an HTML page with the HTML list settings
- * (UI: "HTML list settings"): CSS selectors for the item, the title link
- * and the date inside an item, and the next-page link.
+ * An update list read from an HTML page with the source's HTML list settings.
  */
 class HtmlList
 {
-    /**
-     * Keys of the HTML list configuration: CSS selectors for the item, the
-     * title link and the date inside an item, the next-page link, and how
-     * many pages one fetch may read.
-     */
+    /** Keys of the HTML list settings: selectors for item, title, date and next page, and the page limit. */
     public const SETTING_KEYS = ['item', 'title', 'date', 'next', 'max_pages'];
 
+    /** Parse an HTML page. */
     public static function document(string $body): HTMLDocument
     {
         return HTMLDocument::createFromString($body, LIBXML_NOERROR | \Dom\HTML_NO_DEFAULT_NS, 'UTF-8');
     }
 
     /**
-     * What HTML list settings would list on a page, for verifying a proposal
-     * before it is saved.
+     * What the settings would list on a page, for verifying a proposal.
      *
      * @param  array<string, mixed>  $config
      * @return list<array{title: string, url: string, published_at: ?string}>
@@ -38,8 +32,7 @@ class HtmlList
     }
 
     /**
-     * Items of an HTML list page per the configuration. An item without a
-     * title link (a header row, say) is skipped.
+     * The entries of a list page; an item without a title link is skipped.
      *
      * @param  array<string, mixed>  $config
      * @return list<array{title: string, url: string, published_at: ?string}>
@@ -48,14 +41,15 @@ class HtmlList
     {
         $entries = [];
 
+        // Each item's title, link and date.
         foreach ($document->querySelectorAll((string) $config['item']) as $item) {
             $titleNode = ($config['title'] ?? '') !== '' ? $item->querySelector((string) $config['title']) : $item;
-            // The title element may be the link, hold the link (a heading with an
-            // anchor) or sit inside it (an anchor wrapping a heading).
+            // The title element may be, hold or sit inside the link.
             $link = $titleNode instanceof Element ? self::anchorOf($titleNode) : null;
             $href = $link instanceof Element ? trim((string) $link->getAttribute('href')) : '';
             $title = $titleNode instanceof Element ? Str::squish($titleNode->textContent) : '';
 
+            // No link or no title: skip.
             if ($href === '' || $title === '') {
                 continue;
             }
@@ -70,8 +64,7 @@ class HtmlList
     }
 
     /**
-     * The URL of the next page of the list, when the settings name a
-     * next-page link and the page has one.
+     * The URL of the next page, when the settings and the page have a next-page link.
      *
      * @param  array<string, mixed>  $config
      */
@@ -82,12 +75,10 @@ class HtmlList
         return $next instanceof Element ? Url::withoutFragment(Url::absolute(trim((string) $next->getAttribute('href')), $pageUrl)) : null;
     }
 
-    /**
-     * The anchor an element stands for: itself, the first anchor inside it,
-     * or the nearest anchor around it.
-     */
+    /** The element itself if a link, else the first link inside it, else the nearest around it. */
     private static function anchorOf(Element $element): ?Element
     {
+        // The element is the link.
         if (strtolower($element->tagName) === 'a' && $element->hasAttribute('href')) {
             return $element;
         }

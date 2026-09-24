@@ -15,16 +15,8 @@ use App\Models\Source;
 use RuntimeException;
 
 /**
- * 更新リストを取得 (UI: "Fetch updates", stage 2.1 of docs/HANDOVER.md).
- *
- * Deterministic. A source with a JSON list configuration is read from
- * that JSON file; one with an HTML list configuration from its HTML
- * list, page by page. Otherwise a feed is looked for in a fixed order:
- * the source URL itself is RSS / Atom; the HTML page advertises one with
- * <link rel="alternate">; a well-known path answers with one. Without
- * any of these there is nothing to read and the user is told so. How
- * each kind of list is read is in App\Crawl; this action chooses one and
- * keeps what it lists.
+ * 更新リストを取得 (UI "Fetch updates"): reads a source's JSON list, HTML
+ * list or feed (App\Crawl) and stores the listed documents. No model.
  */
 class FetchUpdates
 {
@@ -34,6 +26,8 @@ class FetchUpdates
     public function __construct(private FetchFavicon $favicon) {}
 
     /**
+     * Reads the source by its configured kind of list, then refreshes its favicon.
+     *
      * @return array{feed_url: ?string, pages: int, added: int, existing: int}
      */
     public function __invoke(Source $source): array
@@ -48,15 +42,14 @@ class FetchUpdates
             default => $this->fromFeed($source),
         };
 
-        // The icon is taken, or checked for a change with If-Modified-Since, while we are at the site anyway.
+        // Fetch or recheck the favicon while at the site.
         ($this->favicon)($source, $this->pageHtml, checkAgain: true);
 
         return $result;
     }
 
     /**
-     * Read the JSON file the site draws its list from, newest first, up
-     * to max_items entries.
+     * Reads the JSON list, up to max_items entries.
      *
      * @param  array<string, mixed>  $config
      * @return array{feed_url: null, pages: int, added: int, existing: int}
@@ -65,6 +58,7 @@ class FetchUpdates
     {
         $entries = JsonList::entries(Crawler::get((string) $config['url'])->body(), $config, $source->url);
 
+        // Settings match nothing.
         if ($entries === []) {
             throw new RuntimeException(__('The JSON list settings matched nothing.'));
         }
@@ -76,6 +70,8 @@ class FetchUpdates
     }
 
     /**
+     * Discovers the feed from the source page and reads it.
+     *
      * @return array{feed_url: string, pages: int, added: int, existing: int}
      */
     private function fromFeed(Source $source): array
@@ -91,10 +87,7 @@ class FetchUpdates
     }
 
     /**
-     * Read the HTML list page by page. The next page is read only while a
-     * next link exists, the page just read listed something new, and the
-     * page budget is not used up: a routine fetch stops at the first page
-     * that is already known, a first fetch stops at max_pages.
+     * Reads the HTML list page by page, while a page adds something new, up to max_pages.
      *
      * @param  array<string, mixed>  $config
      * @return array{feed_url: null, pages: int, added: int, existing: int}
@@ -107,6 +100,7 @@ class FetchUpdates
         $added = 0;
         $existing = 0;
 
+        // Follow next links until nothing new or the page limit.
         while ($url !== null && $pages < $maxPages) {
             $body = Crawler::get($url)->body();
             $this->pageHtml ??= $body;
@@ -120,6 +114,7 @@ class FetchUpdates
             $url = $counts['added'] > 0 ? HtmlList::nextPage($document, $config, $url) : null;
         }
 
+        // Settings match nothing on the first page.
         if ($pages === 1 && $added + $existing === 0) {
             throw new RuntimeException(__('The HTML list settings matched nothing on this page.'));
         }
@@ -130,17 +125,9 @@ class FetchUpdates
     }
 
     /**
-     * Keep the documents listed; each new one is fetched in the background
-     * (stage 2.2) without anyone asking, unless its title has an exclude
-     * keyword of the editorial policy: it is then listed as 対象外 with the
-     * keyword, and not fetched. A document another source has listed
-     * already is not listed again (arXiv: a paper announced in two of the
-     * categories we read, one source each), and counts as existing. A
-     * source with a link to the full text
-     * (全文へのリンク) whose feed gives a summary is not fetched either: the
-     * summary is the document until it is adopted (format feed), and it
-     * goes straight to the semantic filter, which passes it on to the
-     * screening or leaves it out.
+     * Stores the listed entries and queues each new document: 対象外 by the
+     * title filter, the semantic filter for a feed summary (全文へのリンク),
+     * otherwise a fetch.
      *
      * @param  list<array{title: string, url: string, published_at: ?string, summary?: string}>  $entries
      * @return array{added: int, existing: int}
@@ -153,6 +140,7 @@ class FetchUpdates
         $rules = EditorialPolicy::excludeKeywords();
 
         foreach ($entries as $entry) {
+            // Listed by another source already: counts as existing.
             if (Document::query()->where('url', $entry['url'])->where('source_id', '!=', $source->id)->exists()) {
                 $existing++;
 
@@ -171,6 +159,7 @@ class FetchUpdates
                 ],
             );
 
+            // New: queue its next step.
             if ($created->wasRecentlyCreated) {
                 $added++;
 

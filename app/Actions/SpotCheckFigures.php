@@ -7,22 +7,18 @@ use App\Models\SpotCheck;
 use Illuminate\Support\Collection;
 
 /**
- * 結果の数字 (UI: "Figures") of 抜き取り点検: what a person's verdicts on the
- * drawn documents say about the semantic filter, from the confirmed days
- * only. Every drawn document stands for as many documents of its day as
- * its stratum's weight (App\Actions\DrawSpotCheck), so rates are worked
- * out over the whole day, not over the draw, which over-samples what
- * passed and what fell just below the line. A verdict of 分からない is
- * left out of every rate. The likeness, the threshold and the outcome
- * are the ones kept when the document was drawn, before any verdict
- * could teach the filter.
+ * 結果の数字 of 抜き取り点検 (UI "Spot check"): rates of the semantic filter
+ * from confirmed days, each check weighted by its stratum; cannot_tell
+ * (分からない) is left out; likeness and outcome are as drawn.
  */
 class SpotCheckFigures
 {
-    /** The thresholds the table looks at, lowest first. */
+    /** Thresholds in the table, lowest first. */
     public const THRESHOLDS = [-0.05, 0.0, 0.05, 0.10, 0.15, 0.20];
 
     /**
+     * Computes the figures.
+     *
      * @return array{days: int, checks: int, judged: int, strata: list<array{stratum: string, drawn: int, like: int, cannot_tell: int, unlike: int, agreed: ?float}>, missed_like: ?float, let_through_unlike: ?float, thresholds: list<array{threshold: float, let_through_per_day: float, like_kept: ?float}>}
      */
     public function __invoke(): array
@@ -42,7 +38,7 @@ class SpotCheckFigures
             'let_through_unlike' => self::share($judged->where('let_through', true), fn (SpotCheck $check): bool => $check->verdict === 'unlike'),
             'thresholds' => array_map(fn (float $threshold): array => [
                 'threshold' => $threshold,
-                // Every document of the day at or above the line, estimated from the weights, per day.
+                // Estimated documents per day at or above the threshold.
                 'let_through_per_day' => $days === 0 ? 0.0 : (float) ($checks->filter(fn (SpotCheck $check): bool => $check->likeness >= $threshold)->sum('weight') / $days),
                 'like_kept' => self::share($judged->where('verdict', 'like'), fn (SpotCheck $check): bool => $check->likeness >= $threshold),
             ], self::THRESHOLDS),
@@ -50,7 +46,7 @@ class SpotCheckFigures
     }
 
     /**
-     * One stratum as drawn: the verdicts, and how often the filter's outcome agreed with a person who could tell.
+     * One stratum's verdicts and the filter's agreement with them.
      *
      * @param  Collection<int, SpotCheck>  $checks
      * @return array{stratum: string, drawn: int, like: int, cannot_tell: int, unlike: int, agreed: ?float}
@@ -70,7 +66,7 @@ class SpotCheckFigures
     }
 
     /**
-     * The weighted share of some checks that meet a test, or null when there are none to share.
+     * The weighted share of checks passing $test, or null when there are none.
      *
      * @param  Collection<int, SpotCheck>  $checks
      * @param  callable(SpotCheck): bool  $test
