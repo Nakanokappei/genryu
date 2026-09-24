@@ -10,7 +10,9 @@ use Illuminate\Database\Eloquent\Model;
  * the last one round midnight to the first; an article's top image is
  * drawn in the style of the band its slot falls in, so the five articles
  * of a day look like the hours they go out at rather than like one
- * another. Decided 2026-09-23. One row per band; the defaults stand until
+ * another. Decided 2026-09-23; on 2026-09-25 the pop art moved from
+ * お昼休み前 to お昼休み中, お昼休み前 became machines with no people, and the
+ * picture book was dropped. One row per band; the defaults stand until
  * the screen saves them.
  */
 class ImageStyle extends Model

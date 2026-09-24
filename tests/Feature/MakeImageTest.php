@@ -69,7 +69,7 @@ it('draws the top image of a scheduled article in the style of its hour', functi
         ->and($image->time)->toBe('12:00')
         ->and($image->band)->toBe('lunch_break')
         ->and($image->scene)->toBe('A family eats lunch beside a quiet chemical plant.')
-        ->and($image->image_prompt)->toContain('Picture-book illustration')->toContain(DrawImage::NEVER)
+        ->and($image->image_prompt)->toContain('Pop art')->toContain(DrawImage::NEVER)
         ->and($image->estimated_total_cost)->toBeGreaterThan(0.0);
     Storage::disk('local')->assertExists($image->path);
     expect($article->refresh())->toMatchArray(['image_path' => $image->path, 'image_time' => '12:00'])
@@ -78,7 +78,7 @@ it('draws the top image of a scheduled article in the style of its hour', functi
     // The writer is told the hour's style and given what could change, never the source's figures.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
         && $request['input'][0]['content'][0]['text'] === IMAGE_POLICY
-        && str_contains($request['input'][2]['content'], 'Picture-book illustration')
+        && str_contains($request['input'][2]['content'], 'Pop art')
         && str_contains($request['input'][2]['content'], '千葉のコンビナート')
         && ! str_contains($request['input'][2]['content'], 'fig1.jpg'));
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/images/generations')

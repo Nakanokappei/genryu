@@ -278,7 +278,8 @@ The history under `docs/` (Phase 0) keeps the old name.
   passes for a photograph). **The style changes with the hour, not the
   score** (decided 2026-09-23: a score-linked look would tell readers
   which articles we rated lower): seven bands (`ImageStyle`: 始業前 06:00
-  graphic, お昼休み前 pop, お昼休み中 picture book, 午後 realist painting,
+  graphic, お昼休み前 machines with no people, お昼休み中 pop (moved from
+  お昼休み前 on 2026-09-25, the picture book dropped), 午後 realist painting,
   終業前 abstract, 終業後 retro, 深夜帯 anime), edited on the screen. One
   image serves every language, which go out at the same local time; the
   article keeps the time it was made for (`image_time`), so a slot moved
