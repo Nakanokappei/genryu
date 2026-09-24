@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\DrawSpotCheck;
+use App\Actions\SpotCheckFigures;
 use App\Models\SpotCheck;
 use Carbon\CarbonImmutable;
 use Flux\Flux;
@@ -69,7 +70,7 @@ new #[Title('抜き取り点検')] class extends Component {
         }
 
         SpotCheck::query()->whereDate('drawn_on', $this->day)->update(['confirmed_at' => now(), 'confirmed_by' => auth()->id()]);
-        unset($this->checks, $this->current);
+        unset($this->checks, $this->current, $this->figures);
         $this->check = null;
 
         Flux::toast(variant: 'success', text: __('The spot check of :day is confirmed.', ['day' => $this->day]));
@@ -132,6 +133,17 @@ new #[Title('抜き取り点検')] class extends Component {
     public function days(): array
     {
         return SpotCheck::query()->select('drawn_on')->distinct()->orderByDesc('drawn_on')->pluck('drawn_on')->map(fn ($day): string => CarbonImmutable::parse($day)->toDateString())->all();
+    }
+
+    /**
+     * 結果の数字: what the confirmed days say about the semantic filter.
+     *
+     * @return array<string, mixed>
+     */
+    #[Computed]
+    public function figures(): array
+    {
+        return app(SpotCheckFigures::class)();
     }
 
     // Poll while a translation is still on its way.
@@ -236,4 +248,63 @@ new #[Title('抜き取り点検')] class extends Component {
             @endforeach
         </div>
     @endif
+
+    {{-- 結果の数字: the confirmed days only, every drawn document weighted by the documents of its stratum it stands for. --}}
+    @php($figures = $this->figures)
+    @php($percent = fn (?float $share): string => $share === null ? '—' : number_format(100 * $share, 0).'%')
+    <div class="space-y-4 rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Figures (confirmed days)') }}</flux:heading>
+        <flux:text>{{ __(':days days confirmed, :checks documents drawn, :judged judged like or unlike (cannot tell is left out). Each document stands for the documents of its stratum that day, so the rates are for the whole day, not the draw.', ['days' => $figures['days'], 'checks' => $figures['checks'], 'judged' => $figures['judged']]) }}</flux:text>
+        @if ($figures['checks'] > 0)
+            <div class="grid gap-3 sm:grid-cols-2">
+                <div class="rounded-lg bg-neutral-50 p-4 dark:bg-neutral-800">
+                    <div class="text-sm text-neutral-500">{{ __('Like this media, but left out') }}</div>
+                    <div class="text-3xl font-semibold">{{ $percent($figures['missed_like']) }}</div>
+                    <div class="text-xs text-neutral-500">{{ __('Of the documents like this media, the share the filter left out: what never reaches an article.') }}</div>
+                </div>
+                <div class="rounded-lg bg-neutral-50 p-4 dark:bg-neutral-800">
+                    <div class="text-sm text-neutral-500">{{ __('Unlike this media, but let through') }}</div>
+                    <div class="text-3xl font-semibold">{{ $percent($figures['passed_unlike']) }}</div>
+                    <div class="text-xs text-neutral-500">{{ __('Of the documents the filter let through, the share unlike this media: what the screening pays for.') }}</div>
+                </div>
+            </div>
+
+            <table class="w-full text-left text-sm">
+                <thead class="text-neutral-500">
+                    <tr>@foreach ([__('Stratum'), __('Drawn'), __('Like this media'), __('Cannot tell'), __('Unlike this media'), __('Agreed with the filter')] as $column)<th class="px-2 py-1 font-medium">{{ $column }}</th>@endforeach</tr>
+                </thead>
+                <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                    @foreach ($figures['strata'] as $row)
+                        <tr>
+                            <td class="px-2 py-1">{{ ['passed' => __('Passed'), 'near' => __('Just below the threshold'), 'far' => __('Far below')][$row['stratum']] }}</td>
+                            <td class="px-2 py-1">{{ $row['drawn'] }}</td>
+                            <td class="px-2 py-1">{{ $row['like'] }}</td>
+                            <td class="px-2 py-1">{{ $row['unsure'] }}</td>
+                            <td class="px-2 py-1">{{ $row['unlike'] }}</td>
+                            <td class="px-2 py-1">{{ $percent($row['agreed']) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+
+            <div>
+                <flux:heading>{{ __('If the threshold were…') }}</flux:heading>
+                <table class="mt-2 w-full text-left text-sm">
+                    <thead class="text-neutral-500">
+                        <tr>@foreach ([__('Threshold'), __('Let through a day'), __('Of the documents like this media, kept')] as $column)<th class="px-2 py-1 font-medium">{{ $column }}</th>@endforeach</tr>
+                    </thead>
+                    <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
+                        @foreach ($figures['thresholds'] as $row)
+                            <tr class="{{ abs($row['threshold'] - \App\Models\EditorialPolicy::likenessThreshold()) < 0.0001 ? 'font-semibold' : '' }}">
+                                <td class="px-2 py-1">{{ sprintf('%+.2f', $row['threshold']) }}@if (abs($row['threshold'] - \App\Models\EditorialPolicy::likenessThreshold()) < 0.0001) （{{ __('now') }}）@endif</td>
+                                <td class="px-2 py-1">{{ __('about :count', ['count' => number_format($row['passed_per_day'])]) }}</td>
+                                <td class="px-2 py-1">{{ $percent($row['like_kept']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+            <flux:text size="sm" class="text-neutral-500">{{ __('Few verdicts make rough figures: one more document judged like can move a rate by tens of points. Read them as a direction until a few weeks are confirmed.') }}</flux:text>
+        @endif
+    </div>
 </section>

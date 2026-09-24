@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\DrawSpotCheck;
+use App\Actions\SpotCheckFigures;
 use App\Jobs\TranslateSpotCheck;
 use App\Models\Document;
 use App\Models\DocumentEmbedding;
@@ -110,4 +111,29 @@ it('confirms a day once every document of it is judged, and reopens it', functio
     expect($first->refresh()->verdict)->toBe('like');
     $page->call('reopen')->call('show', $first->id)->call('decide', 'unlike');
     expect($first->refresh())->toMatchArray(['verdict' => 'unlike', 'confirmed_at' => null]);
+});
+
+// 結果の数字: confirmed days only, each drawn document weighted by the documents of its stratum it stands for; cannot tell left out.
+it('works out the figures of the confirmed days, weighted by stratum', function () {
+    $check = fn (string $stratum, float $weight, float $likeness, string $verdict, bool $confirmed = true) => SpotCheck::query()->create([
+        'document_id' => measured($likeness)->id, 'drawn_on' => '2026-09-24', 'stratum' => $stratum, 'weight' => $weight,
+        'likeness' => $likeness, 'threshold' => 0.1, 'passed' => $likeness >= 0.1, 'verdict' => $verdict, 'confirmed_at' => $confirmed ? now() : null,
+    ]);
+    $check('passed', 10, 0.15, 'like');
+    $check('passed', 10, 0.12, 'unlike');
+    $check('near', 30, 0.05, 'like');
+    $check('near', 30, 0.02, 'unsure');
+    $check('far', 100, -0.2, 'unlike');
+    // A day not confirmed does not count.
+    $check('far', 100, -0.3, 'like', confirmed: false);
+
+    $figures = app(SpotCheckFigures::class)();
+
+    // Like: 10 kept, 30 left out, so 30 / 40 missed; of the 20 let through, 10 unlike.
+    expect($figures)->toMatchArray(['days' => 1, 'checks' => 5, 'judged' => 4, 'missed_like' => 0.75, 'passed_unlike' => 0.5])
+        ->and($figures['strata'][1])->toBe(['stratum' => 'near', 'drawn' => 2, 'like' => 1, 'unsure' => 1, 'unlike' => 0, 'agreed' => 0.0])
+        ->and(collect($figures['thresholds'])->firstWhere('threshold', 0.05))->toBe(['threshold' => 0.05, 'passed_per_day' => 50.0, 'like_kept' => 1.0])
+        ->and(collect($figures['thresholds'])->firstWhere('threshold', 0.10)['like_kept'])->toBe(0.25);
+
+    Livewire::test('pages::supervision.spot-checks.index')->assertSee('結果の数字（確定した日）')->assertSee('75%');
 });

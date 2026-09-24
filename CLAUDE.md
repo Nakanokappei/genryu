@@ -446,8 +446,13 @@ The history under `docs/` (Phase 0) keeps the old name.
   until judged. After the last one the day is closed with **確定**
   (Enter, `spot_checks.confirmed_at` on every row of the day) rather than
   left open on its last page; a confirmed day takes no verdict until it
-  is reopened, and only confirmed days are to count in the figures. Planned next: the figures (estimated miss rates, a table
-  of thresholds) once a few days are judged, then verdicts as examples
+  is reopened, and only confirmed days are to count in the figures. **結果の数字** (`App\Actions\SpotCheckFigures`, 2026-09-25)
+  sit under the draw: confirmed days only, each drawn document weighted
+  by its stratum, cannot tell left out — らしいのに落とした (of the
+  documents like this media, the share left out), らしくないのに通した (of
+  those let through, the share unlike), agreement per stratum, and a
+  table of thresholds (−0.05 to +0.20: passed a day, share of the like
+  kept). Planned next: verdicts as examples
   (rates computed from the likeness at drawing, before they taught the
   filter), then a daily draw by the scheduler (docs/TODO.md), then the
   same for the screening, the headline scores and the quality check.
