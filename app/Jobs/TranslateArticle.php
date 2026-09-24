@@ -74,7 +74,7 @@ class TranslateArticle implements ShouldQueue
 
             $document = $original->material?->document;
             $model = (string) $translation->model;
-            $result = $propose($policy, $model, $original, (string) $translation->language, (array) $original->material?->data, (string) $document?->title, (string) $document?->url);
+            $result = $propose($policy, $model, $original, (string) $translation->language, (array) $original->material?->parts, (string) $document?->title, (string) $document?->url);
             $title = trim((string) ($result['json']['title'] ?? ''));
             $body = trim((string) ($result['json']['body'] ?? ''));
 
@@ -83,11 +83,11 @@ class TranslateArticle implements ShouldQueue
             }
 
             $translation->update([
-                'title' => $title,
+                'headline' => $title,
                 'body' => Article::separateBlocks($body),
                 // Written after its original was scheduled, it goes out in the original's slot, in its own zone.
                 'scheduled_at' => $original->scheduled_at === null || ! $translation->isPublishable() ? $translation->scheduled_at : ScheduleArticles::timeFor($original, (string) $translation->language),
-                'status' => 'draft',
+                'status' => 'written',
                 'status_message' => __('Translated by :model.', ['model' => $model]),
                 ...$result['usage'],
                 'estimated_total_cost' => Usage::estimatedCost($model, $result['usage'])['estimated_total_cost'],

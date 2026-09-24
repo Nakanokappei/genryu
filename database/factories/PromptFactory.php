@@ -13,9 +13,9 @@ class PromptFactory extends Factory
         $text = fake()->paragraph();
 
         return [
-            'name' => 'content_filtering',
+            'layer' => 'content_filtering',
             // Versions are numbered per name, so the next free one.
-            'version' => (int) Prompt::query()->where('name', 'content_filtering')->max('version') + 1,
+            'version' => (int) Prompt::query()->where('layer', 'content_filtering')->max('version') + 1,
             'hash' => hash('sha256', $text),
             'text' => $text,
             'activated_at' => now(),

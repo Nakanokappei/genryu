@@ -27,7 +27,7 @@ class ProposeDecision
 
     /**
      * @param  int  $pass  1 for the first pass, 2 for the second, which may only adopt or reject
-     * @return array{decision: string, primary_reason: string, evidence: string, reason: string, input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}
+     * @return array{decision: string, reason_class: string, evidence: string, reason: string, input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}
      */
     public function __invoke(string $prompt, string $model, string $markdown, int $pass = 1): array
     {
@@ -39,7 +39,7 @@ class ProposeDecision
 
         return [
             'decision' => strtolower((string) $decision['decision']),
-            'primary_reason' => (string) ($decision['primary_reason'] ?? ''),
+            'reason_class' => (string) ($decision['primary_reason'] ?? ''),
             'evidence' => (string) ($decision['evidence'] ?? ''),
             'reason' => (string) ($decision['reason'] ?? ''),
             ...$usage,
@@ -69,7 +69,7 @@ class ProposeDecision
             'type' => 'object',
             'properties' => [
                 'decision' => ['type' => 'string', 'enum' => $pass >= 2 ? ['ADOPT', 'REJECT'] : ['ADOPT', 'REJECT', 'REVIEW']],
-                'primary_reason' => ['type' => 'string', 'enum' => Screening::PRIMARY_REASONS],
+                'primary_reason' => ['type' => 'string', 'enum' => array_keys(Screening::REASONS)],
                 'evidence' => ['type' => 'string'],
                 'reason' => ['type' => 'string'],
             ],

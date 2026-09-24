@@ -25,7 +25,7 @@ class LanguageSetting extends Model
 {
     public const COVERAGES = ['all', 'own', 'none'];
 
-    protected $fillable = ['language', 'coverage', 'prompt'];
+    protected $fillable = ['language', 'coverage', 'additional_prompt'];
 
     /** Which primary sources get an article in a language: all, own or none. */
     public static function coverage(string $language): string
@@ -34,7 +34,7 @@ class LanguageSetting extends Model
     }
 
     /** The additional prompt for writing in a language, empty when there is none. */
-    public static function prompt(?string $language): string
+    public static function additionalPrompt(?string $language): string
     {
         if ($language === null) {
             return '';
@@ -42,7 +42,7 @@ class LanguageSetting extends Model
 
         $row = static::query()->where('language', $language)->first();
 
-        return trim((string) $row?->prompt);
+        return trim((string) $row?->additional_prompt);
     }
 
     /**
@@ -55,7 +55,7 @@ class LanguageSetting extends Model
      */
     public static function messages(?string $language): array
     {
-        $prompt = self::prompt($language);
+        $prompt = self::additionalPrompt($language);
 
         return $prompt === '' ? [] : [['role' => 'developer', 'content' => 'Additional rules for writing in '.Language::nameOf($language).":\n".$prompt]];
     }

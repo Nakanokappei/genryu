@@ -16,7 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ArticleImage extends Model
 {
     protected $fillable = [
-        'article_id', 'prompt_id', 'model', 'image_model', 'time', 'band', 'status', 'status_message', 'scene', 'image_prompt', 'path',
+        'article_id', 'prompt_id', 'scene_model', 'image_model', 'time', 'band', 'status', 'status_message', 'scene', 'image_prompt', 'path',
         'input_tokens', 'output_tokens', 'image_input_tokens', 'image_output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
 

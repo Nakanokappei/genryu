@@ -52,7 +52,7 @@ class ProposeTranslation
     {
         $name = Language::nameOf($language);
         $input = 'Article to translate (written in '.Language::nameOf($article->language)."):\n\n"
-            ."# {$article->title}\n\n".mb_substr((string) $article->body, 0, self::MAX_MARKDOWN_CHARS)
+            ."# {$article->headline}\n\n".mb_substr((string) $article->body, 0, self::MAX_MARKDOWN_CHARS)
             ."\n\n---\n\nContext, not to be translated in place of the article.\n\nPrimary source: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n"
             .json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 

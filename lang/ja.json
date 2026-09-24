@@ -26,7 +26,7 @@
     "Data": "データ (JSON)",
     "Body": "本文",
     "Status": "状態",
-    "draft": "下書き",
+    "written": "作成済み",
     "published": "公開済み",
     "Created": "作成日時",
     "Add": "追加",
@@ -34,8 +34,8 @@
     "Feed": "フィード",
     "No RSS or Atom feed found. Fill in the HTML list settings to read this page.": "RSS / Atom フィードが見つかりません。このページを読むには「HTML 一覧の設定」を入力してください。",
     "The HTML list settings matched nothing on this page.": "HTML 一覧の設定に一致する項目がページにありませんでした。",
-    "pending": "設定中",
-    "ready": "設定済み",
+    "configuring": "設定中",
+    "configured": "設定済み",
     "failed": "失敗",
     "Configure again": "設定をやり直す",
     "Configuration queued.": "設定をキューに入れました。",
@@ -464,5 +464,8 @@
     "about :count": "約 :count 件",
     "Few verdicts make rough figures: one more document judged like can move a rate by tens of points. Read them as a direction until a few weeks are confirmed.": "判定が少ないうちは、数字は粗い見積もりです。「らしい」が1件増えるだけで、率が数十ポイント動くことがあります。数週間分が確定するまでは、傾向として見てください。",
     "The :layer layer of the editorial policy is empty.": "編集方針の「:layer」が空です。",
-    "Image": "画像"
+    "Image": "画像",
+    "Let through": "通過",
+    "Updates fetched at": "更新リストの取得日時",
+    "Reason class": "理由の分類"
 }

@@ -65,13 +65,13 @@ class RefineHeadline implements ShouldQueue
         $material = $article->material;
 
         try {
-            if ($material === null || $material->status !== 'extracted' || $material->data === null) {
+            if ($material === null || $material->status !== 'extracted' || $material->parts === null) {
                 throw new RuntimeException(__('The material has not been extracted yet.'));
             }
 
             $policy = Prompt::textOf($article->headlinePrompt, 'headline');
 
-            $data = (array) $material->data;
+            $data = (array) $material->parts;
             // The headline is written in the source's language, with what belongs to that language.
             $language = $material->document->language;
             $model = (string) $article->headline_model;
@@ -107,7 +107,7 @@ class RefineHeadline implements ShouldQueue
             }
 
             $article->update([
-                'title' => $best['headline'],
+                'headline' => $best['headline'],
                 'headline_review' => [...$best['review'], 'attempts' => $attempts],
             ]);
         } catch (Throwable $exception) {

@@ -56,7 +56,7 @@ beforeEach(function () {
 /** An article about to be written: no headline, no body, a material to write them from. */
 function articleToWrite(): Article
 {
-    return Article::factory()->create(['status' => 'generating', 'title' => null, 'body' => null]);
+    return Article::factory()->create(['status' => 'generating', 'headline' => null, 'body' => null]);
 }
 
 function refineHeadline(Article $article): Article
@@ -109,11 +109,11 @@ it('writes the headline from the material and keeps one that passes', function (
         ->push(headlineProposal('ナフサ分解炉の炎は、メタンだけではない'))
         ->push(headlineScore(100, 10))]);
     $article = articleToWrite();
-    $article->material->update(['data' => ['angle' => 'ナフサ分解炉はアンモニアでも燃える']]);
+    $article->material->update(['parts' => ['angle' => 'ナフサ分解炉はアンモニアでも燃える']]);
 
     $article = refineHeadline($article);
 
-    expect($article->title)->toBe('ナフサ分解炉の炎は、メタンだけではない')
+    expect($article->headline)->toBe('ナフサ分解炉の炎は、メタンだけではない')
         ->and($article->status)->toBe('generating')
         ->and($article->headline_review['total'])->toBe(100)
         ->and($article->headline_review['passed'])->toBeTrue()
@@ -154,7 +154,7 @@ it('writes the headline again until it passes', function () {
 
     $article = refineHeadline(articleToWrite());
 
-    expect($article->title)->toBe('ナフサ分解炉の炎は、メタンだけではない')
+    expect($article->headline)->toBe('ナフサ分解炉の炎は、メタンだけではない')
         ->and($article->headline_review['passed'])->toBeTrue()
         // jsonb keeps no key order, so the attempts are compared by value.
         ->and($article->headline_review['attempts'])->toEqual([
@@ -179,7 +179,7 @@ it('stops after the last attempt and keeps the best', function () {
 
     $article = refineHeadline(articleToWrite());
 
-    expect($article->title)->toBe('二番目の見出し')
+    expect($article->headline)->toBe('二番目の見出し')
         ->and($article->headline_review['passed'])->toBeFalse()
         ->and($article->headline_review['attempts'])->toHaveCount(RefineHeadline::ATTEMPTS);
     expect(Http::recorded())->toHaveCount(2 * RefineHeadline::ATTEMPTS);
@@ -196,7 +196,7 @@ it('keeps the headline that passed over a higher total that was too long', funct
 
     $article = refineHeadline(articleToWrite());
 
-    expect($article->title)->toBe('ナフサ分解炉はアンモニアで燃える')
+    expect($article->headline)->toBe('ナフサ分解炉はアンモニアで燃える')
         ->and($article->headline_review['passed'])->toBeTrue()
         // Each attempt keeps the musts it failed, so a person can see why a high total was passed over.
         ->and($article->headline_review['attempts'][0]['musts_failed'])->toBe(['short_enough']);
@@ -208,6 +208,6 @@ it('fails the article when no headline could be written', function () {
 
     $article = refineHeadline(articleToWrite());
 
-    expect($article->status)->toBe('failed')->and($article->title)->toBeNull();
+    expect($article->status)->toBe('failed')->and($article->headline)->toBeNull();
     Queue::assertNotPushed(GenerateArticle::class);
 });

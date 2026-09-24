@@ -22,7 +22,7 @@ class Prompt extends Model
     /** @use HasFactory<PromptFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'version', 'hash', 'text', 'activated_at'];
+    protected $fillable = ['layer', 'version', 'hash', 'text', 'activated_at'];
 
     protected function casts(): array
     {
@@ -30,20 +30,20 @@ class Prompt extends Model
     }
 
     /**
-     * The version in force for a name: the latest one when its text is
+     * The version in force for a layer: the latest one when its text is
      * the given text, else a new version numbered after it.
      */
-    public static function current(string $name, string $text): self
+    public static function current(string $layer, string $text): self
     {
         $hash = hash('sha256', $text);
-        $latest = static::query()->where('name', $name)->orderByDesc('version')->first();
+        $latest = static::query()->where('layer', $layer)->orderByDesc('version')->first();
 
         if ($latest !== null && $latest->hash === $hash) {
             return $latest;
         }
 
         return static::query()->create([
-            'name' => $name,
+            'layer' => $layer,
             'version' => ($latest === null ? 0 : $latest->version) + 1,
             'hash' => $hash,
             'text' => $text,

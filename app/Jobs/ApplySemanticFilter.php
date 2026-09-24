@@ -47,7 +47,7 @@ class ApplySemanticFilter implements ShouldQueue
             return;
         }
 
-        if ($likeness >= EditorialPolicy::likenessThreshold() && $document->excluded_by === null && $document->screening_id === null) {
+        if ($likeness >= EditorialPolicy::likenessThreshold() && $document->excluded_by === null && $document->latest_screening_id === null) {
             ScreenDocument::queueFor($document);
         }
     }

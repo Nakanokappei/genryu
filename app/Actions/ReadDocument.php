@@ -34,7 +34,7 @@ class ReadDocument
      * inside the body to drop, and of fixed text to move after the body
      * (the last two comma separated).
      */
-    public const DOCUMENT_CONFIG_KEYS = ['content', 'date', 'remove', 'fixed_text'];
+    public const DOCUMENT_SETTING_KEYS = ['content', 'date', 'remove', 'fixed_text'];
 
     /** Markdown shorter than this cannot be the body of a document: the settings missed. */
     public const MINIMUM_CHARS = 100;

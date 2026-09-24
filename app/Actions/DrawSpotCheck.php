@@ -40,9 +40,9 @@ class DrawSpotCheck
             ->get(['id', 'likeness']);
 
         $strata = [
-            'passed' => $population->filter(fn (Document $document): bool => $document->likeness >= $threshold),
-            'near' => $population->filter(fn (Document $document): bool => $document->likeness < $threshold && $document->likeness >= $threshold - SpotCheck::NEAR_WIDTH),
-            'far' => $population->filter(fn (Document $document): bool => $document->likeness < $threshold - SpotCheck::NEAR_WIDTH),
+            'let_through' => $population->filter(fn (Document $document): bool => $document->likeness >= $threshold),
+            'just_below' => $population->filter(fn (Document $document): bool => $document->likeness < $threshold && $document->likeness >= $threshold - SpotCheck::JUST_BELOW_WIDTH),
+            'far_below' => $population->filter(fn (Document $document): bool => $document->likeness < $threshold - SpotCheck::JUST_BELOW_WIDTH),
         ];
         $drawn = 0;
 
@@ -54,7 +54,7 @@ class DrawSpotCheck
                 $check = SpotCheck::query()->create([
                     'document_id' => $document->id, 'drawn_on' => $day->toDateString(), 'stratum' => $stratum,
                     'weight' => $documents->count() / $picked->count(), 'likeness' => $document->likeness,
-                    'threshold' => $threshold, 'passed' => $document->likeness >= $threshold,
+                    'threshold' => $threshold, 'let_through' => $document->likeness >= $threshold,
                 ]);
                 TranslateSpotCheck::dispatch($check);
                 $drawn++;

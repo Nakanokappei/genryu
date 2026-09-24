@@ -15,17 +15,17 @@ new #[Title('スケジュール')] class extends PagedList {
     public int $articlesPerWeekday = 5;
 
     /** UI 対象期間（日） */
-    public int $days = 7;
+    public int $periodDays = 7;
 
     /** UI 公開時刻: local times of day, separated by commas. */
-    public string $times = '';
+    public string $publicationTimes = '';
 
     public function mount(): void
     {
         $setting = ScheduleSetting::current();
         $this->articlesPerWeekday = $setting->articles_per_weekday;
-        $this->days = $setting->days;
-        $this->times = implode(', ', (array) $setting->times);
+        $this->periodDays = $setting->period_days;
+        $this->publicationTimes = implode(', ', (array) $setting->publication_times);
     }
 
     public function saveSettings(): void
@@ -33,15 +33,15 @@ new #[Title('スケジュール')] class extends PagedList {
         $times = $this->parsedTimes();
         $this->validate([
             'articlesPerWeekday' => ['required', 'integer', 'min:1', 'max:'.max(1, count($times))],
-            'days' => ['required', 'integer', 'min:1', 'max:365'],
-            'times' => ['required', function (string $attribute, mixed $value, Closure $fail) use ($times): void {
+            'periodDays' => ['required', 'integer', 'min:1', 'max:365'],
+            'publicationTimes' => ['required', function (string $attribute, mixed $value, Closure $fail) use ($times): void {
                 if ($times === [] || count($times) !== count(array_filter($times, fn (string $time): bool => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time) === 1))) {
                     $fail(__('Write the times as HH:MM, separated by commas.'));
                 }
             }],
         ]);
 
-        (ScheduleSetting::query()->first() ?? new ScheduleSetting)->fill(['articles_per_weekday' => $this->articlesPerWeekday, 'days' => $this->days, 'times' => $times])->save();
+        (ScheduleSetting::query()->first() ?? new ScheduleSetting)->fill(['articles_per_weekday' => $this->articlesPerWeekday, 'period_days' => $this->periodDays, 'publication_times' => $times])->save();
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -49,7 +49,7 @@ new #[Title('スケジュール')] class extends PagedList {
     /** @return list<string> the times as written, trimmed, in order */
     private function parsedTimes(): array
     {
-        $times = array_values(array_filter(array_map(trim(...), explode(',', str_replace('、', ',', $this->times))), fn (string $time): bool => $time !== ''));
+        $times = array_values(array_filter(array_map(trim(...), explode(',', str_replace('、', ',', $this->publicationTimes))), fn (string $time): bool => $time !== ''));
         sort($times);
 
         return $times;
@@ -83,7 +83,7 @@ new #[Title('スケジュール')] class extends PagedList {
     #[Computed]
     public function waiting(): int
     {
-        return Article::query()->originals()->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')->whereRelation('qualityCheck', 'status', 'checked')->count();
+        return Article::query()->originals()->where('status', 'written')->whereNull('published_at')->whereNull('scheduled_at')->whereRelation('qualityCheck', 'status', 'checked')->count();
     }
 }; ?>
 
@@ -96,8 +96,8 @@ new #[Title('スケジュール')] class extends PagedList {
         <flux:text>{{ __('Checked, unpublished articles whose primary source was published within the period are given the slots of the coming weekdays, best quality first. Every language version goes out at the same local date and time, each in its own zone:') }} {{ implode(' / ', array_map(fn ($language) => $language->label().' '.$language->timezone(), \App\Enums\Language::cases())) }}</flux:text>
         <div class="grid gap-3 sm:grid-cols-3">
             <flux:input type="number" wire:model="articlesPerWeekday" :label="__('Articles per weekday')" min="1" />
-            <flux:input type="number" wire:model="days" :label="__('Period (days)')" min="1" />
-            <flux:input wire:model="times" :label="__('Publication times')" placeholder="07:00, 09:00, 12:00, 15:00, 18:00" />
+            <flux:input type="number" wire:model="periodDays" :label="__('Period (days)')" min="1" />
+            <flux:input wire:model="publicationTimes" :label="__('Publication times')" placeholder="07:00, 09:00, 12:00, 15:00, 18:00" />
         </div>
 
         <div class="flex flex-wrap items-center gap-3">
@@ -108,11 +108,11 @@ new #[Title('スケジュール')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Scheduled at (local time)'), __('Title'), __('Quality'), __('Languages')]" :empty="$this->articles->isEmpty()">
+    <x-pages::table :columns="[__('Scheduled at (local time)'), __('Headline'), __('Quality'), __('Languages')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             <tr>
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ $article->scheduledLocal()?->locale(app()->getLocale())->isoFormat('YYYY-MM-DD（ddd） HH:mm') }}</td>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $article->qualityCheck?->reason }}">{{ $article->qualityCheck?->score ?? '—' }}</td>
                 {{-- Each language version with its own zone; hovering shows when that is in Japan. --}}
                 <td class="px-3 py-2 text-neutral-500">

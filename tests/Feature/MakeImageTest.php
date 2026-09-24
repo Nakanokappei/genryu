@@ -32,7 +32,7 @@ beforeEach(function () {
 /** A written Japanese original going out at 12:00 Tokyo time on 2026-09-24. */
 function scheduledArticle(): Article
 {
-    return Article::factory()->create(['language' => 'ja', 'title' => '工業炉の炎はアンモニアでも燃える', 'scheduled_at' => '2026-09-24 03:00:00']);
+    return Article::factory()->create(['language' => 'ja', 'headline' => '工業炉の炎はアンモニアでも燃える', 'scheduled_at' => '2026-09-24 03:00:00']);
 }
 
 function makeImage(Article $article): ArticleImage
@@ -65,7 +65,7 @@ it('draws the top image of a scheduled article in the style of its hour', functi
         'api.openai.com/v1/images/generations' => Http::response(['data' => [['b64_json' => base64_encode('JPEG')]], 'usage' => ['input_tokens' => 300, 'output_tokens' => 1500]]),
     ]);
     $article = scheduledArticle();
-    $article->material->update(['data' => ['future_society' => ['千葉のコンビナートがアンモニアで動く'], 'figures' => [['url' => 'https://example.jp/fig1.jpg']]]]);
+    $article->material->update(['parts' => ['future_society' => ['千葉のコンビナートがアンモニアで動く'], 'figures' => [['url' => 'https://example.jp/fig1.jpg']]]]);
 
     $image = makeImage($article);
 

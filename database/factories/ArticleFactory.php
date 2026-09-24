@@ -13,9 +13,9 @@ class ArticleFactory extends Factory
     {
         return [
             'material_id' => Material::factory(),
-            'title' => fake()->sentence(),
+            'headline' => fake()->sentence(),
             'body' => fake()->paragraphs(2, true),
-            'status' => 'draft',
+            'status' => 'written',
             'published_at' => null,
         ];
     }

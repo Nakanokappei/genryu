@@ -94,7 +94,7 @@ new #[Title('文書')] class extends PagedList {
     // The gate: queue the screening of every fetched document that has none yet (an excluded one, or one the semantic filter left out, never gets there).
     public function screenDocuments(): void
     {
-        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('screening_id')
+        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('latest_screening_id')
             ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
@@ -106,7 +106,7 @@ new #[Title('文書')] class extends PagedList {
     public function rescreenRejected(): void
     {
         $prompt = Prompt::forLayer('content_filtering');
-        $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))
+        $documents = Document::query()->whereHas('latestScreening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))
             ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
@@ -117,7 +117,7 @@ new #[Title('文書')] class extends PagedList {
     /**
      * The figures of the screenings, per prompt version and per reason class.
      *
-     * @return array{versions: list<array<string, mixed>>, reasons: list<array{primary_reason: string, decision: string, meaning: string, count: int, share: float}>}
+     * @return array{versions: list<array<string, mixed>>, reasons: list<array{reason_class: string, decision: string, meaning: string, count: int, share: float}>}
      */
     #[Computed]
     public function screeningFigures(): array
@@ -165,7 +165,7 @@ new #[Title('文書')] class extends PagedList {
         $direction = $this->direction === 'asc' ? 'asc' : 'desc';
 
         // Every listed document, whatever its state; the source's name is ordered through the sources table, and id breaks ties so pages never overlap.
-        return Document::query()->with('source', 'material', 'screening')
+        return Document::query()->with('source', 'material', 'latestScreening')
             ->when($sort === 'source', fn ($query) => $query->join('sources', 'sources.id', '=', 'documents.source_id')->select('documents.*'))
             ->when($this->source !== '', fn ($query) => $query->where('documents.source_id', $this->source))
             ->when($this->format !== '', fn ($query) => $query->where('format', $this->format))
@@ -223,7 +223,7 @@ new #[Title('文書')] class extends PagedList {
 
 }; ?>
 
-<section class="w-full space-y-6" @if ($this->documents->contains('status', 'fetching') || $this->documents->contains(fn ($document) => $document->screening?->status === 'screening')) wire:poll.5s @endif>
+<section class="w-full space-y-6" @if ($this->documents->contains('status', 'fetching') || $this->documents->contains(fn ($document) => $document->latestScreening?->status === 'screening')) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
 
     {{-- The semantic filter comes before the content filtering: an embedding set against definitions of what is and is not like this media, cheap enough for every document. --}}
@@ -296,7 +296,7 @@ new #[Title('文書')] class extends PagedList {
                 <table class="w-full text-left text-sm">
                     <thead class="text-neutral-500">
                         <tr>
-                            @foreach ([__('Decision'), __('Reason'), __('Meaning'), __('Documents'), __('Share')] as $column)
+                            @foreach ([__('Decision'), __('Reason class'), __('Meaning'), __('Documents'), __('Share')] as $column)
                                 <th class="whitespace-nowrap px-3 py-1 font-medium">{{ $column }}</th>
                             @endforeach
                         </tr>
@@ -305,7 +305,7 @@ new #[Title('文書')] class extends PagedList {
                         @foreach ($this->screeningFigures['reasons'] as $reason)
                             <tr class="{{ $reason['count'] === 0 ? 'text-neutral-400' : '' }}">
                                 <td class="whitespace-nowrap px-3 py-1">{{ __($reason['decision']) }}</td>
-                                <td class="whitespace-nowrap px-3 py-1 font-mono text-xs">{{ $reason['primary_reason'] }}</td>
+                                <td class="whitespace-nowrap px-3 py-1 font-mono text-xs">{{ $reason['reason_class'] }}</td>
                                 <td class="px-3 py-1">{{ __($reason['meaning']) }}</td>
                                 <td class="px-3 py-1 text-right">{{ $reason['count'] }}</td>
                                 <td class="px-3 py-1 text-right">{{ number_format(100 * $reason['share'], 1) }}%</td>

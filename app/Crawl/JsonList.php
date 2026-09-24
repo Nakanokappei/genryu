@@ -16,7 +16,7 @@ class JsonList
      * many items from the top one fetch may take (the list is expected
      * newest first).
      */
-    public const CONFIG_KEYS = ['url', 'items', 'title', 'link', 'date', 'max_items'];
+    public const SETTING_KEYS = ['url', 'items', 'title', 'link', 'date', 'max_items'];
 
     public const DEFAULT_MAX_ITEMS = 50;
 

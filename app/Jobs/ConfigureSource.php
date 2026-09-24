@@ -47,17 +47,17 @@ class ConfigureSource implements ShouldQueue
             $html = Crawler::get($source->url)->body();
             // The site's icon, for the 情報源 screen; nothing depends on it.
             $favicon($source, $html);
-            $feed = $source->read_as_html ? null : Feed::discover($source->url, $html);
+            $feed = $source->list_method === 'html' ? null : Feed::discover($source->url, $html);
 
             if ($feed !== null) {
                 // How many feed entries the page itself links to: a probed feed
                 // that shares nothing with the page is probably another list.
                 $overlap = count(array_filter(Feed::entries($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
 
-                $source->update(['feed_url' => $feed[0], 'list_config' => null, 'json_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
+                $source->update(['feed_url' => $feed[0], 'html_list_settings' => null, 'json_list_settings' => null, 'status' => 'configured', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
             } elseif (($json = JsonList::discover($html, $source->url)) !== null) {
                 // 三菱電機: the page holds no entries, a script draws them from a JSON file.
-                $source->update(['feed_url' => null, 'list_config' => null, 'json_config' => $json['config'], 'status' => 'ready', 'status_message' => __('JSON list found: :url (:count entries)', ['url' => $json['config']['url'], 'count' => count($json['entries'])])]);
+                $source->update(['feed_url' => null, 'html_list_settings' => null, 'json_list_settings' => $json['config'], 'status' => 'configured', 'status_message' => __('JSON list found: :url (:count entries)', ['url' => $json['config']['url'], 'count' => count($json['entries'])])]);
             } else {
                 $proposal = $propose($html, $source->url);
                 [$proposal, $entries] = self::verify($html, $proposal, $source->url);
@@ -71,9 +71,9 @@ class ConfigureSource implements ShouldQueue
 
                 $source->update([
                     'feed_url' => null,
-                    'json_config' => null,
-                    'list_config' => [...$proposal, 'max_pages' => self::DEFAULT_MAX_PAGES],
-                    'status' => 'ready',
+                    'json_list_settings' => null,
+                    'html_list_settings' => [...$proposal, 'max_pages' => self::DEFAULT_MAX_PAGES],
+                    'status' => 'configured',
                     'status_message' => __('HTML list settings proposed by the agent and verified on the page (:count entries: :sample).', ['count' => count($entries), 'sample' => $sample]),
                 ]);
             }

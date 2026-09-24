@@ -55,7 +55,7 @@ new #[Title('素材情報')] class extends Component {
         <flux:button wire:click="extract" size="sm" icon="arrow-path">{{ __('Extract again') }}</flux:button>
     </div>
 
-    @if ($material->data === null)
+    @if ($material->parts === null)
         <flux:text>{{ __('Not extracted yet.') }}</flux:text>
     @else
         {{-- The parts of the article: the angle it would be written on, the change it rests on, and what each side gives. The two tabs are the same data, read two ways. --}}
@@ -108,10 +108,10 @@ new #[Title('素材情報')] class extends Component {
 
     @endif
 
-    @if (($material->validation ?? []) !== [])
+    @if (($material->failed_checks ?? []) !== [])
         <flux:callout variant="danger" icon="exclamation-triangle">
             <flux:callout.heading>{{ __('The checks the last extraction failed') }}</flux:callout.heading>
-            <flux:callout.text><ul class="list-disc ps-4">@foreach ($material->validation as $error)<li>{{ $error }}</li>@endforeach</ul></flux:callout.text>
+            <flux:callout.text><ul class="list-disc ps-4">@foreach ($material->failed_checks as $error)<li>{{ $error }}</li>@endforeach</ul></flux:callout.text>
         </flux:callout>
     @endif
 
@@ -122,7 +122,7 @@ new #[Title('素材情報')] class extends Component {
     <x-pages::table :columns="[__('Title'), __('Status'), __('Published at')]" :empty="$material->articles->isEmpty()">
         @foreach ($material->articles as $article)
             <tr>
-                <td class="px-3 py-2"><a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$article->status" /> <span class="text-neutral-500">{{ $article->status_message }}</span></td>
                 <td class="px-3 py-2 text-neutral-500">{{ $article->published_at?->display() ?? __('Not published.') }}</td>
             </tr>

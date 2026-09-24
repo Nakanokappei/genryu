@@ -9,7 +9,7 @@ beforeEach(fn () => $this->actingAs(User::factory()->create()));
 /** A checked original, with what its way out has reached. */
 function productionArticle(string $title, array $attributes = []): Article
 {
-    $article = Article::factory()->create(['language' => 'ja', 'title' => $title, ...$attributes]);
+    $article = Article::factory()->create(['language' => 'ja', 'headline' => $title, ...$attributes]);
     $article->qualityChecks()->create(['prompt_id' => Prompt::current('quality', 'rubric')->id, 'model' => 'gpt-5.6-luna', 'status' => 'checked', 'score' => 80]);
 
     return $article;

@@ -43,7 +43,7 @@ class ReviseDocumentSettings
         // The documents short before the rebuild, to tell which ones the new settings cured.
         $short = $source->documents()->withShortBody()->pluck('id')->all();
 
-        $source->update(['document_config' => $settings]);
+        $source->update(['document_settings' => $settings]);
         $result = ($this->rebuild)($source);
 
         $grown = [];

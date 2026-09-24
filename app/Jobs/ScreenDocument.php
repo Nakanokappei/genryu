@@ -59,7 +59,7 @@ class ScreenDocument implements ShouldQueue
             'pass' => $pass,
             'status' => 'screening',
         ]);
-        $document->update(['screening_id' => $screening->id]);
+        $document->update(['latest_screening_id' => $screening->id]);
 
         self::dispatch($screening);
 

@@ -54,8 +54,8 @@ Artisan::command('prompts:export {--path=prompts}', function () {
         $files["image-styles/{$style->band}.md"] = (string) $style->style;
     }
 
-    foreach (DB::table('language_settings')->whereNotNull('prompt')->get() as $language) {
-        $files["languages/{$language->language}.md"] = (string) $language->prompt;
+    foreach (DB::table('language_settings')->whereNotNull('additional_prompt')->get() as $language) {
+        $files["languages/{$language->language}.md"] = (string) $language->additional_prompt;
     }
 
     foreach (array_filter($files, fn (string $text): bool => trim($text) !== '') as $name => $text) {
@@ -84,7 +84,7 @@ Artisan::command('prompts:import {--path=prompts}', function () {
 
     foreach (File::glob("{$root}/languages/*.md") as $file) {
         $language = basename($file, '.md');
-        DB::table('language_settings')->updateOrInsert(['language' => $language], ['prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language), 'updated_at' => now()]);
+        DB::table('language_settings')->updateOrInsert(['language' => $language], ['additional_prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language), 'updated_at' => now()]);
         $read++;
     }
 

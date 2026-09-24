@@ -49,7 +49,7 @@ class MakeImage implements ShouldQueue
 
         $image = $article->images()->create([
             'prompt_id' => Prompt::forLayer('image')->id,
-            'model' => EditorialPolicy::modelFor('image'),
+            'scene_model' => EditorialPolicy::modelFor('image'),
             'image_model' => EditorialPolicy::imageModel(),
             'time' => $time,
             'band' => ImageStyle::bandFor($time),
@@ -74,7 +74,7 @@ class MakeImage implements ShouldQueue
             $policy = Prompt::textOf($image->prompt, 'image');
 
             $style = ImageStyle::bands()[$image->band]['style'] ?? '';
-            $scene = $propose($policy, (string) $image->model, $article, (array) $article->material?->data, $style);
+            $scene = $propose($policy, (string) $image->scene_model, $article, (array) $article->material?->parts, $style);
             $sceneText = trim((string) ($scene['json']['scene'] ?? ''));
 
             if ($sceneText === '') {
@@ -111,12 +111,12 @@ class MakeImage implements ShouldQueue
      * What the two calls cost in USD: the scene at the writer's prices, the
      * drawing at the image model's; unknown when either price is.
      *
-     * @param  array{input_tokens: ?int, output_tokens: ?int, latency_ms: int}  $scene
+     * @param  array{input_tokens: ?int, cached_tokens: ?int, cache_write_tokens: ?int, output_tokens: ?int, latency_ms: int}  $scene
      * @param  array{input_tokens: ?int, output_tokens: ?int, latency_ms: int}  $drawn
      */
     private static function cost(ArticleImage $image, array $scene, array $drawn): ?float
     {
-        $writing = Usage::estimatedCost((string) $image->model, ['input_tokens' => $scene['input_tokens'], 'cached_tokens' => 0, 'output_tokens' => $scene['output_tokens']])['estimated_total_cost'];
+        $writing = Usage::estimatedCost((string) $image->scene_model, $scene)['estimated_total_cost'];
         // Looked up by key, not by dot path: the model ids have dots in them.
         $prices = ((array) config('services.openai.image_prices'))[$image->image_model] ?? null;
 

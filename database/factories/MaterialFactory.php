@@ -13,7 +13,7 @@ class MaterialFactory extends Factory
     {
         return [
             'document_id' => Document::factory()->fetched(),
-            'data' => ['summary' => fake()->sentence(), 'topics' => [fake()->word()]],
+            'parts' => ['summary' => fake()->sentence(), 'topics' => [fake()->word()]],
             'status' => 'extracted',
         ];
     }

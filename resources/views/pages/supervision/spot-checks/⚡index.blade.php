@@ -153,14 +153,14 @@ new #[Title('抜き取り点検')] class extends Component {
     }
 }; ?>
 
-@php($labels = ['like' => __('Like this media'), 'unsure' => __('Cannot tell'), 'unlike' => __('Unlike this media')])
-@php($keys = ['like' => '4', 'unsure' => '5', 'unlike' => '6'])
+@php($labels = ['like' => __('Like this media'), 'cannot_tell' => __('Cannot tell'), 'unlike' => __('Unlike this media')])
+@php($keys = ['like' => '4', 'cannot_tell' => '5', 'unlike' => '6'])
 <section class="w-full space-y-6"
     @if ($this->checks->contains(fn ($check) => $check->title_ja === null && $check->translation_error === null)) wire:poll.3s="refreshChecks" @endif
     x-data
     x-on:keydown.window="
         if ($event.target.closest('input, textarea, select, [contenteditable]') || $event.metaKey || $event.ctrlKey || $event.altKey) return;
-        const verdicts = { '4': 'like', '5': 'unsure', '6': 'unlike' };
+        const verdicts = { '4': 'like', '5': 'cannot_tell', '6': 'unlike' };
         if (verdicts[$event.key]) { $event.preventDefault(); $wire.decide(verdicts[$event.key]); }
         else if ($event.key === 'Enter' && $event.target.closest('button, a') === null) { $event.preventDefault(); $wire.confirm(); }
         else if ($event.key === 'ArrowLeft') { $event.preventDefault(); $wire.move(-1); }
@@ -211,7 +211,7 @@ new #[Title('抜き取り点検')] class extends Component {
             {{-- The likeness only once judged, so it cannot sway the verdict. --}}
             @if ($current->verdict !== null)
                 <flux:text size="sm" class="text-neutral-500">
-                    {{ __('The semantic filter, when drawn: likeness :likeness against a threshold of :threshold, :result.', ['likeness' => sprintf('%+.3f', $current->likeness), 'threshold' => sprintf('%+.2f', $current->threshold), 'result' => $current->passed ? __('let through') : __('left out')]) }}
+                    {{ __('The semantic filter, when drawn: likeness :likeness against a threshold of :threshold, :result.', ['likeness' => sprintf('%+.3f', $current->likeness), 'threshold' => sprintf('%+.2f', $current->threshold), 'result' => $current->let_through ? __('let through') : __('left out')]) }}
                 </flux:text>
             @endif
             <flux:text size="sm" class="text-neutral-500">{{ __('Keys: 4 like, 5 cannot tell, 6 unlike; ← → to move.') }}</flux:text>
@@ -264,7 +264,7 @@ new #[Title('抜き取り点検')] class extends Component {
                 </div>
                 <div class="rounded-lg bg-neutral-50 p-4 dark:bg-neutral-800">
                     <div class="text-sm text-neutral-500">{{ __('Unlike this media, but let through') }}</div>
-                    <div class="text-3xl font-semibold">{{ $percent($figures['passed_unlike']) }}</div>
+                    <div class="text-3xl font-semibold">{{ $percent($figures['let_through_unlike']) }}</div>
                     <div class="text-xs text-neutral-500">{{ __('Of the documents the filter let through, the share unlike this media: what the screening pays for.') }}</div>
                 </div>
             </div>
@@ -276,10 +276,10 @@ new #[Title('抜き取り点検')] class extends Component {
                 <tbody class="divide-y divide-neutral-200 dark:divide-neutral-700">
                     @foreach ($figures['strata'] as $row)
                         <tr>
-                            <td class="px-2 py-1">{{ ['passed' => __('Passed'), 'near' => __('Just below the threshold'), 'far' => __('Far below')][$row['stratum']] }}</td>
+                            <td class="px-2 py-1">{{ ['let_through' => __('Let through'), 'just_below' => __('Just below the threshold'), 'far_below' => __('Far below')][$row['stratum']] }}</td>
                             <td class="px-2 py-1">{{ $row['drawn'] }}</td>
                             <td class="px-2 py-1">{{ $row['like'] }}</td>
-                            <td class="px-2 py-1">{{ $row['unsure'] }}</td>
+                            <td class="px-2 py-1">{{ $row['cannot_tell'] }}</td>
                             <td class="px-2 py-1">{{ $row['unlike'] }}</td>
                             <td class="px-2 py-1">{{ $percent($row['agreed']) }}</td>
                         </tr>
@@ -297,7 +297,7 @@ new #[Title('抜き取り点検')] class extends Component {
                         @foreach ($figures['thresholds'] as $row)
                             <tr class="{{ abs($row['threshold'] - \App\Models\EditorialPolicy::likenessThreshold()) < 0.0001 ? 'font-semibold' : '' }}">
                                 <td class="px-2 py-1">{{ sprintf('%+.2f', $row['threshold']) }}@if (abs($row['threshold'] - \App\Models\EditorialPolicy::likenessThreshold()) < 0.0001) （{{ __('now') }}）@endif</td>
-                                <td class="px-2 py-1">{{ __('about :count', ['count' => number_format($row['passed_per_day'])]) }}</td>
+                                <td class="px-2 py-1">{{ __('about :count', ['count' => number_format($row['let_through_per_day'])]) }}</td>
                                 <td class="px-2 py-1">{{ $percent($row['like_kept']) }}</td>
                             </tr>
                         @endforeach

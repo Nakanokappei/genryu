@@ -18,7 +18,7 @@ class ScreeningFactory extends Factory
             'model' => 'gpt-5.6-terra',
             'status' => 'screened',
             'decision' => 'adopt',
-            'primary_reason' => 'DEMONSTRATION',
+            'reason_class' => 'DEMONSTRATION',
             'evidence' => fake()->sentence(),
             'reason' => fake()->sentence(),
             'input_tokens' => 3000,
@@ -34,16 +34,16 @@ class ScreeningFactory extends Factory
      */
     public function configure(): static
     {
-        return $this->afterCreating(fn (Screening $screening) => $screening->document->update(['screening_id' => $screening->id]));
+        return $this->afterCreating(fn (Screening $screening) => $screening->document->update(['latest_screening_id' => $screening->id]));
     }
 
     public function rejected(): static
     {
-        return $this->state(['decision' => 'reject', 'primary_reason' => 'EVENT_PR']);
+        return $this->state(['decision' => 'reject', 'reason_class' => 'EVENT_PR']);
     }
 
     public function review(): static
     {
-        return $this->state(['decision' => 'review', 'primary_reason' => 'INSUFFICIENT_EVIDENCE']);
+        return $this->state(['decision' => 'review', 'reason_class' => 'INSUFFICIENT_EVIDENCE']);
     }
 }

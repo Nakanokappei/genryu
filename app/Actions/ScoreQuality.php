@@ -43,7 +43,7 @@ class ScoreQuality
         return Responses::request($model, [
             Responses::policy($policy),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-            ['role' => 'user', 'content' => "Article:\n\n# {$article->title}\n\n{$article->body}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+            ['role' => 'user', 'content' => "Article:\n\n# {$article->headline}\n\n{$article->body}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
         ], 'quality', [
             'type' => 'object',
             'properties' => [

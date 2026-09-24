@@ -51,11 +51,11 @@ it('draws a stratified sample of the day the semantic filter measured', function
     $result = app(DrawSpotCheck::class)(CarbonImmutable::parse('2026-09-24'));
 
     expect($result)->toBe(['drawn' => 8, 'population' => 17, 'already' => false])
-        ->and(SpotCheck::query()->where('stratum', 'passed')->pluck('weight')->unique()->all())->toBe([2.0])
-        ->and(SpotCheck::query()->where('stratum', 'near')->count())->toBe(2)
-        ->and(SpotCheck::query()->where('stratum', 'near')->value('weight'))->toBe(1.0)
-        ->and(SpotCheck::query()->where('stratum', 'far')->value('weight'))->toBe(3.0)
-        ->and(SpotCheck::query()->where('stratum', 'far')->value('passed'))->toBeFalse()
+        ->and(SpotCheck::query()->where('stratum', 'let_through')->pluck('weight')->unique()->all())->toBe([2.0])
+        ->and(SpotCheck::query()->where('stratum', 'just_below')->count())->toBe(2)
+        ->and(SpotCheck::query()->where('stratum', 'just_below')->value('weight'))->toBe(1.0)
+        ->and(SpotCheck::query()->where('stratum', 'far_below')->value('weight'))->toBe(3.0)
+        ->and(SpotCheck::query()->where('stratum', 'far_below')->value('let_through'))->toBeFalse()
         ->and(SpotCheck::query()->value('threshold'))->toBe(0.1);
     Queue::assertPushed(TranslateSpotCheck::class, 8);
     // A day is drawn once.
@@ -64,7 +64,7 @@ it('draws a stratified sample of the day the semantic filter measured', function
 
 it('puts the title and gist into Japanese, and keeps a failure on the row', function () {
     Http::fake(['api.openai.com/v1/responses' => Http::response(['output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode(['title' => '英国での LLM の利用と信頼', 'summary' => '英国の成人を調べた。'], JSON_UNESCAPED_UNICODE)]]]]])]);
-    $check = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'passed', 'weight' => 1, 'likeness' => 0.2, 'threshold' => 0.1, 'passed' => true]);
+    $check = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'let_through', 'weight' => 1, 'likeness' => 0.2, 'threshold' => 0.1, 'let_through' => true]);
 
     (new TranslateSpotCheck($check))->handle();
 
@@ -73,8 +73,8 @@ it('puts the title and gist into Japanese, and keeps a failure on the row', func
 
 // One at a time, the likeness hidden until judged; a verdict moves on to the next one not judged. It is not an example and not a verdict on the document.
 it('takes a verdict on each drawn document and shows the likeness only once judged', function () {
-    $first = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'passed', 'weight' => 1, 'likeness' => 0.2346, 'threshold' => 0.1, 'passed' => true, 'title_ja' => '一つ目']);
-    $second = SpotCheck::query()->create(['document_id' => measured(-0.3)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'far', 'weight' => 1, 'likeness' => -0.3, 'threshold' => 0.1, 'passed' => false, 'title_ja' => '二つ目']);
+    $first = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'let_through', 'weight' => 1, 'likeness' => 0.2346, 'threshold' => 0.1, 'let_through' => true, 'title_ja' => '一つ目']);
+    $second = SpotCheck::query()->create(['document_id' => measured(-0.3)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'far_below', 'weight' => 1, 'likeness' => -0.3, 'threshold' => 0.1, 'let_through' => false, 'title_ja' => '二つ目']);
 
     $page = Livewire::test('pages::supervision.spot-checks.index')
         ->assertSet('check', $first->id)->assertSee('一つ目')->assertDontSee('+0.235')
@@ -92,8 +92,8 @@ it('takes a verdict on each drawn document and shows the likeness only once judg
 
 // Once every one is judged the day is closed with 確定; a closed day takes no verdict until it is reopened.
 it('confirms a day once every document of it is judged, and reopens it', function () {
-    $first = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'passed', 'weight' => 1, 'likeness' => 0.2, 'threshold' => 0.1, 'passed' => true, 'title_ja' => '一つ目']);
-    $second = SpotCheck::query()->create(['document_id' => measured(-0.3)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'far', 'weight' => 1, 'likeness' => -0.3, 'threshold' => 0.1, 'passed' => false, 'title_ja' => '二つ目']);
+    $first = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'let_through', 'weight' => 1, 'likeness' => 0.2, 'threshold' => 0.1, 'let_through' => true, 'title_ja' => '一つ目']);
+    $second = SpotCheck::query()->create(['document_id' => measured(-0.3)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'far_below', 'weight' => 1, 'likeness' => -0.3, 'threshold' => 0.1, 'let_through' => false, 'title_ja' => '二つ目']);
 
     $page = Livewire::test('pages::supervision.spot-checks.index')
         ->call('confirm')
@@ -117,22 +117,22 @@ it('confirms a day once every document of it is judged, and reopens it', functio
 it('works out the figures of the confirmed days, weighted by stratum', function () {
     $check = fn (string $stratum, float $weight, float $likeness, string $verdict, bool $confirmed = true) => SpotCheck::query()->create([
         'document_id' => measured($likeness)->id, 'drawn_on' => '2026-09-24', 'stratum' => $stratum, 'weight' => $weight,
-        'likeness' => $likeness, 'threshold' => 0.1, 'passed' => $likeness >= 0.1, 'verdict' => $verdict, 'confirmed_at' => $confirmed ? now() : null,
+        'likeness' => $likeness, 'threshold' => 0.1, 'let_through' => $likeness >= 0.1, 'verdict' => $verdict, 'confirmed_at' => $confirmed ? now() : null,
     ]);
-    $check('passed', 10, 0.15, 'like');
-    $check('passed', 10, 0.12, 'unlike');
-    $check('near', 30, 0.05, 'like');
-    $check('near', 30, 0.02, 'unsure');
-    $check('far', 100, -0.2, 'unlike');
+    $check('let_through', 10, 0.15, 'like');
+    $check('let_through', 10, 0.12, 'unlike');
+    $check('just_below', 30, 0.05, 'like');
+    $check('just_below', 30, 0.02, 'cannot_tell');
+    $check('far_below', 100, -0.2, 'unlike');
     // A day not confirmed does not count.
-    $check('far', 100, -0.3, 'like', confirmed: false);
+    $check('far_below', 100, -0.3, 'like', confirmed: false);
 
     $figures = app(SpotCheckFigures::class)();
 
     // Like: 10 kept, 30 left out, so 30 / 40 missed; of the 20 let through, 10 unlike.
-    expect($figures)->toMatchArray(['days' => 1, 'checks' => 5, 'judged' => 4, 'missed_like' => 0.75, 'passed_unlike' => 0.5])
-        ->and($figures['strata'][1])->toBe(['stratum' => 'near', 'drawn' => 2, 'like' => 1, 'unsure' => 1, 'unlike' => 0, 'agreed' => 0.0])
-        ->and(collect($figures['thresholds'])->firstWhere('threshold', 0.05))->toBe(['threshold' => 0.05, 'passed_per_day' => 50.0, 'like_kept' => 1.0])
+    expect($figures)->toMatchArray(['days' => 1, 'checks' => 5, 'judged' => 4, 'missed_like' => 0.75, 'let_through_unlike' => 0.5])
+        ->and($figures['strata'][1])->toBe(['stratum' => 'just_below', 'drawn' => 2, 'like' => 1, 'cannot_tell' => 1, 'unlike' => 0, 'agreed' => 0.0])
+        ->and(collect($figures['thresholds'])->firstWhere('threshold', 0.05))->toBe(['threshold' => 0.05, 'let_through_per_day' => 50.0, 'like_kept' => 1.0])
         ->and(collect($figures['thresholds'])->firstWhere('threshold', 0.10)['like_kept'])->toBe(0.25);
 
     Livewire::test('pages::supervision.spot-checks.index')->assertSee('結果の数字（確定した日）')->assertSee('75%');

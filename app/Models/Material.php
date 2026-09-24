@@ -23,10 +23,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * the model cannot write plainly is absent rather than hedged. Pinned to the
  * document revision it was made from, the prompt version and the model;
  * status extracting / extracted / failed (UI: 抽出中 / 抽出済み / 失敗),
- * with the report of the checks (validation) and the usage of the calls.
+ * with the checks it failed (failed_checks) and the usage of the calls.
  *
- * @property array<string, mixed>|null $data the parts of the article, only those the model could write
- * @property list<string>|null $validation the problems the last checks found, empty when they passed
+ * @property array<string, mixed>|null $parts the parts of the article, only those the model could write
+ * @property list<string>|null $failed_checks the problems the last checks found, empty when they passed
  */
 class Material extends Model
 {
@@ -34,13 +34,13 @@ class Material extends Model
     use HasFactory;
 
     protected $fillable = [
-        'document_id', 'document_revision_id', 'prompt_id', 'model', 'data', 'status', 'status_message', 'validation',
+        'document_id', 'document_revision_id', 'prompt_id', 'model', 'parts', 'status', 'status_message', 'failed_checks',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
 
     protected function casts(): array
     {
-        return ['data' => 'array', 'validation' => 'array', 'estimated_total_cost' => 'float'];
+        return ['parts' => 'array', 'failed_checks' => 'array', 'estimated_total_cost' => 'float'];
     }
 
     /**
@@ -51,7 +51,7 @@ class Material extends Model
      */
     public function parts(): array
     {
-        $data = (array) $this->data;
+        $data = (array) $this->parts;
         $ordered = [];
 
         foreach (ProposeMaterial::PARTS as $part) {
@@ -75,7 +75,7 @@ class Material extends Model
         $counts = array_fill_keys(ProposeMaterial::LISTS, 0);
 
         foreach (ProposeMaterial::LISTS as $part => $stands) {
-            $counts[$stands] += count((array) ($this->data[$part] ?? []));
+            $counts[$stands] += count((array) ($this->parts[$part] ?? []));
         }
 
         return $counts;
@@ -88,7 +88,7 @@ class Material extends Model
      */
     public function figures(): array
     {
-        return array_values((array) ($this->data['figures'] ?? []));
+        return array_values((array) ($this->parts['figures'] ?? []));
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */

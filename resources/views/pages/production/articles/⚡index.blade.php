@@ -46,7 +46,7 @@ new #[Title('記事')] class extends Component {
     @foreach (['upcoming' => __('Scheduled for publication'), 'published' => __('Published')] as $list => $heading)
         <div class="space-y-3">
             <flux:heading size="lg">{{ $heading }}（{{ $this->{$list}->count() }}）</flux:heading>
-            <x-pages::table :columns="[__('Status'), $list === 'published' ? __('Published at') : __('Scheduled at (local time)'), __('Title'), __('Quality'), __('Languages')]" :empty="$this->{$list}->isEmpty()">
+            <x-pages::table :columns="[__('Status'), $list === 'published' ? __('Published at') : __('Scheduled at (local time)'), __('Headline'), __('Quality'), __('Languages')]" :empty="$this->{$list}->isEmpty()">
                 @foreach ($this->{$list} as $article)
                     <tr wire:key="{{ $list }}-{{ $article->id }}">
                         <td class="whitespace-nowrap px-3 py-2"><x-pages::status :status="$article->publicationStatus()" /></td>
@@ -57,7 +57,7 @@ new #[Title('記事')] class extends Component {
                                 {{ $article->scheduledLocal()?->locale(app()->getLocale())->isoFormat('YYYY-MM-DD（ddd） HH:mm') ?? '—' }}
                             @endif
                         </td>
-                        <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                        <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                         <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $article->qualityCheck?->reason }}">{{ $article->qualityCheck?->score ?? '—' }}</td>
                         {{-- The language versions that go out; the original is struck through when its language does not publish it (言語設定). --}}
                         <td class="px-3 py-2 text-neutral-500">

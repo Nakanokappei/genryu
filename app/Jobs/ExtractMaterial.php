@@ -95,7 +95,7 @@ class ExtractMaterial implements ShouldQueue
             }
 
             if ($errors !== []) {
-                $material->update(['validation' => $errors]);
+                $material->update(['failed_checks' => $errors]);
 
                 throw new RuntimeException(__('The material did not pass the checks: :errors', ['errors' => implode(' / ', array_slice($errors, 0, 5))]));
             }
@@ -104,8 +104,8 @@ class ExtractMaterial implements ShouldQueue
             $figures = CollectFigures::from($material->revision->markdown);
 
             $material->update([
-                'data' => $figures === [] ? $result['json'] : [...$result['json'], 'figures' => $figures],
-                'validation' => [],
+                'parts' => $figures === [] ? $result['json'] : [...$result['json'], 'figures' => $figures],
+                'failed_checks' => [],
                 'status' => 'extracted',
                 'status_message' => __('Extracted by :model.', ['model' => $model]),
                 ...Usage::sum($usage),

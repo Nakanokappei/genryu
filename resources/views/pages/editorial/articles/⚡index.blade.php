@@ -49,7 +49,7 @@ new #[Title('記事')] class extends PagedList {
 
         foreach (Language::codes() as $language) {
             $this->coverages[$language] = LanguageSetting::coverage($language);
-            $this->languagePrompts[$language] = LanguageSetting::prompt($language);
+            $this->languagePrompts[$language] = LanguageSetting::additionalPrompt($language);
         }
     }
 
@@ -65,7 +65,7 @@ new #[Title('記事')] class extends PagedList {
     private function storeLanguageSettings(): void
     {
         foreach (Language::codes() as $language) {
-            LanguageSetting::query()->updateOrCreate(['language' => $language], ['coverage' => $this->coverages[$language] ?? LanguageSetting::coverage($language), 'prompt' => trim($this->languagePrompts[$language] ?? '')]);
+            LanguageSetting::query()->updateOrCreate(['language' => $language], ['coverage' => $this->coverages[$language] ?? LanguageSetting::coverage($language), 'additional_prompt' => trim($this->languagePrompts[$language] ?? '')]);
         }
     }
 
@@ -95,7 +95,7 @@ new #[Title('記事')] class extends PagedList {
     // Stage 2.4: queue the writing for every extracted material whose article is missing or failed, when some language wants its source (言語設定); the translations follow each article on their own.
     public function generate(): void
     {
-        $materials = Material::query()->where('status', 'extracted')->whereDoesntHave('articles', fn ($query) => $query->originals()->whereIn('status', ['generating', 'draft', 'published']))
+        $materials = Material::query()->where('status', 'extracted')->whereDoesntHave('articles', fn ($query) => $query->originals()->whereIn('status', ['generating', 'written']))
             ->with('document')->get()->filter(fn (Material $material): bool => LanguageSetting::wantsArticle($material->document->language));
         $materials->each(fn (Material $material) => GenerateArticle::queueFor($material));
         unset($this->articles);
@@ -183,10 +183,10 @@ new #[Title('記事')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Title'), __('Status'), __('Languages'), __('Published at'), __('Created')]" :empty="$this->articles->isEmpty()">
+    <x-pages::table :columns="[__('Headline'), __('Status'), __('Languages'), __('Published at'), __('Created')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                 <td class="px-3 py-2"><x-pages::status :status="$article->status" /> <span class="text-neutral-500">{{ $article->body === null ? $article->status_message : '' }}</span></td>
                 {{-- The original and every translation that is written, so a missing language shows as a missing name. --}}
                 <td class="px-3 py-2 text-neutral-500">{{ implode(' / ', $article->translations->where('status', '!=', 'failed')->prepend($article)->map(fn ($written) => $written->languageName())->all()) }}</td>

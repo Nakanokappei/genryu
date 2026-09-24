@@ -87,7 +87,7 @@ new #[Title('記事')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6" @if ($this->versions->contains('status', 'generating')) wire:poll.5s="refreshStatus" @endif>
-    <x-pages::detail-header :back="route('editorial.articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->inUiLanguage->displayTitle()" />
+    <x-pages::detail-header :back="route('editorial.articles.index')" :back-label="__('Articles')" :source="$this->original()->material?->document->source" :title="$this->inUiLanguage->displayHeadline()" />
 
     <x-pages::fields :fields="[
         __('Document') => $this->original()->material?->document->title,
@@ -138,11 +138,11 @@ new #[Title('記事')] class extends Component {
         {{-- The title belongs with the text it heads: switching language shows that language's title above its body. The two tabs are the same text, read two ways. --}}
         <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
             @if ($view === 'markdown')
-                <pre class="overflow-auto text-sm whitespace-pre-wrap"># {{ $this->reading->title }}
+                <pre class="overflow-auto text-sm whitespace-pre-wrap"># {{ $this->reading->headline }}
 
 {{ $this->reading->body }}</pre>
             @else
-                <flux:heading size="lg">{{ $this->reading->title }}</flux:heading>
+                <flux:heading size="lg">{{ $this->reading->headline }}</flux:heading>
                 <div class="text-sm leading-relaxed [&_[data-lead]]:mb-4 [&_[data-lead]]:border-b [&_[data-lead]]:border-neutral-200 [&_[data-lead]]:pb-3 [&_[data-lead]]:text-neutral-600 dark:[&_[data-lead]]:border-neutral-700 dark:[&_[data-lead]]:text-neutral-300 [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! $this->reading->bodyHtml() !!}</div>
             @endif
         </div>

@@ -22,7 +22,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * A document whose title has an exclude keyword of the editorial policy is
  * listed as 対象外 (excluded_by) and not fetched. A fetched document is
  * screened by App\Jobs\ScreenDocument (UI: スクリーニング); the latest
- * screening (screening_id) carries the decision 採用 / 不採用 / 要確認. A
+ * screening (latest_screening_id) carries the decision 採用 / 不採用 / 要確認. A
  * person may record their own verdict (UI: 人の判定, human_decision adopt /
  * reject with a reason), which outranks the screening's at the gate.
  *
@@ -44,7 +44,7 @@ class Document extends Model
     /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'latest_screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
@@ -79,9 +79,9 @@ class Document extends Model
     }
 
     /** @return BelongsTo<Screening, $this> the latest screening of the document */
-    public function screening(): BelongsTo
+    public function latestScreening(): BelongsTo
     {
-        return $this->belongsTo(Screening::class);
+        return $this->belongsTo(Screening::class, 'latest_screening_id');
     }
 
     /** @return HasMany<Screening, $this> every screening of the document, latest first */
@@ -200,7 +200,7 @@ class Document extends Model
      */
     public function decision(): ?string
     {
-        return $this->human_decision ?? ($this->screening?->status === 'screened' ? $this->screening->decision : null);
+        return $this->human_decision ?? ($this->latestScreening?->status === 'screened' ? $this->latestScreening->decision : null);
     }
 
     /**
@@ -222,7 +222,7 @@ class Document extends Model
     protected function decidedAs(Builder $query, string $decision): void
     {
         $query->where(fn (Builder $query) => $query->where('human_decision', $decision)
-            ->orWhere(fn (Builder $query) => $query->whereNull('human_decision')->whereRelation('screening', fn (Builder $screening) => $screening->where('status', 'screened')->where('decision', $decision))));
+            ->orWhere(fn (Builder $query) => $query->whereNull('human_decision')->whereRelation('latestScreening', fn (Builder $screening) => $screening->where('status', 'screened')->where('decision', $decision))));
     }
 
     /**
@@ -233,7 +233,7 @@ class Document extends Model
     #[Scope]
     protected function undecided(Builder $query): void
     {
-        $query->whereNull('human_decision')->whereDoesntHave('screening', fn (Builder $screening) => $screening->where('status', 'screened')->whereNotNull('decision'));
+        $query->whereNull('human_decision')->whereDoesntHave('latestScreening', fn (Builder $screening) => $screening->where('status', 'screened')->whereNotNull('decision'));
     }
 
     /**

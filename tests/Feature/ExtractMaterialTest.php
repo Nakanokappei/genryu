@@ -73,16 +73,16 @@ it('writes the parts of an article and counts what came from each side', functio
     $material = extractMaterial($document);
 
     expect($material->status)->toBe('extracted')
-        ->and($material->validation)->toBe([])
+        ->and($material->failed_checks)->toBe([])
         ->and($material->document_revision_id)->toBe($document->revisions()->sole()->id)
-        ->and($material->prompt?->name)->toBe('structuring')
+        ->and($material->prompt?->layer)->toBe('structuring')
         ->and($material->model)->toBe(EditorialPolicy::DEFAULT_MODEL)
         ->and(array_keys($material->parts()))->toBe(ProposeMaterial::PARTS)
-        ->and($material->data['angle'])->toBe('アンモニア燃焼の課題は「燃やせるか」から「分解炉全体を回せるか」へ移った')
+        ->and($material->parts['angle'])->toBe('アンモニア燃焼の課題は「燃やせるか」から「分解炉全体を回せるか」へ移った')
         ->and($material->counts())->toBe(['primary_source' => 3, 'general_knowledge' => 1, 'inference' => 3])
         ->and($material->input_tokens)->toBe(2000)->and($material->cached_tokens)->toBe(1500)
         // A document without figures leaves the part out.
-        ->and($material->data)->not->toHaveKey('figures');
+        ->and($material->parts)->not->toHaveKey('figures');
 
     // The policy is the cached block, the document follows as material to analyse, and the schema asks for the six parts and nothing about the answer itself.
     Http::assertSent(function (Request $request): bool {
@@ -132,8 +132,8 @@ it('fails with the report when the checks do not pass twice', function () {
 
     expect($material->status)->toBe('failed')
         ->and($material->status_message)->toContain('素材情報が検査を通りませんでした')
-        ->and($material->validation)->toContain('change: missing; an article cannot be written without it')
-        ->and($material->data)->toBeNull();
+        ->and($material->failed_checks)->toContain('change: missing; an article cannot be written without it')
+        ->and($material->parts)->toBeNull();
     $this->get(route('editorial.materials.show', $material))->assertSee('直近の抽出が通らなかった検査');
 });
 
@@ -170,7 +170,7 @@ it('queues the missing and failed materials of adopted documents, and one materi
     Screening::factory()->for($missing)->create();
     $failed = Document::factory()->fetched()->create();
     Screening::factory()->for($failed)->create();
-    Material::factory()->for($failed)->create(['status' => 'failed', 'data' => null]);
+    Material::factory()->for($failed)->create(['status' => 'failed', 'parts' => null]);
     $extracted = Document::factory()->fetched()->create();
     Screening::factory()->for($extracted)->create();
     Material::factory()->for($extracted)->create();

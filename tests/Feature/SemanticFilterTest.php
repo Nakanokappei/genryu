@@ -70,7 +70,7 @@ it('sends a document like this media on to the screening and leaves one unlike i
         ->and($unlike->isLeftOut())->toBeTrue()
         ->and($like->embedding->model)->toBe('text-embedding-3-large');
     Queue::assertPushed(ScreenDocument::class, 1);
-    expect($like->refresh()->screening)->not->toBeNull()->and($unlike->refresh()->screening)->toBeNull();
+    expect($like->refresh()->latestScreening)->not->toBeNull()->and($unlike->refresh()->latestScreening)->toBeNull();
     // The definitions are embedded once and kept: the second document called the model for itself only.
     Http::assertSentCount(3);
 });
@@ -143,7 +143,7 @@ it('keeps what the semantic filter left out away from the screening and the full
 
     Livewire::test('pages::editorial.documents.index')->call('screenDocuments');
     Queue::assertPushed(ScreenDocument::class, 1);
-    expect($in->refresh()->screening)->not->toBeNull()->and($out->refresh()->screening)->toBeNull();
+    expect($in->refresh()->latestScreening)->not->toBeNull()->and($out->refresh()->latestScreening)->toBeNull();
 
     $screening = ScreenDocument::queueFor($out);
     (new ScreenDocument($screening))->handle(app(ProposeDecision::class), app(ReviseDocumentSettings::class));

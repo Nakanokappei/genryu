@@ -68,10 +68,10 @@ it('screens a fetched document with the prompt cached and keeps the decision, th
 
     $screening = screenDocument($document);
 
-    expect($screening)->toMatchArray(['status' => 'screened', 'decision' => 'adopt', 'primary_reason' => 'DEMONSTRATION', 'evidence' => '実証実験を開始した。', 'model' => 'gpt-5.6-terra', 'input_tokens' => 3000, 'cached_tokens' => 2500, 'cache_write_tokens' => 0, 'output_tokens' => 90])
+    expect($screening)->toMatchArray(['status' => 'screened', 'decision' => 'adopt', 'reason_class' => 'DEMONSTRATION', 'evidence' => '実証実験を開始した。', 'model' => 'gpt-5.6-terra', 'input_tokens' => 3000, 'cached_tokens' => 2500, 'cache_write_tokens' => 0, 'output_tokens' => 90])
         ->and($screening->latency_ms)->toBeGreaterThanOrEqual(0)
         ->and($screening->prompt->version)->toBe(1)->and($screening->prompt->text)->toBe(SCREENING_PROMPT)
-        ->and($document->refresh()->screening?->is($screening))->toBeTrue()
+        ->and($document->refresh()->latestScreening?->is($screening))->toBeTrue()
         ->and($document->isRejected())->toBeFalse();
 
     Http::assertSent(function (Request $request): bool {
@@ -164,7 +164,7 @@ it('runs a second pass by the next model up when the first pass says review', fu
     // (The queued second pass is faked above; here it is run by hand, as a third row in the document's history.)
     $second = screenDocument($document, 'gpt-5.6-terra', 2);
     expect($second)->toMatchArray(['decision' => 'adopt', 'pass' => 2, 'model' => 'gpt-5.6-terra'])
-        ->and($document->refresh()->screening?->is($second))->toBeTrue()
+        ->and($document->refresh()->latestScreening?->is($second))->toBeTrue()
         ->and($document->screenings()->count())->toBe(3);
     // The second pass never asks for a third.
     Queue::assertNotPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->pass > 2);
@@ -186,7 +186,7 @@ it('revises the document settings and screens again when a short body is rejecte
     Storage::fake('local');
     $page = '<html><body><header><h1>Ammonia burner programme</h1><p>'.str_repeat('A short teaser. ', 10).'</p></header>'
         .'<section class="body">'.str_repeat('<p>'.str_repeat('The long body of the release. ', 8).'</p>', 6).'</section></body></html>';
-    $source = Source::factory()->create(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
     $short = Document::factory()->fetched()->for($source)->create(['title' => 'Ammonia burner programme', 'original_path' => "documents/{$source->id}/1.html", 'markdown' => '# Ammonia burner programme'.str_repeat("\n\nA short teaser.", 10)]);
     $other = Document::factory()->fetched()->for($source)->create(['title' => 'Another release', 'original_path' => "documents/{$source->id}/2.html", 'markdown' => '# Another release'.str_repeat("\n\nA short teaser.", 10)]);
     Storage::disk('local')->put($short->original_path, $page);
@@ -200,7 +200,7 @@ it('revises the document settings and screens again when a short body is rejecte
 
     expect($screening->decision)->toBe('reject')
         ->and($screening->status_message)->toContain('文書の設定を改訂し（本文: section.body）、2 件をスクリーニングし直します')
-        ->and($source->refresh()->document_config['content'])->toBe('section.body')
+        ->and($source->refresh()->document_settings['content'])->toBe('section.body')
         ->and($short->refresh()->hasShortBody())->toBeFalse()->and($short->markdown)->toContain('The long body of the release.')
         ->and($other->refresh()->hasShortBody())->toBeFalse();
     // The run itself (faked) and the two cured documents.
@@ -216,7 +216,7 @@ it('revises the document settings and screens again when a short body is rejecte
     Storage::disk('local')->put($stubborn->original_path, '<html><body><header><h1>Short</h1><p>'.str_repeat('A short teaser. ', 10).'</p></header></body></html>');
 
     $screening = screenDocument($stubborn);
-    expect($screening->status_message)->toContain('改訂を試みましたが、できませんでした')->and($source->refresh()->document_config['content'])->toBe('section.body');
+    expect($screening->status_message)->toContain('改訂を試みましたが、できませんでした')->and($source->refresh()->document_settings['content'])->toBe('section.body');
     Queue::assertNotPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($stubborn) && ! $job->screening->is($screening));
 });
 
@@ -276,7 +276,7 @@ it('queues screenings from the screens and shows the decisions', function () {
 
     Livewire::test('pages::editorial.documents.index')->call('screenDocuments');
     Queue::assertPushed(ScreenDocument::class, 1);
-    expect($fresh->refresh()->screening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-5.6-terra']);
+    expect($fresh->refresh()->latestScreening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-5.6-terra']);
 
     $titles = fn ($component) => $component->instance()->documents->pluck('title')->all();
     $component = Livewire::test('pages::editorial.documents.index')->assertSee('採用')->assertSee('要確認')->assertSee('判定中')->assertSee('実環境での実証');
@@ -289,7 +289,7 @@ it('queues screenings from the screens and shows the decisions', function () {
     Livewire::test('pages::editorial.documents.show', ['document' => $reviewed->refresh()])->assertSet('screeningModel', 'gpt-5.6-sol')->assertSee('INSUFFICIENT_EVIDENCE')
         ->set('screeningModel', 'gpt-6-astra')->call('screen')->assertHasNoErrors();
     Queue::assertPushed(ScreenDocument::class, 2);
-    expect($reviewed->refresh()->screening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-6-astra'])
+    expect($reviewed->refresh()->latestScreening)->toMatchArray(['status' => 'screening', 'model' => 'gpt-6-astra'])
         ->and($reviewed->screenings()->count())->toBe(2);
 
     // The figures per prompt version on the list.
@@ -297,8 +297,8 @@ it('queues screenings from the screens and shows the decisions', function () {
     expect($figures['versions'][0])->toMatchArray(['screened' => 2, 'adopted' => 1, 'rejected' => 0, 'reviewed' => 1])
         ->and(round($figures['versions'][0]['cache_hit_rate'], 3))->toBe(round(4000 / 6000, 3))
         // The reasons count the latest screening of each document: the reviewed one is being screened again, so its reason is out for now.
-        ->and(collect($figures['reasons'])->where('count', '>', 0)->pluck('count', 'primary_reason')->all())->toBe(['DEMONSTRATION' => 1])
-        ->and(count($figures['reasons']))->toBe(17)->and($figures['reasons'][0])->toMatchArray(['primary_reason' => 'FRONTIER_BREAK', 'decision' => 'adopt', 'count' => 0]);
+        ->and(collect($figures['reasons'])->where('count', '>', 0)->pluck('count', 'reason_class')->all())->toBe(['DEMONSTRATION' => 1])
+        ->and(count($figures['reasons']))->toBe(17)->and($figures['reasons'][0])->toMatchArray(['reason_class' => 'FRONTIER_BREAK', 'decision' => 'adopt', 'count' => 0]);
 });
 
 /*
@@ -314,10 +314,10 @@ it('passes the acceptance cases with the real model', function (string $markdown
     $screening = screenDocument(Document::factory()->fetched()->create(['markdown' => $markdown]), (string) env('SCREENING_ACCEPTANCE_MODEL', 'gpt-5.6-terra'));
 
     expect($screening->status)->toBe('screened', (string) $screening->status_message)
-        ->and($screening->decision)->toBe($decision, $screening->primary_reason.' — '.$screening->reason);
+        ->and($screening->decision)->toBe($decision, $screening->reason_class.' — '.$screening->reason);
 
     if ($reason !== null) {
-        expect($screening->primary_reason)->toBe($reason, $screening->reason);
+        expect($screening->reason_class)->toBe($reason, $screening->reason);
     }
 })->with([
     'Case 1: 親子向け陶芸教室' => ["# 親子陶芸教室 開催のお知らせ\n\n2026年10月12日、当社研修センターにて親子向けの陶芸教室を開催します。定員20組、参加費無料。申込みはウェブサイトから。", 'reject', 'EVENT_PR'],

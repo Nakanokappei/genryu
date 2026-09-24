@@ -160,13 +160,13 @@ class FetchDocument implements ShouldQueue
     private function markdown(string $html, string $url, Source $source, Document $document, ReadDocument $read, ProposeDocumentSettings $propose): array
     {
         try {
-            return [$read->html($html, $source->document_config ?? [], $url, $document->title), null];
+            return [$read->html($html, $source->document_settings ?? [], $url, $document->title), null];
         } catch (RuntimeException) {
             // Fall through: the settings need (re)making.
         }
 
         [$settings, $markdown] = self::verify($html, $propose($html, $url), $document, $read, $url);
-        $source->update(['document_config' => $settings]);
+        $source->update(['document_settings' => $settings]);
 
         return [$markdown, __('Document settings proposed by the agent and verified on this page (content: :content).', ['content' => $settings['content']])];
     }

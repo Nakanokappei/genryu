@@ -84,7 +84,7 @@ it('writes no article for a source no language wants', function () {
 // The additional prompt of a language is shared by the headline, the body and the translation, sent between the policy and the fixed instruction.
 it('gives every writer the additional prompt of the language it writes in', function () {
     // A placeholder: the real prompts are assets and live in the database, not in the repository.
-    LanguageSetting::query()->create(['language' => 'ja', 'coverage' => 'all', 'prompt' => '日本語の追加ルール（テスト用）。']);
+    LanguageSetting::query()->create(['language' => 'ja', 'coverage' => 'all', 'additional_prompt' => '日本語の追加ルール（テスト用）。']);
 
     Livewire::test('pages::editorial.articles.index')
         ->assertSet('languagePrompts.ja', '日本語の追加ルール（テスト用）。')

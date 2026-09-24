@@ -39,8 +39,8 @@ class FetchUpdates
     public function __invoke(Source $source): array
     {
         $this->pageHtml = null;
-        $json = $source->json_config ?? [];
-        $config = $source->list_config ?? [];
+        $json = $source->json_list_settings ?? [];
+        $config = $source->html_list_settings ?? [];
 
         $result = match (true) {
             ($json['url'] ?? '') !== '' => $this->fromJsonList($source, $json),
@@ -70,7 +70,7 @@ class FetchUpdates
         }
 
         $counts = $this->store($source, array_slice($entries, 0, max(1, (int) ($config['max_items'] ?? JsonList::DEFAULT_MAX_ITEMS))));
-        $source->update(['feed_url' => null, 'fetched_at' => now()]);
+        $source->update(['feed_url' => null, 'updates_fetched_at' => now()]);
 
         return ['feed_url' => null, 'pages' => 1, ...$counts];
     }
@@ -85,7 +85,7 @@ class FetchUpdates
             ?? throw new RuntimeException(__('No RSS or Atom feed found. Fill in the HTML list settings to read this page.'));
 
         $counts = $this->store($source, Feed::entries($body));
-        $source->update(['feed_url' => $feedUrl, 'fetched_at' => now()]);
+        $source->update(['feed_url' => $feedUrl, 'updates_fetched_at' => now()]);
 
         return ['feed_url' => $feedUrl, 'pages' => 1, ...$counts];
     }
@@ -124,7 +124,7 @@ class FetchUpdates
             throw new RuntimeException(__('The HTML list settings matched nothing on this page.'));
         }
 
-        $source->update(['feed_url' => null, 'fetched_at' => now()]);
+        $source->update(['feed_url' => null, 'updates_fetched_at' => now()]);
 
         return ['feed_url' => null, 'pages' => $pages, 'added' => $added, 'existing' => $existing];
     }

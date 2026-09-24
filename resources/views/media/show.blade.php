@@ -3,13 +3,13 @@
 
 @php($text = \App\Http\Controllers\MediaController::TEXT[$language])
 
-@section('title', $article->title.' — Technology Watch')
+@section('title', $article->headline.' — Technology Watch')
 
 @section('content')
     <article class="mx-auto max-w-3xl">
         <a href="{{ route('media.language', $language) }}" class="text-xs text-[#6b665e] hover:underline">← {{ $text['back'] }}</a>
         <div class="mt-6">@include('media.byline', ['article' => $article])</div>
-        <h1 class="media-serif mt-3 text-3xl leading-tight font-extrabold sm:text-5xl">{{ $article->title }}</h1>
+        <h1 class="media-serif mt-3 text-3xl leading-tight font-extrabold sm:text-5xl">{{ $article->headline }}</h1>
 
         @if (\App\Http\Controllers\MediaController::imagePathOf($article))
             <figure class="mt-8">

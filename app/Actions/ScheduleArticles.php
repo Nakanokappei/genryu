@@ -35,7 +35,7 @@ class ScheduleArticles
         self::followOriginals();
 
         // The queue of articles waiting, best first, and the next one to be given a slot.
-        $queue = self::candidates($now, $setting->days)->all();
+        $queue = self::candidates($now, $setting->period_days)->all();
         $next = 0;
 
         if ($queue === [] || $slots === []) {
@@ -89,7 +89,7 @@ class ScheduleArticles
     {
         $since = $now->subDays($days);
 
-        return Article::query()->originals()->where('status', 'draft')->whereNull('published_at')->whereNull('scheduled_at')
+        return Article::query()->originals()->where('status', 'written')->whereNull('published_at')->whereNull('scheduled_at')
             ->whereRelation('qualityCheck', 'status', 'checked')
             ->with('qualityCheck', 'material.document')->get()
             ->filter(fn (Article $article): bool => ($article->material->document->published_at ?? $article->created_at)->greaterThanOrEqualTo($since))

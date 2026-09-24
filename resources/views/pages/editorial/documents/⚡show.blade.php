@@ -27,7 +27,7 @@ new #[Title('文書')] class extends Component {
     public function mount(): void
     {
         $model = EditorialPolicy::modelFor('content_filtering');
-        $this->screeningModel = $this->document->screening?->decision === 'review' ? EditorialPolicy::nextModelUp($model) : $model;
+        $this->screeningModel = $this->document->latestScreening?->decision === 'review' ? EditorialPolicy::nextModelUp($model) : $model;
         $this->humanDecision = (string) $this->document->human_decision;
         $this->humanReason = (string) $this->document->human_reason;
     }
@@ -121,7 +121,7 @@ new #[Title('文書')] class extends Component {
     }
 }; ?>
 
-<section class="w-full space-y-6" @if ($document->status === 'fetching' || $document->screening?->status === 'screening' || $document->material?->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
+<section class="w-full space-y-6" @if ($document->status === 'fetching' || $document->latestScreening?->status === 'screening' || $document->material?->status === 'extracting') wire:poll.5s="refreshStatus" @endif>
     <x-pages::detail-header :back="route('editorial.documents.index')" :back-label="__('Documents')" :source="$document->source" :title="$document->title" />
 
     {{-- What the document is and where it came from, then its three times. The URL opens the primary source itself, in a window of its own. --}}
@@ -212,28 +212,28 @@ new #[Title('文書')] class extends Component {
         <div class="flex flex-wrap items-center gap-3">
             <x-pages::decision :document="$document" />
             <flux:text class="flex-1">
-                @if ($document->screening === null)
+                @if ($document->latestScreening === null)
                     {{ __('Not screened yet.') }}
-                @elseif ($document->screening->status === 'screened')
-                    {{ $document->screening->primary_reason }} — {{ $document->screening->reason }}
+                @elseif ($document->latestScreening->status === 'screened')
+                    {{ $document->latestScreening->reason_class }} — {{ $document->latestScreening->reason }}
                 @else
-                    {{ $document->screening->status_message ?? '—' }}
+                    {{ $document->latestScreening->status_message ?? '—' }}
                 @endif
             </flux:text>
             <x-pages::model-select wire:model="screeningModel" size="sm" class="w-56!" detail="name" />
-            <flux:button wire:click="screen" size="sm" icon="scale">{{ $document->screening === null ? __('Screen') : __('Screen again') }}</flux:button>
+            <flux:button wire:click="screen" size="sm" icon="scale">{{ $document->latestScreening === null ? __('Screen') : __('Screen again') }}</flux:button>
         </div>
-        @if ($document->screening?->status === 'screened')
-            <flux:text size="sm"><span class="text-neutral-500">{{ __('Evidence') }}:</span> {{ $document->screening->evidence }}</flux:text>
-            @if ($document->screening->status_message)
-                <flux:text size="sm">{{ $document->screening->status_message }}</flux:text>
+        @if ($document->latestScreening?->status === 'screened')
+            <flux:text size="sm"><span class="text-neutral-500">{{ __('Evidence') }}:</span> {{ $document->latestScreening->evidence }}</flux:text>
+            @if ($document->latestScreening->status_message)
+                <flux:text size="sm">{{ $document->latestScreening->status_message }}</flux:text>
             @endif
             <flux:text size="sm" class="text-neutral-500">
-                {{ $document->screening->model }}（{{ $document->screening->pass === 2 ? __('second pass') : __('first pass') }}）/ {{ __('Prompt version') }} v{{ $document->screening->prompt->version }} /
-                {{ __('Tokens') }}: {{ __('input') }} {{ number_format((int) $document->screening->input_tokens) }}（{{ __('cached') }} {{ number_format((int) $document->screening->cached_tokens) }}, {{ __('cache write') }} {{ number_format((int) $document->screening->cache_write_tokens) }}）, {{ __('output') }} {{ number_format((int) $document->screening->output_tokens) }} /
-                {{ number_format((int) $document->screening->latency_ms) }} ms /
-                {{ $document->screening->estimated_total_cost !== null ? '$'.number_format($document->screening->estimated_total_cost, 5) : __('cost unknown') }} /
-                {{ $document->screening->created_at->display() }}
+                {{ $document->latestScreening->model }}（{{ $document->latestScreening->pass === 2 ? __('second pass') : __('first pass') }}）/ {{ __('Prompt version') }} v{{ $document->latestScreening->prompt->version }} /
+                {{ __('Tokens') }}: {{ __('input') }} {{ number_format((int) $document->latestScreening->input_tokens) }}（{{ __('cached') }} {{ number_format((int) $document->latestScreening->cached_tokens) }}, {{ __('cache write') }} {{ number_format((int) $document->latestScreening->cache_write_tokens) }}）, {{ __('output') }} {{ number_format((int) $document->latestScreening->output_tokens) }} /
+                {{ number_format((int) $document->latestScreening->latency_ms) }} ms /
+                {{ $document->latestScreening->estimated_total_cost !== null ? '$'.number_format($document->latestScreening->estimated_total_cost, 5) : __('cost unknown') }} /
+                {{ $document->latestScreening->created_at->display() }}
             </flux:text>
         @endif
     </div>

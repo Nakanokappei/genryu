@@ -57,7 +57,7 @@ function fetchDocument(Document $entry): Document
 
 it('reads an HTML page into Markdown with the document settings of the source and keeps the original', function () {
     Http::fake(['www.example.org/news/1' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html; charset=utf-8'])]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'article', 'remove' => '.share']]);
     $entry = Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Ammonia burner programme']);
 
     $document = fetchDocument($entry);
@@ -91,7 +91,7 @@ it('titles the document from the update list or the page heading, dates it from 
         .'<p>Media should contact <a href="mailto:outreach@darpa.mil">outreach@darpa.mil</a>.</p>'
         .'</article></body></html>';
     Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share a']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'article', 'remove' => '.share a']]);
 
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => '$1M to advance AI tools']));
 
@@ -126,7 +126,7 @@ it('reads title, date and body in that order, moves fixed text to the end, drops
         .'<p>Copyright 2026 NEDO. All rights reserved.</p>'
         .'<h2>カテゴリーや発表年別で探す</h2><form><input name="q"></form></article></body></html>';
     Http::fake(['www.example.org/news/1' => Http::response($page, 200, ['Content-Type' => 'text/html'])]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'date' => '.date', 'remove' => '', 'fixed_text' => '.notice']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'article', 'date' => '.date', 'remove' => '', 'fixed_text' => '.notice']]);
 
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'アンモニア燃焼器の開発を開始']));
 
@@ -152,7 +152,7 @@ it('reads title, date and body in that order, moves fixed text to the end, drops
 it('does not fetch the document of an update entry whose title has an exclude keyword', function () {
     Queue::fake();
     // One rule per line; the second needs both words, so 水素セミナー開催のお知らせ is excluded by 開催; セミナー and not by 採用情報.
-    EditorialPolicy::query()->create(['layer' => 'exclude_keywords', 'body' => "採用情報\n開催; セミナー ;\n\n掲載"]);
+    EditorialPolicy::query()->create(['layer' => 'title_filter', 'body' => "採用情報\n開催; セミナー ;\n\n掲載"]);
     $rss = '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'
         .'<item><title>アンモニア燃焼器の開発を開始</title><link>https://www.example.org/news/1</link></item>'
         .'<item><title>水素セミナー開催のお知らせ</title><link>https://www.example.org/news/2</link></item></channel></rss>';
@@ -217,7 +217,7 @@ it('asks the agent for document settings when the source has none, verifies them
     expect($first->status)->toBe('fetched')
         ->and($first->status_message)->toContain('エージェントが提案した文書の設定')
         ->and($first->markdown)->not->toContain('Share on X')
-        ->and($source->refresh()->document_config)->toEqual(['content' => 'article', 'date' => 'time', 'remove' => '.share', 'fixed_text' => '']);
+        ->and($source->refresh()->document_settings)->toEqual(['content' => 'article', 'date' => 'time', 'remove' => '.share', 'fixed_text' => '']);
     // The agent receives the page, without scripts, and must answer JSON.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com')
         && $request['response_format']['type'] === 'json_object'
@@ -242,7 +242,7 @@ it('warns of short bodies and lets the agent propose the document settings again
             ->push(documentAgentAnswer(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => '']))
             ->push(documentAgentAnswer(['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => ''])),
     ]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1', 'title' => 'Ammonia burner programme']));
 
     expect($document->hasShortBody())->toBeTrue();
@@ -252,16 +252,16 @@ it('warns of short bodies and lets the agent propose the document settings again
 
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSee('本文が短い（1000 字未満）')->call('proposeDocumentSettings')->assertHasNoErrors();
 
-    expect($source->refresh()->document_config)->toEqual(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => ''])
+    expect($source->refresh()->document_settings)->toEqual(['content' => 'section.body', 'date' => 'time', 'remove' => '', 'fixed_text' => ''])
         ->and($document->refresh()->hasShortBody())->toBeFalse()
         ->and($document->markdown)->toContain('The long body of the release.')->not->toContain('A short teaser');
     $this->get(route('editorial.documents.show', $document))->assertDontSee('字しかありません');
 
     // A proposal that yields no more than now is not kept.
-    $source->update(['document_config' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+    $source->update(['document_settings' => ['content' => 'header', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
     $document->update(['markdown' => '# Ammonia burner programme'.str_repeat("\n\nA short teaser.", 10)]);
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('proposeDocumentSettings')->assertHasNoErrors();
-    expect($source->refresh()->document_config['content'])->toBe('header');
+    expect($source->refresh()->document_settings['content'])->toBe('header');
 });
 
 it('falls back to generic selectors when the proposed content selector finds nothing, and saves what worked', function () {
@@ -274,7 +274,7 @@ it('falls back to generic selectors when the proposed content selector finds not
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
 
     expect($document->status)->toBe('fetched')
-        ->and($source->refresh()->document_config)->toMatchArray(['content' => 'article', 'remove' => '']);
+        ->and($source->refresh()->document_settings)->toMatchArray(['content' => 'article', 'remove' => '']);
 });
 
 // 日立: every article page numbers its container (#content-17863846), so the agent proposes a selector that fits one page only.
@@ -293,7 +293,7 @@ it('generalises a proposed selector that names the page number, and takes the co
     $first = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/_ct/17863846', 'title' => 'Article 17863846']));
     $second = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/_ct/17864379', 'title' => 'Article 17864379']));
 
-    expect($source->refresh()->document_config)->toEqual(['content' => '[id^="content-"]', 'date' => '[id^="content-"] .content-pubdate', 'remove' => '.content-info', 'fixed_text' => ''])
+    expect($source->refresh()->document_settings)->toEqual(['content' => '[id^="content-"]', 'date' => '[id^="content-"] .content-pubdate', 'remove' => '.content-info', 'fixed_text' => ''])
         ->and($first->markdown)->toStartWith("# Article 17863846\n\n2026-09-17\n\nHitachi developed")->not->toContain('[H]')
         ->and($second->status_message)->toBeNull()
         ->and($second->markdown)->toStartWith("# Article 17864379\n\n2026-09-17\n\n");
@@ -306,12 +306,12 @@ it('asks the agent again when the saved document settings no longer match the pa
         'www.example.org/news/1' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),
         'api.openai.com/*' => Http::response(documentAgentAnswer(['content' => 'article', 'remove' => ''])),
     ]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'div.old-layout', 'remove' => '']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'div.old-layout', 'remove' => '']]);
 
     $document = fetchDocument(Document::factory()->for($source)->create(['url' => 'https://www.example.org/news/1']));
 
     expect($document->status)->toBe('fetched')
-        ->and($source->refresh()->document_config['content'])->toBe('article');
+        ->and($source->refresh()->document_settings['content'])->toBe('article');
 });
 
 it('fails with a clear message when neither the proposal nor the generic selectors find a body', function () {
@@ -325,7 +325,7 @@ it('fails with a clear message when neither the proposal nor the generic selecto
 
     expect($document->status)->toBe('failed')
         ->and($document->status_message)->toContain('本文を見つけられませんでした')
-        ->and($source->refresh()->document_config)->toBeNull();
+        ->and($source->refresh()->document_settings)->toBeNull();
 });
 
 it('reads a PDF as text and keeps the original', function () {
@@ -437,7 +437,7 @@ it('queues every document of a source again from its screen, except the excluded
 
 // The Markdown of a source's documents can be made again from the originals on disk, without asking the site.
 it('rebuilds the Markdown of every document of a source from the originals, with the current settings', function () {
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share']]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'article', 'remove' => '.share']]);
     $entry = Document::factory()->for($source)->create(['title' => 'Ammonia burner programme', 'format' => 'html', 'original_path' => "documents/{$source->id}/1.html", 'markdown' => 'old', 'status' => 'failed']);
     Storage::disk('local')->put("documents/{$source->id}/1.html", DOCUMENT_PAGE);
     $unreadable = Document::factory()->for($source)->create(['format' => 'html', 'original_path' => "documents/{$source->id}/2.html", 'markdown' => 'old', 'status' => 'fetched']);
@@ -460,14 +460,14 @@ it('saves the document settings from the source detail screen', function () {
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('documentSettings.content', 'article')->set('documentSettings.remove', '.share')->set('documentSettings.fixed_text', '.notice')
         ->call('saveDocumentSettings')->assertHasNoErrors();
-    expect($source->refresh()->document_config)->toEqual(['content' => 'article', 'date' => '', 'remove' => '.share', 'fixed_text' => '.notice']);
+    expect($source->refresh()->document_settings)->toEqual(['content' => 'article', 'date' => '', 'remove' => '.share', 'fixed_text' => '.notice']);
 
     // Clearing the content selector hands the settings back to the agent.
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('documentSettings.content', 'article')
         ->set('documentSettings.content', '')
         ->call('saveDocumentSettings')->assertHasNoErrors();
-    expect($source->refresh()->document_config)->toBeNull();
+    expect($source->refresh()->document_settings)->toBeNull();
 });
 
 it('serves the original file', function () {
@@ -484,7 +484,7 @@ it('reads the full text a document page links to, and does not screen again what
         'arxiv.org/abs/2609.00001' => Http::response($abstractPage, 200, ['Content-Type' => 'text/html']),
         'arxiv.org/html/2609.00001v1' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),
     ]);
-    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share'], 'full_text_link' => "#latexml-download-link\na.download-pdf"]);
+    $source = Source::factory()->create(['document_settings' => ['content' => 'article', 'remove' => '.share'], 'full_text_link' => "#latexml-download-link\na.download-pdf"]);
     $entry = Document::factory()->for($source)->create(['url' => 'https://arxiv.org/abs/2609.00001', 'title' => 'Ammonia burner programme', 'format' => 'feed', 'markdown' => "# Ammonia burner programme\n\nThe abstract.", 'human_decision' => 'adopt']);
 
     $document = fetchDocument($entry);

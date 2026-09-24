@@ -14,7 +14,7 @@ use App\Models\Screening;
 class ScreeningFigures
 {
     /**
-     * @return array{versions: list<array<string, mixed>>, reasons: list<array{primary_reason: string, decision: string, meaning: string, count: int, share: float}>}
+     * @return array{versions: list<array<string, mixed>>, reasons: list<array{reason_class: string, decision: string, meaning: string, count: int, share: float}>}
      */
     public function __invoke(): array
     {
@@ -26,12 +26,12 @@ class ScreeningFigures
             ->toBase()->get();
 
         // The reason classes counted over the latest screening of each document, in the order of the gate's list.
-        $counted = Screening::query()->where('status', 'screened')->whereIn('id', Document::query()->whereNotNull('screening_id')->select('screening_id'))->groupBy('primary_reason')->selectRaw('primary_reason, count(*) as count')->pluck('count', 'primary_reason');
+        $counted = Screening::query()->where('status', 'screened')->whereIn('id', Document::query()->whereNotNull('latest_screening_id')->select('latest_screening_id'))->groupBy('reason_class')->selectRaw('reason_class, count(*) as count')->pluck('count', 'reason_class');
         $total = max(1, (int) $counted->sum());
         $reasons = [];
 
         foreach (Screening::REASONS as $reason => $about) {
-            $reasons[] = ['primary_reason' => $reason, 'decision' => $about['decision'], 'meaning' => $about['meaning'], 'count' => (int) ($counted[$reason] ?? 0), 'share' => (int) ($counted[$reason] ?? 0) / $total];
+            $reasons[] = ['reason_class' => $reason, 'decision' => $about['decision'], 'meaning' => $about['meaning'], 'count' => (int) ($counted[$reason] ?? 0), 'share' => (int) ($counted[$reason] ?? 0) / $total];
         }
 
         return [

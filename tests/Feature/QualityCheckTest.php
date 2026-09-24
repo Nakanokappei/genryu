@@ -43,15 +43,15 @@ function checkQuality(Article $article): QualityCheck
 // The judge scores the article against the policy, which carries the rubric, with the material to check the facts against.
 it('scores a written article against the quality layer of the editorial policy', function () {
     Http::fake(['api.openai.com/*' => Http::response(qualityAnswer(78))]);
-    $article = Article::factory()->create(['language' => 'ja', 'title' => '工業炉の炎はアンモニアでも燃える', 'body' => "リード。\n\n## 出典\n\n[NEDO](https://www.nedo.go.jp/)"]);
-    $article->material->update(['data' => ['angle' => 'アンモニアは主燃料になった', 'facts' => ['混焼率は 85％']]]);
+    $article = Article::factory()->create(['language' => 'ja', 'headline' => '工業炉の炎はアンモニアでも燃える', 'body' => "リード。\n\n## 出典\n\n[NEDO](https://www.nedo.go.jp/)"]);
+    $article->material->update(['parts' => ['angle' => 'アンモニアは主燃料になった', 'facts' => ['混焼率は 85％']]]);
 
     $check = checkQuality($article);
 
     expect($check->status)->toBe('checked')
         ->and($check->score)->toBe(78)
         ->and($check->reason)->toBe('事実は素材情報どおりだが、結の条件が弱い。')
-        ->and($check->prompt->name)->toBe('quality')
+        ->and($check->prompt->layer)->toBe('quality')
         ->and($check->model)->toBe('gpt-5.6-luna')
         ->and($check)->toMatchArray(['input_tokens' => 3000, 'cached_tokens' => 2000, 'output_tokens' => 150])
         ->and($article->qualityCheck->is($check))->toBeTrue();

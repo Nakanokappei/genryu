@@ -49,24 +49,24 @@ new #[Title('情報源')] class extends Component {
         $this->notes = $this->source->notes ?? '';
         $this->fullTextLink = $this->source->full_text_link ?? '';
         $this->method = match (true) {
-            ($this->source->json_config['url'] ?? '') !== '' => 'json',
-            ($this->source->list_config['item'] ?? '') !== '' || (bool) $this->source->read_as_html => 'html',
+            ($this->source->json_list_settings['url'] ?? '') !== '' => 'json',
+            ($this->source->html_list_settings['item'] ?? '') !== '' || $this->source->list_method === 'html' => 'html',
             default => 'feed',
         };
 
-        foreach ($this->source->list_config ?? [] as $key => $value) {
+        foreach ($this->source->html_list_settings ?? [] as $key => $value) {
             if (array_key_exists($key, $this->list)) {
                 $this->list[$key] = (string) $value;
             }
         }
 
-        foreach ($this->source->json_config ?? [] as $key => $value) {
+        foreach ($this->source->json_list_settings ?? [] as $key => $value) {
             if (array_key_exists($key, $this->json)) {
                 $this->json[$key] = (string) $value;
             }
         }
 
-        foreach ($this->source->document_config ?? [] as $key => $value) {
+        foreach ($this->source->document_settings ?? [] as $key => $value) {
             if (array_key_exists($key, $this->documentSettings)) {
                 $this->documentSettings[$key] = (string) $value;
             }
@@ -86,7 +86,7 @@ new #[Title('情報源')] class extends Component {
         ])['json'];
 
         // One method at a time: the JSON list saved, the HTML list settings go.
-        $this->source->update(['list_config' => null, 'json_config' => ($validated['url'] ?? '') !== ''
+        $this->source->update(['html_list_settings' => null, 'json_list_settings' => ($validated['url'] ?? '') !== ''
             ? [...$validated, 'items' => (string) ($validated['items'] ?? ''), 'date' => (string) ($validated['date'] ?? ''), 'max_items' => (int) $validated['max_items']]
             : null]);
 
@@ -112,7 +112,7 @@ new #[Title('情報源')] class extends Component {
             'documentSettings.fixed_text' => ['nullable', 'string', 'max:1000'],
         ])['documentSettings'];
 
-        $this->source->update(['document_config' => ($validated['content'] ?? '') !== ''
+        $this->source->update(['document_settings' => ($validated['content'] ?? '') !== ''
             ? array_map(fn (?string $value): string => (string) $value, $validated)
             : null]);
 
@@ -201,7 +201,7 @@ new #[Title('情報源')] class extends Component {
         ])['list'];
 
         // One method at a time: the HTML list saved, the JSON list settings go.
-        $this->source->update(['json_config' => null, 'list_config' => $validated['item'] !== '' && $validated['item'] !== null
+        $this->source->update(['json_list_settings' => null, 'html_list_settings' => $validated['item'] !== '' && $validated['item'] !== null
             ? [...$validated, 'max_pages' => (int) $validated['max_pages']]
             : null]);
 
@@ -224,16 +224,16 @@ new #[Title('情報源')] class extends Component {
         $this->redirectRoute('editorial.sources.index', navigate: true);
     }
 
-    // The tab chosen is remembered as the choice to skip feeds (read_as_html, which ConfigureSource honours); the other settings stay until one is saved.
+    // The tab chosen is remembered as list_method (ConfigureSource skips feeds for html); the other settings stay until one is saved.
     public function updatedMethod(string $value): void
     {
-        $this->source->update(['read_as_html' => $value === 'html']);
+        $this->source->update(['list_method' => $value]);
     }
 
     // Read the feed from now on: the HTML and JSON list settings go, and the feed is looked for again.
     public function useFeed(): void
     {
-        $this->source->update(['list_config' => null, 'json_config' => null, 'read_as_html' => false]);
+        $this->source->update(['html_list_settings' => null, 'json_list_settings' => null, 'list_method' => 'feed']);
         $this->list = ['item' => '', 'title' => '', 'date' => '', 'next' => '', 'max_pages' => '3'];
         $this->json = ['url' => '', 'items' => '', 'title' => 'title', 'link' => 'url', 'date' => '', 'max_items' => '50'];
         $this->configure();
@@ -242,18 +242,18 @@ new #[Title('情報源')] class extends Component {
     // Queue the background configuration again (after a failure, or after the site changed).
     public function configure(): void
     {
-        $this->source->update(['status' => 'pending', 'status_message' => null]);
+        $this->source->update(['status' => 'configuring', 'status_message' => null]);
         ConfigureSource::dispatch($this->source);
 
         Flux::toast(variant: 'success', text: __('Configuration queued.'));
     }
 
-    // Polled while pending so the screen follows the background job; the settings form is refilled once it is done.
+    // Polled while configuring so the screen follows the background job; the settings form is refilled once it is done.
     public function refreshStatus(): void
     {
         $this->source->refresh();
 
-        if ($this->source->status !== 'pending') {
+        if ($this->source->status !== 'configuring') {
             $this->mount();
         }
     }
@@ -291,7 +291,7 @@ new #[Title('情報源')] class extends Component {
         </div>
     </form>
 
-    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700" @if ($source->status === 'pending') wire:poll.5s="refreshStatus" @endif>
+    <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700" @if ($source->status === 'configuring') wire:poll.5s="refreshStatus" @endif>
         <x-pages::status :status="$source->status" />
         <flux:text class="flex-1">{{ $source->status_message ?? '—' }}</flux:text>
         <flux:button wire:click="configure" size="sm" icon="sparkles">{{ __('Configure again') }}</flux:button>
@@ -307,7 +307,7 @@ new #[Title('情報源')] class extends Component {
                 —
             @endif
         </flux:text>
-        <flux:text class="ms-auto">{{ __('Fetched at') }}: {{ $source->fetched_at?->display() ?? '—' }}</flux:text>
+        <flux:text class="ms-auto">{{ __('Updates fetched at') }}: {{ $source->updates_fetched_at?->display() ?? '—' }}</flux:text>
     </div>
 
     {{-- How the update list is read: one of three, chosen once (a site rarely changes it), so only the settings of that one are in view. --}}
@@ -320,7 +320,7 @@ new #[Title('情報源')] class extends Component {
 
         @if ($method === 'feed')
             <flux:text>{{ __('The RSS or Atom feed of the site, found when the source is configured.') }}</flux:text>
-            @if (($source->list_config['item'] ?? '') !== '' || ($source->json_config['url'] ?? '') !== '')
+            @if (($source->html_list_settings['item'] ?? '') !== '' || ($source->json_list_settings['url'] ?? '') !== '')
                 <flux:text>{{ __('The list is still read with the HTML or JSON list settings; to read the feed instead, drop them and look for the feed again:') }}</flux:text>
                 <flux:button type="button" wire:click="useFeed" wire:confirm="{{ __('Drop the HTML and JSON list settings and look for a feed?') }}">{{ __('Read the feed') }}</flux:button>
             @endif

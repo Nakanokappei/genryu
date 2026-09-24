@@ -16,7 +16,7 @@
             </a>
             <div class="flex flex-col justify-center md:col-span-2">
                 @include('media.byline', ['article' => $top])
-                <h2 class="media-serif mt-2 text-3xl leading-tight font-extrabold sm:text-4xl"><a href="{{ route('media.article', [$language, $top]) }}" class="hover:underline">{{ $top->title }}</a></h2>
+                <h2 class="media-serif mt-2 text-3xl leading-tight font-extrabold sm:text-4xl"><a href="{{ route('media.article', [$language, $top]) }}" class="hover:underline">{{ $top->headline }}</a></h2>
                 <p class="mt-4 leading-relaxed text-[#3d3a35]">{{ Str::limit($media::lead($top), 220) }}</p>
             </div>
         </article>
@@ -30,7 +30,7 @@
                             @include('media.picture', ['article' => $article, 'class' => 'aspect-video w-full rounded-sm object-cover'])
                         </a>
                         <div class="mt-3">@include('media.byline', ['article' => $article])</div>
-                        <h3 class="media-serif mt-1 text-xl leading-snug font-bold"><a href="{{ route('media.article', [$language, $article]) }}" class="hover:underline">{{ $article->title }}</a></h3>
+                        <h3 class="media-serif mt-1 text-xl leading-snug font-bold"><a href="{{ route('media.article', [$language, $article]) }}" class="hover:underline">{{ $article->headline }}</a></h3>
                         <p class="mt-2 text-sm leading-relaxed text-[#3d3a35]">{{ Str::limit($media::lead($article), 120) }}</p>
                     </article>
                 @endforeach

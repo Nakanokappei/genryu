@@ -26,13 +26,13 @@ new #[Title('情報源')] class extends PagedList {
 
     public function mount(): void
     {
-        $this->excludeKeywords = EditorialPolicy::bodyFor('exclude_keywords');
+        $this->excludeKeywords = EditorialPolicy::bodyFor('title_filter');
     }
 
     // Saving the title filter applies it to every document already listed as well: the rules are cheap, so no document waits for the next update list.
     public function saveTitleFilter(ApplyTitleFilter $apply): void
     {
-        EditorialPolicy::query()->updateOrCreate(['layer' => 'exclude_keywords'], ['body' => $this->excludeKeywords]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'title_filter'], ['body' => $this->excludeKeywords]);
         $result = $apply();
 
         Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :excluded documents newly excluded, :restored no longer excluded.', $result));

@@ -40,7 +40,7 @@ new #[Title('品質チェック')] class extends PagedList {
     // Queue a check for every written original that has none, or whose latest one failed.
     public function check(): void
     {
-        $articles = Article::query()->originals()->whereNotNull('body')->whereIn('status', ['draft', 'published'])
+        $articles = Article::query()->originals()->whereNotNull('body')->where('status', 'written')
             ->where(fn ($query) => $query->whereDoesntHave('qualityCheck')->orWhereRelation('qualityCheck', 'status', 'failed'))->get();
         $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
         unset($this->articles);
@@ -51,7 +51,7 @@ new #[Title('品質チェック')] class extends PagedList {
     // Queue a check for every written original again, as after the policy has changed.
     public function checkAll(): void
     {
-        $articles = Article::query()->originals()->whereNotNull('body')->whereIn('status', ['draft', 'published'])->get();
+        $articles = Article::query()->originals()->whereNotNull('body')->where('status', 'written')->get();
         $articles->each(fn (Article $article) => CheckQuality::queueFor($article));
         unset($this->articles);
 
@@ -77,11 +77,11 @@ new #[Title('品質チェック')] class extends PagedList {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Title'), __('Status'), __('Quality'), __('Checked at')]" :empty="$this->articles->isEmpty()">
+    <x-pages::table :columns="[__('Headline'), __('Status'), __('Quality'), __('Checked at')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             @php $check = $article->qualityCheck; @endphp
             <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                 <td class="whitespace-nowrap px-3 py-2">
                     @if ($check === null)
                         <span class="text-neutral-500">—</span>

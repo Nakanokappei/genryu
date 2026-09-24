@@ -17,7 +17,7 @@ class HtmlList
      * title link and the date inside an item, the next-page link, and how
      * many pages one fetch may read.
      */
-    public const CONFIG_KEYS = ['item', 'title', 'date', 'next', 'max_pages'];
+    public const SETTING_KEYS = ['item', 'title', 'date', 'next', 'max_pages'];
 
     public static function document(string $body): HTMLDocument
     {

@@ -22,8 +22,7 @@ use Illuminate\Support\Str;
  * that what the reporter found in the source survives into every language.
  * A material therefore has several articles: the original, whose
  * translated_from_id is null, and its translations, each pointing at it.
- * Status generating / draft / failed / published (UI: 生成中 / 下書き /
- * 失敗 / 公開済み). Pinned, like a screening and a material, to the
+ * Status generating / written / failed (UI: 生成中 / 作成済み / 失敗). Pinned, like a screening and a material, to the
  * prompt version and the model it was written with, with the usage of
  * the call, so articles written under different policies can be compared.
  *
@@ -73,7 +72,7 @@ class Article extends Model
     public const MAX_FIGURES = 2;
 
     protected $fillable = [
-        'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'figures', 'status', 'status_message', 'published_at', 'scheduled_at', 'image_path', 'image_time',
+        'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'headline', 'body', 'figures', 'status', 'status_message', 'published_at', 'scheduled_at', 'image_path', 'image_time',
         'headline_prompt_id', 'headline_model', 'headline_review',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
@@ -83,13 +82,10 @@ class Article extends Model
         return ['published_at' => 'datetime', 'scheduled_at' => 'datetime', 'estimated_total_cost' => 'float', 'headline_review' => 'array', 'figures' => 'array'];
     }
 
-    /**
-     * What the screens call the article: its title once written, the
-     * document's title until then.
-     */
-    public function displayTitle(): string
+    /** What the screens call the article: its headline once written, the document's title until then. */
+    public function displayHeadline(): string
     {
-        return $this->title ?? (string) $this->material?->document->title;
+        return $this->headline ?? (string) $this->material?->document->title;
     }
 
     /** What the screens call its language. */
@@ -147,7 +143,7 @@ class Article extends Model
 
     /**
      * The body without the headline some translators put at its head as a
-     * # line: the headline is the title shown above the body.
+     * # line: the headline is shown above the body.
      */
     public function bodyWithoutHeadline(): string
     {

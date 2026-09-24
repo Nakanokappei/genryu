@@ -81,7 +81,7 @@ it('sets each language version at the same local time in its own zone', function
 
 // Weekdays only: a Friday with its slots full goes on to Monday.
 it('skips the weekend', function () {
-    ScheduleSetting::query()->create(['articles_per_weekday' => 1, 'days' => 7, 'times' => ['12:00']]);
+    ScheduleSetting::query()->create(['articles_per_weekday' => 1, 'period_days' => 7, 'publication_times' => ['12:00']]);
     $articles = array_map(fn (int $score): Article => checkedArticle($score), [90, 80, 70, 60]);
 
     schedule();
@@ -98,7 +98,7 @@ it('keeps the settings on the schedule screen and makes the schedule again', fun
     expect(slotOf($best))->toBe('Wed 2026-09-23 12:00');
 
     Livewire::test('pages::production.schedule.index')
-        ->set('articlesPerWeekday', 1)->set('times', '18:00, 08:00')
+        ->set('articlesPerWeekday', 1)->set('publicationTimes', '18:00, 08:00')
         ->call('saveSettings')->assertHasNoErrors()
         ->call('reschedule');
 
@@ -106,8 +106,8 @@ it('keeps the settings on the schedule screen and makes the schedule again', fun
         ->and(slotOf($best))->toBe('Thu 2026-09-24 08:00')
         ->and(slotOf($next))->toBe('Fri 2026-09-25 08:00');
 
-    Livewire::test('pages::production.schedule.index')->set('times', '7時')->call('saveSettings')->assertHasErrors(['times']);
-    Livewire::test('pages::production.schedule.index')->set('articlesPerWeekday', 3)->set('times', '08:00, 12:00')->call('saveSettings')->assertHasErrors(['articlesPerWeekday']);
+    Livewire::test('pages::production.schedule.index')->set('publicationTimes', '7時')->call('saveSettings')->assertHasErrors(['publicationTimes']);
+    Livewire::test('pages::production.schedule.index')->set('articlesPerWeekday', 3)->set('publicationTimes', '08:00, 12:00')->call('saveSettings')->assertHasErrors(['articlesPerWeekday']);
 
     $this->get(route('production.schedule.index'))->assertSee('スケジュール')->assertSee('2026-09-24（木） 08:00')->assertSee('90');
 });

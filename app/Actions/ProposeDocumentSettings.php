@@ -33,7 +33,7 @@ class ProposeDocumentSettings
 
         $settings = [];
 
-        foreach (ReadDocument::DOCUMENT_CONFIG_KEYS as $key) {
+        foreach (ReadDocument::DOCUMENT_SETTING_KEYS as $key) {
             $settings[$key] = trim((string) ($proposal[$key] ?? ''));
         }
 

@@ -48,12 +48,9 @@ class Screening extends Model
         'INSUFFICIENT_EVIDENCE' => ['decision' => 'review', 'meaning' => 'A possible transition the text alone cannot confirm'],
     ];
 
-    /** The reason classes of the gate, in the order of REASONS. */
-    public const PRIMARY_REASONS = ['FRONTIER_BREAK', 'FEASIBILITY_BET', 'ENGINEERING_ATTACK', 'DEMONSTRATION', 'INDUSTRIALIZATION', 'ECONOMIC_TRANSITION', 'COMPETITION_DIFFUSION', 'IMPORTANT_FAILURE', 'REGULATION_STANDARD', 'PURE_SCIENCE', 'ROUTINE_PRODUCT', 'GENERAL_CORPORATE', 'EVENT_PR', 'ADMINISTRATIVE', 'OPINION_ONLY', 'TECHNOLOGY_USE_ONLY', 'INSUFFICIENT_EVIDENCE'];
-
     protected $fillable = [
         'document_id', 'document_revision_id', 'prompt_id', 'model', 'pass', 'status', 'status_message',
-        'decision', 'primary_reason', 'evidence', 'reason',
+        'decision', 'reason_class', 'evidence', 'reason',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms',
         'estimated_input_cost', 'estimated_output_cost', 'estimated_total_cost',
     ];

@@ -56,14 +56,14 @@ class CheckQuality implements ShouldQueue
         $article = $check->article;
 
         try {
-            if ($article->translated_from_id !== null || $article->body === null || ! in_array($article->status, ['draft', 'published'], true)) {
+            if ($article->translated_from_id !== null || $article->body === null || $article->status !== 'written') {
                 throw new RuntimeException(__('Only a written original article is checked.'));
             }
 
             $policy = Prompt::textOf($check->prompt, 'quality');
 
             $model = (string) $check->model;
-            $result = $score($policy, $model, $article, (array) $article->material?->data);
+            $result = $score($policy, $model, $article, (array) $article->material?->parts);
 
             if (! is_numeric($result['json']['score'] ?? null)) {
                 throw new RuntimeException(__('The agent did not return a score.'));

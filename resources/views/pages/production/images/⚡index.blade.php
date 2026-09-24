@@ -15,7 +15,7 @@ new #[Title('画像')] class extends Component {
     /** The developer prompt of the scene writer, and the two models. */
     public string $image = '';
 
-    public string $imageWriterModel = EditorialPolicy::DEFAULT_MODEL;
+    public string $sceneModel = EditorialPolicy::DEFAULT_MODEL;
 
     public string $imageModel = EditorialPolicy::DEFAULT_IMAGE_MODEL;
 
@@ -25,7 +25,7 @@ new #[Title('画像')] class extends Component {
     public function mount(): void
     {
         $this->image = EditorialPolicy::bodyFor('image');
-        $this->imageWriterModel = EditorialPolicy::modelFor('image');
+        $this->sceneModel = EditorialPolicy::modelFor('image');
         $this->imageModel = EditorialPolicy::imageModel();
         $this->bands = ImageStyle::bands();
     }
@@ -33,14 +33,14 @@ new #[Title('画像')] class extends Component {
     public function savePolicy(): void
     {
         $this->validate([
-            'imageWriterModel' => EditorialPolicy::modelRule(),
+            'sceneModel' => EditorialPolicy::modelRule(),
             'imageModel' => EditorialPolicy::modelRule(EditorialPolicy::IMAGE_MODELS),
             'bands.*.name' => ['required', 'string', 'max:64'],
             'bands.*.starts_at' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/', 'distinct'],
             'bands.*.style' => ['required', 'string'],
         ]);
 
-        EditorialPolicy::query()->updateOrCreate(['layer' => 'image'], ['body' => $this->image, 'model' => $this->imageWriterModel, 'image_model' => $this->imageModel]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'image'], ['body' => $this->image, 'model' => $this->sceneModel, 'image_model' => $this->imageModel]);
 
         foreach ($this->bands as $band => $settings) {
             ImageStyle::query()->updateOrCreate(['band' => $band], ['name' => $settings['name'], 'starts_at' => $settings['starts_at'], 'style' => trim($settings['style'])]);
@@ -91,7 +91,7 @@ new #[Title('画像')] class extends Component {
         <flux:textarea wire:model="image" :label="__('Developer prompt (editable)')" rows="10" class="font-mono text-xs" />
         <x-pages::fixed-prompts :instruction="\App\Actions\ProposeScene::INSTRUCTIONS" :input="[__('The article as written'), __('The material, as JSON'), __('The style of the hour')]" />
         <div class="grid gap-3 sm:grid-cols-2">
-            <x-pages::model-select wire:model="imageWriterModel" :label="__('Model of the scene')" detail="short" />
+            <x-pages::model-select wire:model="sceneModel" :label="__('Model of the scene')" detail="short" />
             <x-pages::model-select wire:model="imageModel" :label="__('Image model')" :models="\App\Models\EditorialPolicy::IMAGE_MODELS" />
         </div>
 
@@ -114,7 +114,7 @@ new #[Title('画像')] class extends Component {
         </div>
     </form>
 
-    <x-pages::table :columns="[__('Top image'), __('Scheduled at (local time)'), __('Time band'), __('Title'), __('Status'), '']" :empty="$this->articles->isEmpty()">
+    <x-pages::table :columns="[__('Top image'), __('Scheduled at (local time)'), __('Time band'), __('Headline'), __('Status'), '']" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             @php $image = $article->image; $band = \App\Models\ImageStyle::bandFor((string) $article->scheduledLocal()?->format('H:i')); @endphp
             <tr wire:key="article-{{ $article->id }}">
@@ -127,7 +127,7 @@ new #[Title('画像')] class extends Component {
                 </td>
                 <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ $article->scheduledLocal()?->locale(app()->getLocale())->isoFormat('YYYY-MM-DD（ddd） HH:mm') }}</td>
                 <td class="whitespace-nowrap px-3 py-2">{{ $bands[$band]['name'] ?? $band }}</td>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayTitle() }}</a></td>
+                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
                 <td class="whitespace-nowrap px-3 py-2">
                     <x-pages::status :status="$article->publicationStatus()" />
                     @if ($image !== null)

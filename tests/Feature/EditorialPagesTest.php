@@ -42,7 +42,7 @@ it('renders the list and detail screen of every stage', function () {
     expect($sources->firstWhere('id', $source->id)->failed_documents_count)->toBe(1);
     // The source's address is a tooltip on the link icon, not a column.
     $this->get(route('editorial.sources.index'))->assertSee($source->name)->assertSee(e($source->url), false);
-    $this->get(route('editorial.articles.show', $article))->assertSee($article->title)->assertSee($update->title);
+    $this->get(route('editorial.articles.show', $article))->assertSee($article->headline)->assertSee($update->title);
 });
 
 // Timestamps are stored in UTC and shown in the display timezone (JST by default).
@@ -66,18 +66,18 @@ it('lets the user add a source by hand, and follows one record through the stage
         ->set('name', 'NEDO')->set('url', 'https://www.nedo.go.jp/')
         ->call('add')->assertHasNoErrors();
     $source = Source::query()->sole();
-    expect($source->status)->toBe('pending');
+    expect($source->status)->toBe('configuring');
     Queue::assertPushed(ConfigureSource::class, fn (ConfigureSource $job): bool => $job->source->is($source));
 
     $update = Document::factory()->for($source)->fetched()->create(['title' => 'Press release', 'url' => 'https://www.nedo.go.jp/news/press/1.html', 'published_at' => '2026-09-17', 'markdown' => '# Press release']);
 
-    $material = Material::factory()->for($update)->create(['data' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
+    $material = Material::factory()->for($update)->create(['parts' => ['summary' => 'ammonia burner', 'topics' => ['energy']]]);
 
-    Article::factory()->for($material)->create(['title' => 'Article', 'body' => 'Body text']);
+    Article::factory()->for($material)->create(['headline' => 'Article', 'body' => 'Body text']);
 
     expect($update->source->is($source))->toBeTrue()
         ->and($update->fetched_at)->not->toBeNull()
-        ->and($material->data)->toEqual(['summary' => 'ammonia burner', 'topics' => ['energy']])
+        ->and($material->parts)->toEqual(['summary' => 'ammonia burner', 'topics' => ['energy']])
         ->and(Article::query()->sole()->material->is($material))->toBeTrue();
 });
 

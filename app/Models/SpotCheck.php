@@ -23,19 +23,19 @@ class SpotCheck extends Model
      * threshold (94% of arXiv on 2026-09-24), which says little about the
      * line itself.
      */
-    public const STRATA = ['passed' => 3, 'near' => 4, 'far' => 3];
+    public const STRATA = ['let_through' => 3, 'just_below' => 4, 'far_below' => 3];
 
     /** How far below the threshold "just below" reaches. */
-    public const NEAR_WIDTH = 0.10;
+    public const JUST_BELOW_WIDTH = 0.10;
 
     /** A person's verdict: like this media, unlike it, or cannot tell. */
-    public const VERDICTS = ['like', 'unlike', 'unsure'];
+    public const VERDICTS = ['like', 'unlike', 'cannot_tell'];
 
-    protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'passed', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at', 'confirmed_at', 'confirmed_by'];
+    protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'let_through', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at', 'confirmed_at', 'confirmed_by'];
 
     protected function casts(): array
     {
-        return ['drawn_on' => 'immutable_date', 'weight' => 'float', 'likeness' => 'float', 'threshold' => 'float', 'passed' => 'boolean', 'decided_at' => 'datetime', 'confirmed_at' => 'datetime'];
+        return ['drawn_on' => 'immutable_date', 'weight' => 'float', 'likeness' => 'float', 'threshold' => 'float', 'let_through' => 'boolean', 'decided_at' => 'datetime', 'confirmed_at' => 'datetime'];
     }
 
     /** @return BelongsTo<Document, $this> */

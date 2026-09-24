@@ -26,7 +26,7 @@ class EditorialPolicy extends Model
 {
     /** The layers in flow order, each with its UI label. */
     public const LAYER_LABELS = [
-        'exclude_keywords' => 'Title filter',
+        'title_filter' => 'Title filter',
         'semantic_filter' => 'Semantic filter',
         'semantic_like' => 'Like this media',
         'semantic_unlike' => 'Unlike this media',
@@ -47,7 +47,7 @@ class EditorialPolicy extends Model
      * prompts:export and prompts:import.
      */
     public const DEFAULTS = [
-        'exclude_keywords' => '',
+        'title_filter' => '',
         'semantic_like' => '',
         'semantic_unlike' => '',
         'content_filtering' => '',
@@ -221,7 +221,7 @@ class EditorialPolicy extends Model
     {
         $rules = [];
 
-        foreach (preg_split('/\R/u', self::bodyFor('exclude_keywords')) ?: [] as $line) {
+        foreach (preg_split('/\R/u', self::bodyFor('title_filter')) ?: [] as $line) {
             $words = array_values(array_filter(array_map(trim(...), preg_split('/[;；]/u', $line) ?: []), fn (string $word): bool => $word !== ''));
 
             if ($words !== []) {

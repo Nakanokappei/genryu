@@ -22,7 +22,7 @@ class SpotCheckFigures
     public const THRESHOLDS = [-0.05, 0.0, 0.05, 0.10, 0.15, 0.20];
 
     /**
-     * @return array{days: int, checks: int, judged: int, strata: list<array{stratum: string, drawn: int, like: int, unsure: int, unlike: int, agreed: ?float}>, missed_like: ?float, passed_unlike: ?float, thresholds: list<array{threshold: float, passed_per_day: float, like_kept: ?float}>}
+     * @return array{days: int, checks: int, judged: int, strata: list<array{stratum: string, drawn: int, like: int, cannot_tell: int, unlike: int, agreed: ?float}>, missed_like: ?float, let_through_unlike: ?float, thresholds: list<array{threshold: float, let_through_per_day: float, like_kept: ?float}>}
      */
     public function __invoke(): array
     {
@@ -36,13 +36,13 @@ class SpotCheckFigures
             'judged' => $judged->count(),
             'strata' => array_map(fn (string $stratum): array => self::stratum($stratum, $checks->where('stratum', $stratum)), array_keys(SpotCheck::STRATA)),
             // Of the documents like this media, the share the filter left out.
-            'missed_like' => self::share($judged->where('verdict', 'like'), fn (SpotCheck $check): bool => ! $check->passed),
+            'missed_like' => self::share($judged->where('verdict', 'like'), fn (SpotCheck $check): bool => ! $check->let_through),
             // Of the documents the filter let through, the share unlike this media.
-            'passed_unlike' => self::share($judged->where('passed', true), fn (SpotCheck $check): bool => $check->verdict === 'unlike'),
+            'let_through_unlike' => self::share($judged->where('let_through', true), fn (SpotCheck $check): bool => $check->verdict === 'unlike'),
             'thresholds' => array_map(fn (float $threshold): array => [
                 'threshold' => $threshold,
                 // Every document of the day at or above the line, estimated from the weights, per day.
-                'passed_per_day' => $days === 0 ? 0.0 : (float) ($checks->filter(fn (SpotCheck $check): bool => $check->likeness >= $threshold)->sum('weight') / $days),
+                'let_through_per_day' => $days === 0 ? 0.0 : (float) ($checks->filter(fn (SpotCheck $check): bool => $check->likeness >= $threshold)->sum('weight') / $days),
                 'like_kept' => self::share($judged->where('verdict', 'like'), fn (SpotCheck $check): bool => $check->likeness >= $threshold),
             ], self::THRESHOLDS),
         ];
@@ -52,7 +52,7 @@ class SpotCheckFigures
      * One stratum as drawn: the verdicts, and how often the filter's outcome agreed with a person who could tell.
      *
      * @param  Collection<int, SpotCheck>  $checks
-     * @return array{stratum: string, drawn: int, like: int, unsure: int, unlike: int, agreed: ?float}
+     * @return array{stratum: string, drawn: int, like: int, cannot_tell: int, unlike: int, agreed: ?float}
      */
     private static function stratum(string $stratum, Collection $checks): array
     {
@@ -62,9 +62,9 @@ class SpotCheckFigures
             'stratum' => $stratum,
             'drawn' => $checks->count(),
             'like' => $checks->where('verdict', 'like')->count(),
-            'unsure' => $checks->where('verdict', 'unsure')->count(),
+            'cannot_tell' => $checks->where('verdict', 'cannot_tell')->count(),
             'unlike' => $checks->where('verdict', 'unlike')->count(),
-            'agreed' => $judged->isEmpty() ? null : (float) ($judged->filter(fn (SpotCheck $check): bool => ($check->verdict === 'like') === $check->passed)->count() / $judged->count()),
+            'agreed' => $judged->isEmpty() ? null : (float) ($judged->filter(fn (SpotCheck $check): bool => ($check->verdict === 'like') === $check->let_through)->count() / $judged->count()),
         ];
     }
 

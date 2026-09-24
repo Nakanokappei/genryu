@@ -52,7 +52,7 @@ it('reads an RSS feed given directly as the source URL', function () {
         ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole()->publishedDisplay())->toBe('2026-09-21 18:00')
         ->and(Document::query()->where('url', 'https://www.example.org/news/first')->sole()->published_at?->toDateString())->toBe('2026-09-21')
         ->and($source->refresh()->feed_url)->toBe('https://www.example.org/rss.xml')
-        ->and($source->fetched_at)->not->toBeNull();
+        ->and($source->updates_fetched_at)->not->toBeNull();
 });
 
 it('finds the feed an HTML page advertises and reads it', function () {
@@ -87,7 +87,7 @@ it('stops with a clear message when a page has no feed and no HTML list settings
     $source = Source::factory()->create(['url' => 'https://www.example.org/list']);
 
     expect(fn () => app(FetchUpdates::class)($source))->toThrow(RuntimeException::class, 'RSS / Atom フィードが見つかりません');
-    expect(Document::query()->count())->toBe(0)->and($source->refresh()->fetched_at)->toBeNull();
+    expect(Document::query()->count())->toBe(0)->and($source->refresh()->updates_fetched_at)->toBeNull();
 });
 
 /**
@@ -101,7 +101,7 @@ function listPage(int $page, int $lastPage, array $items): string
     return "<html><body><table class=\"table1\"><tr><th>掲載日</th><th>件名</th></tr>{$rows}</table>{$next}</body></html>";
 }
 
-const LIST_CONFIG = ['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => 'a[title="next page"]', 'max_pages' => 2];
+const HTML_LIST_SETTINGS = ['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => 'a[title="next page"]', 'max_pages' => 2];
 
 it('reads an HTML list with the source settings, page by page, within the page budget', function () {
     Http::fake([
@@ -109,7 +109,7 @@ it('reads an HTML list with the source settings, page by page, within the page b
         'www.example.org/list?p=3' => Http::response(listPage(3, 3, [['/news/4.html', 'Fourth', '2026-08-01', '2026年8月1日']]), 200, ['Content-Type' => 'text/html']),
         'www.example.org/list' => Http::response(listPage(1, 3, [['/news/1.html', 'First', '2026-09-17', '2026年9月17日'], ['/news/2.html', 'Second', '', '2026年9月8日']]), 200, ['Content-Type' => 'text/html']),
     ]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => LIST_CONFIG]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'html_list_settings' => HTML_LIST_SETTINGS]);
 
     $result = app(FetchUpdates::class)($source);
 
@@ -130,7 +130,7 @@ it('resolves query-only and relative next links against the page', function () {
         'www.example.org/fr/newsroom?tag=354&page=1' => Http::response(listPage(2, 2, [['/fr/presse/b', 'B', '2026-09-01', '']]), 200, ['Content-Type' => 'text/html']),
         'www.example.org/fr/newsroom?tag=354' => Http::response(str_replace('href="/list?p=2#table"', 'href="?tag=354&amp;page=1"', listPage(1, 2, [['presse/a', 'A', '2026-09-17', '']])), 200, ['Content-Type' => 'text/html']),
     ]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/fr/newsroom?tag=354', 'list_config' => LIST_CONFIG]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/fr/newsroom?tag=354', 'html_list_settings' => HTML_LIST_SETTINGS]);
 
     $result = app(FetchUpdates::class)($source);
 
@@ -143,7 +143,7 @@ it('stops paging at the first page with nothing new', function () {
         'www.example.org/list?p=2' => Http::response(listPage(2, 2, [['/news/2.html', 'Second', '2026-09-01', '']]), 200, ['Content-Type' => 'text/html']),
         'www.example.org/list' => Http::response(listPage(1, 2, [['/news/1.html', 'First', '2026-09-17', '']]), 200, ['Content-Type' => 'text/html']),
     ]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => [...LIST_CONFIG, 'max_pages' => 5]]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'html_list_settings' => [...HTML_LIST_SETTINGS, 'max_pages' => 5]]);
 
     app(FetchUpdates::class)($source);
     Http::assertSentCount(4); // robots.txt, page 1, page 2, favicon.ico
@@ -163,11 +163,11 @@ const JSON_LIST = '{"news":[{"date":"2026年09月17日","title":"量子コンピ
     .'{"date":"2026年09月15日","title":"SWISSto12 と覚書を締結","url":"/ja/pr/2026/0915_ds/"},'
     .'{"date":"2026年09月10日","title":"Fourth","url":"/ja/pr/2026/0910/"}],"meta":{"count":"4"}}';
 
-const JSON_CONFIG = ['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 3];
+const JSON_LIST_SETTINGS = ['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 3];
 
 it('reads a JSON list with the source settings, newest first, up to max_items', function () {
     Http::fake(['www.example.org/data/news-article.json' => Http::response(JSON_LIST, 200, ['Content-Type' => 'application/json'])]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_config' => JSON_CONFIG]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_list_settings' => JSON_LIST_SETTINGS]);
 
     $result = app(FetchUpdates::class)($source);
 
@@ -178,7 +178,7 @@ it('reads a JSON list with the source settings, newest first, up to max_items', 
 
 it('reports JSON list settings that match nothing', function () {
     Http::fake(['www.example.org/data/news-article.json' => Http::response('{"items": []}', 200, ['Content-Type' => 'application/json'])]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_config' => JSON_CONFIG]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/ja/pr/', 'json_list_settings' => JSON_LIST_SETTINGS]);
 
     expect(fn () => app(FetchUpdates::class)($source))->toThrow(RuntimeException::class, 'JSON 一覧の設定に一致する項目がありません');
 });
@@ -189,19 +189,19 @@ it('saves the JSON list settings from the source detail screen', function () {
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('json.url', 'https://www.example.org/data/news-article.json')->set('json.items', 'news')->set('json.date', 'date')->set('json.max_items', '20')
         ->call('saveJson')->assertHasNoErrors();
-    expect($source->refresh()->json_config)->toEqual(['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 20]);
+    expect($source->refresh()->json_list_settings)->toEqual(['url' => 'https://www.example.org/data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 20]);
 
     // Clearing the URL stops reading from JSON.
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('json.items', 'news')
         ->set('json.url', '')
         ->call('saveJson')->assertHasNoErrors();
-    expect($source->refresh()->json_config)->toBeNull();
+    expect($source->refresh()->json_list_settings)->toBeNull();
 });
 
 it('reports HTML list settings that match nothing', function () {
     Http::fake(['www.example.org/*' => Http::response('<html><body><p>no table</p></body></html>', 200, ['Content-Type' => 'text/html'])]);
-    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'list_config' => LIST_CONFIG]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/list', 'html_list_settings' => HTML_LIST_SETTINGS]);
 
     expect(fn () => app(FetchUpdates::class)($source))->toThrow(RuntimeException::class, '一致する項目がページにありません');
 });
@@ -212,14 +212,14 @@ it('saves the HTML list settings from the source detail screen', function () {
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->set('list.item', 'table.table1 tr')->set('list.title', 'td a')->set('list.date', 'time')->set('list.next', 'a[title="next page"]')->set('list.max_pages', '4')
         ->call('saveList')->assertHasNoErrors();
-    expect($source->refresh()->list_config)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => 'a[title="next page"]', 'max_pages' => 4]);
+    expect($source->refresh()->html_list_settings)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => 'a[title="next page"]', 'max_pages' => 4]);
 
     // Clearing the item selector goes back to reading a feed.
     Livewire::test('pages::editorial.sources.show', ['source' => $source])
         ->assertSet('list.item', 'table.table1 tr')
         ->set('list.item', '')
         ->call('saveList')->assertHasNoErrors();
-    expect($source->refresh()->list_config)->toBeNull();
+    expect($source->refresh()->html_list_settings)->toBeNull();
 });
 
 it('does not list the same URL twice for a source', function () {

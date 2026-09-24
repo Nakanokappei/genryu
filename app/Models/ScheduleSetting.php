@@ -13,13 +13,13 @@ use Illuminate\Database\Eloquent\Model;
  */
 class ScheduleSetting extends Model
 {
-    public const DEFAULTS = ['articles_per_weekday' => 5, 'days' => 7, 'times' => ['07:00', '09:00', '12:00', '15:00', '18:00']];
+    public const DEFAULTS = ['articles_per_weekday' => 5, 'period_days' => 7, 'publication_times' => ['07:00', '09:00', '12:00', '15:00', '18:00']];
 
-    protected $fillable = ['articles_per_weekday', 'days', 'times'];
+    protected $fillable = ['articles_per_weekday', 'period_days', 'publication_times'];
 
     protected function casts(): array
     {
-        return ['articles_per_weekday' => 'integer', 'days' => 'integer', 'times' => 'array'];
+        return ['articles_per_weekday' => 'integer', 'period_days' => 'integer', 'publication_times' => 'array'];
     }
 
     /** The settings as saved, or the defaults until they are. */
@@ -36,7 +36,7 @@ class ScheduleSetting extends Model
      */
     public function slots(): array
     {
-        $times = (array) $this->times;
+        $times = (array) $this->publication_times;
         sort($times);
 
         return array_slice($times, 0, $this->articles_per_weekday);

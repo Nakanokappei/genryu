@@ -103,7 +103,7 @@ it('finds a feed deterministically, without asking the agent, and reads it', fun
     ]);
     $source = configure(Source::factory()->create(['url' => 'https://www.example.org/news']));
 
-    expect($source)->toMatchArray(['status' => 'ready', 'feed_url' => 'https://www.example.org/rss.xml', 'list_config' => null])
+    expect($source)->toMatchArray(['status' => 'configured', 'feed_url' => 'https://www.example.org/rss.xml', 'html_list_settings' => null])
         ->and($source->status_message)->toContain('フィードを見つけました')
         ->and(Document::query()->count())->toBe(1);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
@@ -122,9 +122,9 @@ it('finds the JSON list a page draws its entries from, without asking the agent,
     ]);
     $source = configure(Source::factory()->create(['url' => 'https://www.example.org/ja/pr/']));
 
-    expect($source->status)->toBe('ready')
-        ->and($source->json_config)->toEqual(['url' => 'https://www.example.org/global/common/news-data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 50])
-        ->and($source->list_config)->toBeNull()
+    expect($source->status)->toBe('configured')
+        ->and($source->json_list_settings)->toEqual(['url' => 'https://www.example.org/global/common/news-data/news-article.json', 'items' => 'news', 'title' => 'title', 'link' => 'url', 'date' => 'date', 'max_items' => 50])
+        ->and($source->html_list_settings)->toBeNull()
         ->and($source->status_message)->toContain('JSON 一覧を見つけました')->toContain('3 件')
         ->and(Document::query()->orderBy('id')->pluck('title')->all())->toBe(['One', 'Two', 'Three']);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
@@ -138,8 +138,8 @@ it('asks the agent for HTML list settings when there is no feed, verifies them, 
     ]);
     $source = configure(Source::factory()->create(['url' => 'https://www.example.org/list']));
 
-    expect($source->status)->toBe('ready')
-        ->and($source->list_config)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => '', 'max_pages' => 3])
+    expect($source->status)->toBe('configured')
+        ->and($source->html_list_settings)->toEqual(['item' => 'table.table1 tr', 'title' => 'td a', 'date' => 'time', 'next' => '', 'max_pages' => 3])
         ->and($source->status_message)->toContain('3 件')
         ->and(Document::query()->count())->toBe(3);
     // The agent receives the page, without scripts, and must answer JSON.
@@ -158,12 +158,12 @@ it('reports how many feed entries the page links to, and skips feeds when told t
     ]);
 
     $probed = configure(Source::factory()->create(['url' => 'https://www.example.org/list']));
-    expect($probed->status)->toBe('ready')->and($probed->feed_url)->toBe('https://www.example.org/rss.xml')
+    expect($probed->status)->toBe('configured')->and($probed->feed_url)->toBe('https://www.example.org/rss.xml')
         ->and($probed->status_message)->toContain('0 件');
 
-    $asHtml = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'read_as_html' => true]));
-    expect($asHtml->status)->toBe('ready')->and($asHtml->feed_url)->toBeNull()
-        ->and($asHtml->list_config['item'])->toBe('table.table1 tr');
+    $asHtml = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'list_method' => 'html']));
+    expect($asHtml->status)->toBe('configured')->and($asHtml->feed_url)->toBeNull()
+        ->and($asHtml->html_list_settings['item'])->toBe('table.table1 tr');
 });
 
 // The 一覧の取得方法 tab chosen on the source detail screen is the choice to skip feeds; the HTML and JSON settings each drop the other when saved.
@@ -171,12 +171,12 @@ it('remembers the list method chosen on the source detail screen', function () {
     $source = Source::factory()->create();
 
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'feed')->set('method', 'html');
-    expect($source->refresh()->read_as_html)->toBeTrue();
+    expect($source->refresh()->list_method)->toBe('html');
 
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'html')
         ->set('list.item', 'li')->set('list.title', 'a')->call('saveList')->assertHasNoErrors()
         ->set('method', 'json')->set('json.url', 'https://www.example.org/news.json')->call('saveJson')->assertHasNoErrors();
-    expect($source->refresh()->list_config)->toBeNull()->and($source->json_config['url'])->toBe('https://www.example.org/news.json')->and($source->read_as_html)->toBeFalse();
+    expect($source->refresh()->html_list_settings)->toBeNull()->and($source->json_list_settings['url'])->toBe('https://www.example.org/news.json')->and($source->list_method)->toBe('json');
 
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->assertSet('method', 'json');
 });
@@ -190,10 +190,10 @@ it('falls back to generic title and date selectors when the proposed ones find n
         'www.example.org/*' => Http::response('not found', 404),
         'api.openai.com/*' => Http::response(agentAnswer(['item' => 'div.views-row', 'title' => 'h2.article__title a', 'date' => 'time.datetime', 'next' => ''])),
     ]);
-    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'read_as_html' => true]));
+    $source = configure(Source::factory()->create(['url' => 'https://www.example.org/list', 'list_method' => 'html']));
 
-    expect($source->status)->toBe('ready')
-        ->and($source->list_config)->toMatchArray(['item' => 'div.views-row', 'title' => 'h1, h2, h3, h4', 'date' => 'time.datetime'])
+    expect($source->status)->toBe('configured')
+        ->and($source->html_list_settings)->toMatchArray(['item' => 'div.views-row', 'title' => 'h1, h2, h3, h4', 'date' => 'time.datetime'])
         ->and(Document::query()->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
         ->and(Document::query()->where('title', 'Item 2')->sole()->published_at?->toDateString())->toBe('2026-09-02');
 });
@@ -208,7 +208,7 @@ it('does not save a proposal that matches too little on the page', function () {
 
     expect($source->status)->toBe('failed')
         ->and($source->status_message)->toContain('0 件')
-        ->and($source->list_config)->toBeNull()
+        ->and($source->html_list_settings)->toBeNull()
         ->and(Document::query()->count())->toBe(0);
 });
 
@@ -225,6 +225,6 @@ it('can be queued again from the source detail screen', function () {
 
     Livewire::test('pages::editorial.sources.show', ['source' => $source])->call('configure');
 
-    expect($source->refresh()->status)->toBe('pending');
+    expect($source->refresh()->status)->toBe('configuring');
     Queue::assertPushed(ConfigureSource::class);
 });
