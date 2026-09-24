@@ -269,7 +269,7 @@ new #[Title('文書')] class extends PagedList {
                 <table class="w-full text-left text-sm">
                     <thead class="text-neutral-500">
                         <tr>
-                            @foreach ([__('Prompt version'), __('Screened'), __('adopt'), __('reject'), __('review'), __('Cache hit rate'), __('Cache write rate'), __('Average cost'), __('Cost per adoption')] as $column)
+                            @foreach ([__('Prompt version'), __('Screenings'), __('adopt'), __('reject'), __('review'), __('Cache hit rate'), __('Cache write rate'), __('Average cost'), __('Cost per adoption')] as $column)
                                 <th class="whitespace-nowrap px-3 py-1 font-medium">{{ $column }}</th>
                             @endforeach
                         </tr>
