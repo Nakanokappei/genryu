@@ -7,9 +7,10 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Sleep;
 
 /**
- * robots.txt, checked before every fetch (cached per host for an hour):
- * 404 allows everything, any other non-200 nothing; our token's group wins
- * over "*", the longest matching rule wins, and Crawl-delay is honoured.
+ * robots.txt (RFC 9309), checked before every fetch (cached per host for
+ * an hour): a 4xx allows everything, a 5xx or no answer nothing; our
+ * token's group wins over "*", the longest matching rule wins (Allow on a
+ * tie), and Crawl-delay is honoured.
  */
 class RobotsPolicy
 {
@@ -26,12 +27,12 @@ class RobotsPolicy
         $path = ($parts['path'] ?? '/').(isset($parts['query']) ? '?'.$parts['query'] : '');
         $robots = $this->robots($url);
 
-        // No robots.txt: allowed.
-        if ($robots['status'] === 404) {
+        // Unavailable (4xx): allowed.
+        if ($robots['status'] >= 400 && $robots['status'] < 500) {
             return true;
         }
 
-        // Unreadable: disallowed.
+        // Unreachable (5xx, no answer, anything else unsuccessful): disallowed.
         if ($robots['status'] !== 200) {
             return false;
         }
@@ -155,7 +156,7 @@ class RobotsPolicy
     }
 
     /**
-     * Whether the path is allowed: the longest matching rule decides, allowed when none match.
+     * Whether the path is allowed: the longest matching rule decides, Allow on a tie; allowed when none match.
      *
      * @param  list<array{allow: bool, path: string}>  $rules
      */
@@ -170,8 +171,15 @@ class RobotsPolicy
                 continue;
             }
 
-            if (self::matches($rule['path'], $path) && strlen($rule['path']) > $longest) {
-                $longest = strlen($rule['path']);
+            if (! self::matches($rule['path'], $path)) {
+                continue;
+            }
+
+            // Longer wins; of the same length, Allow wins.
+            $length = strlen($rule['path']);
+
+            if ($length > $longest || ($length === $longest && $rule['allow'])) {
+                $longest = $length;
                 $verdict = $rule['allow'];
             }
         }

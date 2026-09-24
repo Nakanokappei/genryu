@@ -27,15 +27,36 @@ it('follows the rules of our own group over the * group, longest match first', f
     Http::assertSentCount(1);
 });
 
-it('allows everything without a robots.txt and nothing while it cannot be read', function () {
+// RFC 9309 2.3.1.3–2.3.1.4: a 4xx robots.txt is unavailable (everything allowed); a 5xx or no answer is unreachable (nothing allowed).
+it('allows everything when robots.txt is unavailable and nothing when it is unreachable', function () {
     Http::fake([
         'missing.example.org/robots.txt' => Http::response('', 404),
+        'private.example.org/robots.txt' => Http::response('', 403),
+        'login.example.org/robots.txt' => Http::response('', 401),
+        'gone.example.org/robots.txt' => Http::response('', 410),
         'down.example.org/robots.txt' => Http::response('', 503),
+        'unreachable.example.org/robots.txt' => Http::failedConnection(),
     ]);
     $robots = new RobotsPolicy;
 
     expect($robots->allows('https://missing.example.org/anything'))->toBeTrue()
-        ->and($robots->allows('https://down.example.org/anything'))->toBeFalse();
+        ->and($robots->allows('https://private.example.org/anything'))->toBeTrue()
+        ->and($robots->allows('https://login.example.org/anything'))->toBeTrue()
+        ->and($robots->allows('https://gone.example.org/anything'))->toBeTrue()
+        ->and($robots->allows('https://down.example.org/anything'))->toBeFalse()
+        ->and($robots->allows('https://unreachable.example.org/anything'))->toBeFalse();
+});
+
+// RFC 9309 2.2.2: when an Allow and a Disallow rule match with the same length, Allow wins, whichever is written first.
+it('lets Allow win over a Disallow of the same length', function () {
+    Http::fake([
+        'first.example.org/robots.txt' => Http::response("User-agent: *\nDisallow: /page\nAllow: /page\n", 200),
+        'second.example.org/robots.txt' => Http::response("User-agent: *\nAllow: /page\nDisallow: /page\n", 200),
+    ]);
+    $robots = new RobotsPolicy;
+
+    expect($robots->allows('https://first.example.org/page'))->toBeTrue()
+        ->and($robots->allows('https://second.example.org/page'))->toBeTrue();
 });
 
 // The rule is a global HTTP middleware: every outgoing request is checked, whoever sends it.
