@@ -109,30 +109,10 @@ class ExtractMaterial implements ShouldQueue
                 'status' => 'extracted',
                 'status_message' => __('Extracted by :model.', ['model' => $model]),
                 ...Usage::sum($usage),
-                'estimated_total_cost' => self::cost($model, $usage),
+                'estimated_total_cost' => Usage::costOfCalls($model, $usage),
             ]);
         } catch (Throwable $exception) {
             $material->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception), ...Usage::sum($usage)]);
         }
-    }
-
-    /**
-     * @param  list<array<string, ?int>>  $usage
-     */
-    private static function cost(string $model, array $usage): ?float
-    {
-        $total = null;
-
-        foreach ($usage as $call) {
-            $cost = Usage::estimatedCost($model, ['input_tokens' => $call['input_tokens'], 'cached_tokens' => $call['cached_tokens'], 'output_tokens' => $call['output_tokens']])['estimated_total_cost'];
-
-            if ($cost === null) {
-                return null;
-            }
-
-            $total = ($total ?? 0.0) + $cost;
-        }
-
-        return $total;
     }
 }

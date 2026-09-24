@@ -53,4 +53,27 @@ class Usage
 
         return ['input_tokens' => $sum('input_tokens'), 'cached_tokens' => $sum('cached_tokens'), 'cache_write_tokens' => $sum('cache_write_tokens'), 'output_tokens' => $sum('output_tokens'), 'latency_ms' => $sum('latency_ms')];
     }
+
+    /**
+     * What several calls on one model cost in USD, priced call by call;
+     * unknown when any call's is.
+     *
+     * @param  list<array<string, ?int>>  $usages
+     */
+    public static function costOfCalls(string $model, array $usages): ?float
+    {
+        $total = null;
+
+        foreach ($usages as $usage) {
+            $cost = self::estimatedCost($model, ['input_tokens' => $usage['input_tokens'] ?? null, 'cached_tokens' => $usage['cached_tokens'] ?? null, 'output_tokens' => $usage['output_tokens'] ?? null])['estimated_total_cost'];
+
+            if ($cost === null) {
+                return null;
+            }
+
+            $total = ($total ?? 0.0) + $cost;
+        }
+
+        return $total;
+    }
 }
