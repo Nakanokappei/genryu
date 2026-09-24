@@ -41,7 +41,7 @@ class ReviseDocumentSettings
         }
 
         // The documents short before the rebuild, to tell which ones the new settings cured.
-        $short = $source->documents()->where('status', 'fetched')->whereNull('excluded_by')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->pluck('id')->all();
+        $short = $source->documents()->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->pluck('id')->all();
 
         $source->update(['document_config' => $settings]);
         $result = ($this->rebuild)($source);

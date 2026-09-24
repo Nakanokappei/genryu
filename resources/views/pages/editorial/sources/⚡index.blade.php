@@ -48,7 +48,7 @@ new #[Title('情報源')] class extends PagedList {
                 'documents',
                 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed'),
                 // Fetched bodies shorter than Document::SHORT_BODY_CHARS, excluded documents aside: the document settings may miss the body (its detail says which and offers a fix).
-                'documents as short_documents_count' => fn ($query) => $query->where('status', 'fetched')->whereNull('excluded_by')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS]),
+                'documents as short_documents_count' => fn ($query) => $query->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS]),
             ])
             ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
@@ -107,6 +107,7 @@ new #[Title('情報源')] class extends PagedList {
         <flux:text>{{ __('One setting for every source, applied to the titles when an update list is read, before any document is fetched: what is listed but not fetched. Saving applies the rules to every document already listed as well. The content of the documents is judged on the Documents screen.') }}</flux:text>
         <flux:textarea wire:model="excludeKeywords" :label="__('Exclude keywords')" rows="8" placeholder="採用情報&#10;寄稿; 掲載&#10;株式; 取得; 子会社化" class="font-mono" />
         <flux:text size="sm">{{ __('One rule per line: a document whose title contains the word is listed but not fetched. Several words on one line, separated by semicolons, make one rule that needs all of them (掲載 alone would take real news with it; 寄稿; 掲載 does not).') }}</flux:text>
+        <flux:text size="sm">{{ __('Words are matched whole (serving is not found in observing); end a word with * to let it go on (memoriz* finds memorize and memorization). A word in Chinese, Japanese or Korean is found anywhere in the text.') }}</flux:text>
         <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 </section>

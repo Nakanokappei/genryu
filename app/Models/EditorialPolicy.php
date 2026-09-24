@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Once;
 
 /**
  * 編集方針 (UI: "Editorial policy"): what each stage decides by, one body
@@ -22,12 +23,13 @@ use Illuminate\Database\Eloquent\Model;
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (the title filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック and 画像. */
-    public const LAYERS = ['exclude_keywords', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
+    /** The layers, in flow order: 取捨選択 (the title filter, the semantic filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック and 画像. */
+    public const LAYERS = ['exclude_keywords', 'semantic_filter', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
         'exclude_keywords' => '',
+        'semantic_filter' => '',
         'content_filtering' => '',
         'structuring' => '',
         'headline' => '',
@@ -89,7 +91,74 @@ class EditorialPolicy extends Model
         return $ids[min(count($ids) - 1, ($index === false ? 0 : $index) + 1)];
     }
 
-    protected $fillable = ['layer', 'body', 'model', 'image_model'];
+    /**
+     * The embedding models the semantic filter can run on (UI 埋め込みモデル),
+     * by the id the Embeddings API takes. Likeness from one model is not
+     * comparable with another's: a changed model embeds every document
+     * again, and the threshold wants looking at.
+     */
+    public const EMBEDDING_MODELS = [
+        'text-embedding-3-large' => ['name' => 'text-embedding-3-large', 'description' => 'Finer distinctions, at a few cents a day for arXiv'],
+        'text-embedding-3-small' => ['name' => 'text-embedding-3-small', 'description' => 'Cheaper, coarser'],
+    ];
+
+    /** The embedding model until one is chosen. */
+    public const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-large';
+
+    /**
+     * The threshold of likeness (UI 閾値) until one is chosen: set on
+     * 2026-09-24 from 600 arXiv papers, where below +0.10 few primary
+     * sources were worth reading.
+     */
+    public const DEFAULT_THRESHOLD = 0.10;
+
+    /**
+     * How a definition line of the semantic filter starts: like: (UI
+     * らしい) or unlike: (UI らしくない). English whatever language the
+     * definitions are written in, so the form reads the same to everyone.
+     */
+    public const SEMANTIC_SIDES = ['like', 'unlike'];
+
+    protected $fillable = ['layer', 'body', 'model', 'image_model', 'threshold'];
+
+    /**
+     * The threshold of likeness, read once per request: every row of a
+     * list of documents asks for it. A saved policy forgets it.
+     */
+    public static function likenessThreshold(): float
+    {
+        return once(fn (): float => self::semanticFilter()['threshold']);
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(fn () => Once::flush());
+    }
+
+    /**
+     * The semantic filter as set on 文書 (or the defaults): its
+     * definitions, one per line starting like: or unlike:, the
+     * embedding model and the threshold of likeness.
+     *
+     * @return array{definitions: list<array{side: string, text: string}>, model: string, threshold: float}
+     */
+    public static function semanticFilter(): array
+    {
+        $policy = static::query()->where('layer', 'semantic_filter')->first();
+        $definitions = [];
+
+        foreach (preg_split('/\R/u', $policy !== null ? (string) $policy->body : self::DEFAULTS['semantic_filter']) ?: [] as $line) {
+            if (preg_match('/^\s*(unlike|like)\s*[:：]\s*(.+?)\s*$/iu', $line, $match) === 1) {
+                $definitions[] = ['side' => strtolower($match[1]), 'text' => $match[2]];
+            }
+        }
+
+        return [
+            'definitions' => $definitions,
+            'model' => $policy !== null && array_key_exists((string) $policy->model, self::EMBEDDING_MODELS) ? (string) $policy->model : self::DEFAULT_EMBEDDING_MODEL,
+            'threshold' => $policy?->threshold !== null ? (float) $policy->threshold : self::DEFAULT_THRESHOLD,
+        ];
+    }
 
     /** The model that draws the top images: what was chosen on 画像, or the default. */
     public static function imageModel(): string
@@ -147,11 +216,31 @@ class EditorialPolicy extends Model
     public static function excludedBy(string $title, ?array $rules = null): ?string
     {
         foreach ($rules ?? self::excludeKeywords() as $words) {
-            if (array_all($words, fn (string $word): bool => mb_stripos($title, $word) !== false)) {
+            if (array_all($words, fn (string $word): bool => preg_match(self::wordPattern($word), $title) === 1)) {
                 return implode('; ', $words);
             }
         }
 
         return null;
+    }
+
+    /**
+     * A keyword as a whole word: serving must not be found in observing,
+     * nor LLM in LLMs. A trailing * lets the word go on (memoriz* for
+     * memorize and memorization, LLM* for LLMs). A keyword that begins
+     * or ends in Chinese, Japanese or Korean has no word boundary on that
+     * side, since those scripts write words without spaces (掲載 is in
+     * 掲載されました).
+     */
+    private static function wordPattern(string $word): string
+    {
+        $isPrefix = str_ends_with($word, '*');
+        $word = $isPrefix ? rtrim($word, '*') : $word;
+        $bounded = fn (string $char): bool => preg_match('/^[\p{L}\p{N}]$/u', $char) === 1 && preg_match('/^[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]$/u', $char) === 0;
+
+        $before = $bounded(mb_substr($word, 0, 1)) ? '(?<![\p{L}\p{N}])' : '';
+        $after = ! $isPrefix && $bounded(mb_substr($word, -1)) ? '(?![\p{L}\p{N}])' : '';
+
+        return '/'.$before.preg_quote($word, '/').$after.'/iu';
     }
 }

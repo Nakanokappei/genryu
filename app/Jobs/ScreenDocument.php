@@ -28,6 +28,8 @@ use Throwable;
  * revised from that document's original, and when that yields a real
  * body, the cured documents are screened again. The outcome lands on
  * the screening (status 判定中 / 判定済み / 失敗) so the screens can show it.
+ * A document adopted on the summary its feed gave (format feed) has its
+ * full text fetched (App\Jobs\FetchDocument).
  */
 class ScreenDocument implements ShouldQueue
 {
@@ -72,6 +74,10 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The document is excluded by the title filter.'));
             }
 
+            if ($document->isBelowLikeness()) {
+                throw new RuntimeException(__('The semantic filter left this document out (likeness :likeness).', ['likeness' => sprintf('%+.3f', $document->likeness)]));
+            }
+
             // The text read is the revision pinned when the run was queued, not whatever the document holds by now.
             $markdown = $screening->revision !== null ? $screening->revision->markdown : (string) $document->markdown;
 
@@ -102,6 +108,13 @@ class ScreenDocument implements ShouldQueue
         // 要確認 from the first pass: one second pass, by the next model up, which decides.
         if ($screening->decision === 'review' && $screening->pass === 1) {
             self::queueFor($document, EditorialPolicy::nextModelUp($screening->model), 2);
+
+            return;
+        }
+
+        // 採用 on the summary from the feed: now the full text is worth its fetch.
+        if ($document->refresh()->wantsFullText()) {
+            FetchDocument::queueFor($document);
 
             return;
         }

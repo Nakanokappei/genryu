@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Exceptions\RobotsForbidden;
+use App\Jobs\ApplySemanticFilter;
 use App\Jobs\FetchDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
@@ -52,6 +53,9 @@ class FetchUpdates
     public const JSON_CONFIG_KEYS = ['url', 'items', 'title', 'link', 'date', 'max_items'];
 
     public const DEFAULT_MAX_ITEMS = 50;
+
+    /** The namespace of arXiv's own elements in its feeds (arxiv:announce_type). */
+    private const ARXIV_NAMESPACE = 'http://arxiv.org/schemas/atom';
 
     /** A JSON list must hold at least this many entries to be believed. */
     public const MINIMUM_JSON_ENTRIES = 3;
@@ -292,7 +296,7 @@ class FetchUpdates
     /**
      * The entries of a feed body, for judging a discovered feed before it is adopted.
      *
-     * @return list<array{title: string, url: string, published_at: ?string}>
+     * @return list<array{title: string, url: string, published_at: ?string, summary: string}>
      */
     public static function previewFeed(string $xml): array
     {
@@ -343,28 +347,52 @@ class FetchUpdates
      * Keep the documents listed; each new one is fetched in the background
      * (stage 2.2) without anyone asking, unless its title has an exclude
      * keyword of the editorial policy: it is then listed as 対象外 with the
-     * keyword, and not fetched.
+     * keyword, and not fetched. A document another source has listed
+     * already is not listed again (arXiv: a paper announced in two of the
+     * categories we read, one source each), and counts as existing. A
+     * source with a link to the full text
+     * (全文へのリンク) whose feed gives a summary is not fetched either: the
+     * summary is the document until it is adopted (format feed), and it
+     * goes straight to the semantic filter, which passes it on to the
+     * screening or leaves it out.
      *
-     * @param  list<array{title: string, url: string, published_at: ?string}>  $entries
+     * @param  list<array{title: string, url: string, published_at: ?string, summary?: string}>  $entries
      * @return array{added: int, existing: int}
      */
     private function store(Source $source, array $entries): array
     {
         $added = 0;
         $existing = 0;
+        $readsSummaries = trim((string) $source->full_text_link) !== '';
+        $rules = EditorialPolicy::excludeKeywords();
 
         foreach ($entries as $entry) {
+            if (Document::query()->where('url', $entry['url'])->where('source_id', '!=', $source->id)->exists()) {
+                $existing++;
+
+                continue;
+            }
+
+            $summary = trim($entry['summary'] ?? '');
+            $excludedBy = EditorialPolicy::excludedBy($entry['title'], $rules);
+            $readsSummary = $readsSummaries && $excludedBy === null && $summary !== '';
+
             $created = Document::query()->firstOrCreate(
                 ['source_id' => $source->id, 'url' => $entry['url']],
-                ['title' => $entry['title'], 'published_at' => $entry['published_at'], 'published_has_time' => self::hasTime($entry['published_at']), 'excluded_by' => EditorialPolicy::excludedBy($entry['title'])],
+                [
+                    'title' => $entry['title'], 'published_at' => $entry['published_at'], 'published_has_time' => self::hasTime($entry['published_at']), 'excluded_by' => $excludedBy,
+                    ...($readsSummary ? ['format' => 'feed', 'markdown' => ReadDocument::summary($entry['title'], $entry['published_at'], $summary), 'fetched_at' => now(), 'status' => 'fetched'] : []),
+                ],
             );
 
             if ($created->wasRecentlyCreated) {
                 $added++;
 
-                if ($created->excluded_by === null) {
-                    FetchDocument::queueFor($created);
-                }
+                match (true) {
+                    $created->excluded_by !== null => null,
+                    $created->format === 'feed' => ApplySemanticFilter::queueFor($created),
+                    default => FetchDocument::queueFor($created),
+                };
             } else {
                 $existing++;
             }
@@ -487,9 +515,13 @@ class FetchUpdates
     }
 
     /**
-     * RSS 2.0 items or Atom entries as title / url / published_at.
+     * RSS 2.0 items or Atom entries as title / url / published_at, with
+     * the summary the feed gives (description / summary) as plain text.
+     * arXiv announces the replaced versions of papers it has listed before
+     * (announce_type replace / replace-cross): only the first announcement
+     * of a paper is an update.
      *
-     * @return list<array{title: string, url: string, published_at: ?string}>
+     * @return list<array{title: string, url: string, published_at: ?string, summary: string}>
      */
     private static function feedEntries(string $xml): array
     {
@@ -503,7 +535,11 @@ class FetchUpdates
         $entries = [];
 
         foreach ($document->channel->item ?? [] as $item) {
-            $entries[] = ['title' => trim((string) $item->title), 'url' => trim((string) $item->link), 'published_at' => self::date((string) $item->pubDate)];
+            if (str_starts_with((string) $item->children(self::ARXIV_NAMESPACE)->announce_type, 'replace')) {
+                continue;
+            }
+
+            $entries[] = ['title' => trim((string) $item->title), 'url' => trim((string) $item->link), 'published_at' => self::date((string) $item->pubDate), 'summary' => self::summaryText((string) $item->description)];
         }
 
         foreach ($document->entry ?? [] as $entry) {
@@ -516,10 +552,21 @@ class FetchUpdates
                 }
             }
 
-            $entries[] = ['title' => trim((string) $entry->title), 'url' => trim($url), 'published_at' => self::date((string) ($entry->published ?: $entry->updated))];
+            $entries[] = ['title' => trim((string) $entry->title), 'url' => trim($url), 'published_at' => self::date((string) ($entry->published ?: $entry->updated)), 'summary' => self::summaryText((string) $entry->summary)];
         }
 
         return array_values(array_filter($entries, static fn (array $entry): bool => $entry['url'] !== '' && $entry['title'] !== ''));
+    }
+
+    /**
+     * A feed's summary as plain text: tags and entities gone, and arXiv's
+     * leading "arXiv:2609.26800v1 Announce Type: new Abstract:" left out.
+     */
+    private static function summaryText(string $summary): string
+    {
+        $text = trim(html_entity_decode(strip_tags($summary), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+
+        return trim((string) preg_replace('/^arXiv:\S+\s+Announce Type:\s*\S+\s*(Abstract:\s*)?/i', '', $text));
     }
 
     /**

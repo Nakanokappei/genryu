@@ -4,6 +4,7 @@ use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
+use App\Jobs\ApplySemanticFilter;
 use App\Jobs\FetchDocument;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
@@ -76,8 +77,9 @@ it('reads an HTML page into Markdown with the document settings of the source an
     Storage::disk('local')->assertExists("documents/{$source->id}/{$entry->id}.html");
     expect(Storage::disk('local')->get("documents/{$source->id}/{$entry->id}.html"))->toBe(DOCUMENT_PAGE);
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'api.openai.com'));
-    // The gate follows the fetch on its own.
-    Queue::assertPushed(ScreenDocument::class, fn (ScreenDocument $job): bool => $job->screening->document->is($entry) && $job->screening->pass === 1);
+    // The semantic filter, and after it the gate, follow the fetch on their own.
+    Queue::assertPushed(ApplySemanticFilter::class, fn (ApplySemanticFilter $job): bool => $job->document->is($entry));
+    Queue::assertNotPushed(ScreenDocument::class);
 });
 
 // DARPA: the <h1> sits in the page header outside the article, the date is a short <h5>, prizes are a table, contact is a mailto link.
@@ -473,4 +475,43 @@ it('serves the original file', function () {
     $entry = Document::factory()->fetched()->create(['original_path' => 'documents/1/1.html']);
 
     $this->get(route('editorial.documents.original', $entry))->assertOk()->assertDownload('1.html');
+});
+
+// 全文へのリンク: the document's page (arXiv's abstract) links to the full text, which is what is kept and read.
+it('reads the full text a document page links to, and does not screen again what was adopted on its summary', function () {
+    $abstractPage = '<html><body><a class="abs-button download-pdf" href="/pdf/2609.00001">View PDF</a><a id="latexml-download-link" href="https://arxiv.org/html/2609.00001v1">HTML (experimental)</a></body></html>';
+    Http::fake([
+        'arxiv.org/abs/2609.00001' => Http::response($abstractPage, 200, ['Content-Type' => 'text/html']),
+        'arxiv.org/html/2609.00001v1' => Http::response(DOCUMENT_PAGE, 200, ['Content-Type' => 'text/html']),
+    ]);
+    $source = Source::factory()->create(['document_config' => ['content' => 'article', 'remove' => '.share'], 'full_text_link' => "#latexml-download-link\na.download-pdf"]);
+    $entry = Document::factory()->for($source)->create(['url' => 'https://arxiv.org/abs/2609.00001', 'title' => 'Ammonia burner programme', 'format' => 'feed', 'markdown' => "# Ammonia burner programme\n\nThe abstract.", 'human_decision' => 'adopt']);
+
+    $document = fetchDocument($entry);
+
+    expect($document)->toMatchArray(['status' => 'fetched', 'format' => 'html'])
+        ->and($document->markdown)->toContain('compact ammonia burners')
+        // Links resolve against the full text's page, not the abstract's.
+        ->and($document->markdown)->toContain('https://arxiv.org/docs/plan.pdf')
+        ->and(Storage::disk('local')->get((string) $document->original_path))->toBe(DOCUMENT_PAGE);
+    Queue::assertNotPushed(ScreenDocument::class);
+    Queue::assertNotPushed(ApplySemanticFilter::class);
+});
+
+it('tries the full text links in the order written', function () {
+    $page = '<a class="download-pdf" href="/pdf/1">PDF</a><a id="latexml-download-link" href="/html/1">HTML</a>';
+
+    expect(FetchDocument::fullTextUrl($page, "#latexml-download-link\na.download-pdf", 'https://arxiv.org/abs/1'))->toBe('https://arxiv.org/html/1')
+        ->and(FetchDocument::fullTextUrl('<a class="download-pdf" href="/pdf/1">PDF</a>', "#latexml-download-link\na.download-pdf", 'https://arxiv.org/abs/1'))->toBe('https://arxiv.org/pdf/1')
+        ->and(FetchDocument::fullTextUrl($page, '', 'https://arxiv.org/abs/1'))->toBeNull();
+});
+
+// Exclude keywords are whole words, a trailing * lets one go on, and Chinese / Japanese / Korean are found anywhere.
+it('matches exclude keywords as whole words', function () {
+    expect(EditorialPolicy::excludedBy('Preserving privacy with LLMs', [['serving', 'LLM']]))->toBeNull()
+        ->and(EditorialPolicy::excludedBy('Serving LLMs at scale', [['serving', 'LLM*']]))->toBe('serving; LLM*')
+        ->and(EditorialPolicy::excludedBy('Have LLMs Memorized It?', [['memoriz*']]))->toBe('memoriz*')
+        ->and(EditorialPolicy::excludedBy('Olivier Grasset nommé directeur', [['nommé', 'direct']]))->toBeNull()
+        ->and(EditorialPolicy::excludedBy('Olivier Grasset nommé directeur', [['nommé*', 'direct*']]))->toBe('nommé*; direct*')
+        ->and(EditorialPolicy::excludedBy('研究員の寄稿が日経に掲載されました', [['寄稿', '掲載']]))->toBe('寄稿; 掲載');
 });

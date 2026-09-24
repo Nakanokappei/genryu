@@ -341,6 +341,59 @@ the product (purpose, the five stages, stack); read it first.
   the D2 Sprint through where an earlier 公募 case with hard specs
   passed), and a line in EVENT_PR / ADMINISTRATIVE / PURE_SCIENCE
   sending programs and purpose-built frontier research to it instead.
+- **arXiv is read from its RSS, in two steps** (decided 2026-09-24). Its
+  HTML lists are three levels deep and its robots.txt asks for
+  `Crawl-delay: 15` (cs alone lists ~730 new papers a day, hours of
+  fetching), so it is read from `https://rss.arxiv.org/rss/<category>`,
+  **one source per category** (13, the categories an MIT Technology
+  Review reader would follow; split 2026-09-24 so each is a row on
+  情報源 with its own counts and filter). A paper announced in two
+  categories is listed once, by whichever source reads it first
+  (`FetchUpdates::store` skips a URL another source has). A single
+  category's feed can be served from a cache a day behind, dated today
+  (cs.RO on 2026-09-24); accepted: the papers arrive a day late, and
+  the feed is not cache-busted. `FetchUpdates::feedEntries` drops what arXiv announces
+  again (`arxiv:announce_type` replace / replace-cross). A source with
+  **全文へのリンク** (`sources.full_text_link`, CSS selectors one per
+  line, tried in order; arXiv `#latexml-download-link` then
+  `a.download-pdf`) keeps the feed's summary as the document
+  (`format` feed, never 本文が短い) and screens it without a fetch; once
+  adopted (screening or 人の判定, `Document::wantsFullText`),
+  `FetchDocument` fetches the page, follows the link and reads the full
+  text, and does not screen it again. The flow is meant to be RSS
+  deterministic → RSS LLM → HTML deterministic → HTML LLM (the last two
+  not built yet, 2026-09-24). The deterministic step on the feed is the
+  title filter, for every source. **Title filter keywords are whole
+  words** (`EditorialPolicy::wordPattern`, 2026-09-24: serving was found
+  in observing), a trailing `*` lets a word go on (`nommé*`, `LLM*`),
+  and a word in Chinese / Japanese / Korean is found anywhere. **No
+  filter per source** (tried and withdrawn 2026-09-24): keyword rules
+  per source are a chase that grows with every source added and needs
+  a person to keep them, which is not human on the loop.
+- **意味フィルタ (Semantic filter) sits between the title filter and the
+  screening, for every source** (built 2026-09-24). `App\Jobs\ApplySemanticFilter`
+  has `App\Actions\MeasureLikeness` embed a document's title and text
+  (`App\Actions\Embed`, OpenAI Embeddings, text-embedding-3-large; the
+  vector kept in `document_embeddings`, not on the document, which a list
+  loads) and compare it with the definitions (`semantic_filter` layer,
+  one per line starting like: / unlike: (English whatever the language
+  of the definitions; UI らしい / らしくない), set on 文書 with the model
+  and the threshold 閾値) and with the examples a person marked on a
+  document (`semantic_filter_examples`, like / unlike — **an example
+  teaches, it is not a verdict**: 人の判定 adopts and rejects). らしさ
+  (`documents.likeness`) is the nearest like minus the nearest unlike;
+  **absolute similarities mean nothing** (unrelated texts score 0.1 to
+  0.3, and 94% of arXiv came out nearer "unlike"), so the two sides are
+  set against each other. Below the threshold (0.10, chosen on the 600
+  arXiv papers of 2026-09-24: under +0.10 few were worth reading, 37
+  pass) a document goes no further: the screening refuses it, the bulk
+  screening skips it, a queued full-text fetch does nothing. A filter
+  that cannot measure lets the document through. It is a coarse sieve —
+  the top is not reliably good (half of the first run's top 20 were
+  bench experiments) — and the screening judges what passes. Learned on
+  the way: a definition with a broad word (measure, AI) pulls everything
+  towards it, and an example pulls in its topic more than its kind (one
+  paper on public trust in LLMs lifted every LLM paper).
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings
@@ -378,7 +431,9 @@ the product (purpose, the five stages, stack); read it first.
   by `FetchDocument::generalise` before it is verified and saved.
 - **文書 lists every document with its state** (状態: 取得済み / 取得中 /
   失敗 with the reason as tooltip / 対象外 with the rule as tooltip, — when
-  not queued yet; restored 2026-09-22 after a spell of fetched-only),
+  not queued yet; restored 2026-09-22 after a spell of fetched-only;
+  hiding 対象外 was tried and dropped 2026-09-24: the rows stay, so they
+  stay in view),
   sortable and filterable by 情報源 / 公開日 / 形式 / 取得日時 (sort and
   filters in the URL). The source detail lists only the excluded and
   failed ones with their reasons.

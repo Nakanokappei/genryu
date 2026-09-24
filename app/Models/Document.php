@@ -24,6 +24,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * person may record their own verdict (UI: 人の判定, human_decision adopt /
  * reject with a reason), which outranks the screening's at the gate.
  *
+ * @property float|null $likeness らしさ: how much nearer the nearest "like" of the semantic filter is than the nearest "unlike" (App\Actions\MeasureLikeness)
+ * @property array<string, mixed>|null $likeness_detail what the likeness was measured against: the nearest like and unlike, their similarities, the model
  * @property CarbonImmutable|null $published_at
  * @property bool $published_has_time
  * @property string|null $language the language the document is written in (言語), one of Article::LANGUAGES
@@ -34,16 +36,17 @@ class Document extends Model
     /** @use HasFactory<DocumentFactory> */
     use HasFactory;
 
-    public const FORMATS = ['html', 'pdf'];
+    /** feed: the summary the feed gave (UI 全文へのリンク on the source), kept until the document is adopted and its full text fetched. */
+    public const FORMATS = ['html', 'pdf', 'feed'];
 
     /** A fetched body shorter than this (UI: 本文が短い) is probably a teaser: the source's document settings may miss the body. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
-        return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
+        return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'likeness' => 'float', 'likeness_detail' => 'array', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
     }
 
     /**
@@ -88,11 +91,44 @@ class Document extends Model
     /**
      * Whether the fetched body is suspiciously short: the settings of the
      * source caught a teaser, a header or a page whose body sits elsewhere.
-     * An excluded document is not worth the warning.
+     * An excluded document is not worth the warning, nor a summary from
+     * the feed, which is short by nature.
      */
     public function hasShortBody(): bool
     {
-        return $this->status === 'fetched' && $this->excluded_by === null && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
+        return $this->status === 'fetched' && $this->excluded_by === null && $this->format !== 'feed' && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
+    }
+
+    /**
+     * Whether the summary from the feed is to be replaced by the full
+     * text now: the document was adopted (by the screening or a person),
+     * the only point at which the full text is worth its fetch.
+     */
+    public function wantsFullText(): bool
+    {
+        return $this->format === 'feed' && $this->status === 'fetched' && $this->excluded_by === null && ! $this->isBelowLikeness() && $this->decision() === 'adopt';
+    }
+
+    /**
+     * Whether the semantic filter leaves the document out (UI 対象外):
+     * its likeness was measured and falls below the threshold set on
+     * 文書. A document not measured yet is not held back.
+     */
+    public function isBelowLikeness(): bool
+    {
+        return $this->likeness !== null && $this->likeness < EditorialPolicy::likenessThreshold();
+    }
+
+    /** @return HasOne<DocumentEmbedding, $this> */
+    public function embedding(): HasOne
+    {
+        return $this->hasOne(DocumentEmbedding::class);
+    }
+
+    /** @return HasOne<SemanticFilterExample, $this> the document as an example of the semantic filter, when a person made it one */
+    public function semanticFilterExample(): HasOne
+    {
+        return $this->hasOne(SemanticFilterExample::class);
     }
 
     /**

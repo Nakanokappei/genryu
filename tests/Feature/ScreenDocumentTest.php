@@ -5,6 +5,7 @@ use App\Actions\ProposeMaterial;
 use App\Actions\ReviseDocumentSettings;
 use App\Actions\ValidateMaterial;
 use App\Jobs\ExtractMaterial;
+use App\Jobs\FetchDocument;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
@@ -328,3 +329,14 @@ it('passes the acceptance cases with the real model', function (string $markdown
     // 性能の数値目標がない賞金コンテストでも、能力ギャップとなぜ今かがあれば兆しとして採用する (2026-09-22, DARPA D2 Sprint が EVENT_PR で落ちていた)。
     'Case 8: 数値目標のない賞金Competition' => ["# 賞金100万ドルでAI医療記録・意思決定支援を加速\n\n大規模戦闘における外傷は依然として深刻な脅威であり、病院前の戦闘負傷者ケアの75%は記録されていない。DARPAはこの制約に対処するため、賞金100万ドルのD2 Sprintを開始する。負傷者を自動で評価し、処置を推奨・誘導し、質を監視し、医療行為を記録するソフトウェアの開発を促す。「混乱した戦場で医療データを取得し、瞬時に臨床判断を下すことは、専門家でない者には極めて難しい」とProgram Managerは述べた。AI駆動型医療ツールの急速な進歩を背景に、記録Trackと意思決定支援Trackの二つを設け、各1位30万ドル。2026年9月10日にチーム資格審査を開始し、最終提出は2027年3月1日。MIT Lincoln Labs、AFRL、JHU APL等と共同で実施する。", 'adopt', 'FEASIBILITY_BET'],
 ])->skip(env('SCREENING_ACCEPTANCE') !== '1', 'Runs against the real model only with SCREENING_ACCEPTANCE=1.');
+
+// A document adopted on the summary its feed gave has its full text fetched; one rejected on it does not.
+it('fetches the full text of a document adopted on its summary from the feed', function (string $decision, bool $fetched) {
+    Http::fake(['api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => $decision, 'primary_reason' => $decision === 'ADOPT' ? 'DEMONSTRATION' : 'PURE_SCIENCE', 'evidence' => 'We show.', 'reason' => '理由。']))]);
+    $document = Document::factory()->fetched()->create(['format' => 'feed', 'markdown' => "# A paper\n\nWe show that a thing works."]);
+
+    screenDocument($document);
+
+    expect(Queue::pushed(FetchDocument::class)->count())->toBe($fetched ? 1 : 0)
+        ->and($document->refresh()->status)->toBe($fetched ? 'fetching' : 'fetched');
+})->with([['ADOPT', true], ['REJECT', false]]);

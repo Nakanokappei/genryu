@@ -1,10 +1,13 @@
 <?php
 
+use App\Actions\MeasureLikeness;
+use App\Jobs\ApplySemanticFilter;
 use App\Jobs\ExtractMaterial;
 use App\Jobs\FetchDocument;
 use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Models\SemanticFilterExample;
 use Flux\Flux;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -34,6 +37,11 @@ new #[Title('文書')] class extends Component {
     {
         $this->validate(['humanDecision' => ['required', 'in:adopt,reject'], 'humanReason' => ['nullable', 'string', 'max:1000']]);
         $this->document->update(['human_decision' => $this->humanDecision, 'human_reason' => $this->humanReason !== '' ? $this->humanReason : null, 'human_decided_at' => now(), 'human_decided_by' => auth()->id()]);
+
+        // Adopted on the summary from the feed: the full text is fetched now.
+        if ($this->document->wantsFullText()) {
+            FetchDocument::queueFor($this->document);
+        }
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -77,6 +85,36 @@ new #[Title('文書')] class extends Component {
     }
 
     // Polled while a background job runs so the screen follows it.
+    // Measure the likeness now; at or above the threshold, and not screened yet, the document goes on to the screening.
+    public function applySemanticFilter(): void
+    {
+        ApplySemanticFilter::queueFor($this->document);
+
+        Flux::toast(variant: 'success', text: __('Queued for the semantic filter.'));
+    }
+
+    /**
+     * Mark the document as an example of the semantic filter (like or
+     * unlike this media), or take the mark back; every embedded document
+     * is then measured again against the examples as they now are. The
+     * document is embedded first when it is not yet.
+     */
+    public function markExample(string $side, MeasureLikeness $measure): void
+    {
+        if ($side === 'none') {
+            $this->document->semanticFilterExample()->delete();
+        } else {
+            abort_unless(in_array($side, SemanticFilterExample::SIDES, true), 422);
+            $measure($this->document);
+            SemanticFilterExample::query()->updateOrCreate(['document_id' => $this->document->id], ['side' => $side, 'created_by' => auth()->id()]);
+        }
+
+        $result = app(MeasureLikeness::class)->again();
+        $this->document->refresh();
+
+        Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));
+    }
+
     public function refreshStatus(): void
     {
         $this->document->refresh();
@@ -133,6 +171,41 @@ new #[Title('文書')] class extends Component {
             <flux:callout.text>{{ __('The document settings of the source may catch a teaser or a header instead of the body. Compare with the original, then fix the settings on the source and rebuild the Markdown.') }} <a href="{{ route('editorial.sources.show', $document->source) }}" class="underline" wire:navigate>{{ __('Document settings of :source', ['source' => $document->source->name]) }}</a></flux:callout.text>
         </flux:callout>
     @endif
+
+    {{-- The semantic filter: the likeness, what the document was nearest to on each side, and a person's mark that makes it an example. --}}
+    <flux:heading size="lg">{{ __('Semantic filter') }}</flux:heading>
+    <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <div class="flex flex-wrap items-center gap-3">
+            @if ($document->likeness === null)
+                <flux:text class="flex-1">{{ isset($document->likeness_detail['error']) ? __('The semantic filter could not measure this document: :reason', ['reason' => $document->likeness_detail['error']]) : __('Not measured yet.') }}</flux:text>
+            @else
+                @if ($document->isBelowLikeness())
+                    <x-pages::status status="excluded" />
+                @endif
+                <flux:text class="flex-1">{{ __('Likeness') }} <span class="font-medium">{{ sprintf('%+.3f', $document->likeness) }}</span>（{{ __('threshold') }} {{ sprintf('%+.2f', \App\Models\EditorialPolicy::likenessThreshold()) }}）</flux:text>
+            @endif
+            <flux:button wire:click="applySemanticFilter" size="sm" icon="funnel">{{ $document->likeness === null ? __('Apply the semantic filter') : __('Apply again') }}</flux:button>
+        </div>
+        @foreach (['like' => __('Nearest "like"'), 'unlike' => __('Nearest "unlike"')] as $side => $label)
+            @if (isset($document->likeness_detail[$side]['label']))
+                @php([$kind, $exampleId, $exampleTitle] = array_pad(explode(':', $document->likeness_detail[$side]['label'], 3), 3, null))
+                <flux:text size="sm"><span class="text-neutral-500">{{ $label }}（{{ number_format($document->likeness_detail[$side]['similarity'], 3) }}）:</span>
+                    @if ($kind === 'example')
+                        {{ __('Example') }} <a href="{{ route('editorial.documents.show', (int) $exampleId) }}" class="underline" wire:navigate>{{ $exampleTitle }}</a>
+                    @else
+                        {{ $document->likeness_detail[$side]['label'] }}
+                    @endif
+                </flux:text>
+            @endif
+        @endforeach
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:text size="sm">{{ __('As an example of the semantic filter:') }}</flux:text>
+            @foreach (['like' => __('Like this media'), 'unlike' => __('Unlike this media'), 'none' => __('Not an example')] as $side => $label)
+                <flux:button wire:click="markExample('{{ $side }}')" size="sm" :variant="($document->semanticFilterExample?->side ?? 'none') === $side ? 'primary' : 'outline'">{{ $label }}</flux:button>
+            @endforeach
+        </div>
+        <flux:text size="sm" class="text-neutral-500">{{ __('An example teaches the semantic filter; it does not adopt or reject the document (the human decision below does).') }}</flux:text>
+    </div>
 
     <flux:heading size="lg">{{ __('Screening') }}</flux:heading>
     <div class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">

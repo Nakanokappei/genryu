@@ -161,6 +161,21 @@ class ReadDocument
     }
 
     /**
+     * The summary a feed gave for a document (arXiv: the abstract) as
+     * Markdown, in the same shape as a page: the title, the date, the
+     * summary as the body. It stands in for the document until the full
+     * text is fetched.
+     */
+    public static function summary(string $title, ?string $date, string $summary): string
+    {
+        return implode("\n\n", array_filter([
+            str_repeat('#', self::TOP_LEVEL)." {$title}",
+            $date !== null ? self::dateText($date) : '',
+            self::tidy($summary),
+        ]));
+    }
+
+    /**
      * Remove the elements a selector matches inside the body, and hand
      * back their HTML so they can be printed elsewhere.
      */

@@ -1,10 +1,13 @@
 <?php
 
+use App\Actions\MeasureLikeness;
+use App\Jobs\ApplySemanticFilter;
 use App\Jobs\ScreenDocument;
 use App\Livewire\PagedList;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
+use App\Models\SemanticFilterExample;
 use App\Models\Screening;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
@@ -15,6 +18,15 @@ use Livewire\Attributes\Url;
 
 // 文書 (Documents): the content filtering of the editorial policy (the developer prompt and the model of the スクリーニング, the LLM gate that reads the fetched documents and decides 採用 / 不採用 / 要確認; the title filter is on 情報源), with the figures of the screenings run so far, and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format, fetched time and decision, each with its state (fetched / fetching / failed / excluded by the title filter).
 new #[Title('文書')] class extends PagedList {
+    /** 意味フィルタ: the definitions, one per line starting like: or unlike: */
+    public string $semanticFilter = '';
+
+    /** The embedding model of the semantic filter (UI 埋め込みモデル), one of EditorialPolicy::EMBEDDING_MODELS. */
+    public string $semanticFilterModel = EditorialPolicy::DEFAULT_EMBEDDING_MODEL;
+
+    /** The threshold of likeness (UI 閾値): below it a document goes no further. */
+    public string $semanticFilterThreshold = '';
+
     // Content filtering: the developer prompt (OpenAI's name for the system prompt) of the screening gate.
     public string $contentFiltering = '';
 
@@ -23,6 +35,10 @@ new #[Title('文書')] class extends PagedList {
 
     public function mount(): void
     {
+        $filter = EditorialPolicy::semanticFilter();
+        $this->semanticFilter = EditorialPolicy::bodyFor('semantic_filter');
+        $this->semanticFilterModel = $filter['model'];
+        $this->semanticFilterThreshold = sprintf('%.2f', $filter['threshold']);
         $this->contentFiltering = EditorialPolicy::bodyFor('content_filtering');
         $this->contentFilteringModel = EditorialPolicy::modelFor('content_filtering');
     }
@@ -35,10 +51,54 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // The gate: queue the screening of every fetched document that has none yet (an excluded one never gets there).
+    // Saved, the definitions and the threshold are applied again to every document already embedded: only a new definition line calls the model.
+    public function saveSemanticFilter(MeasureLikeness $measure): void
+    {
+        $this->validate([
+            'semanticFilterModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::EMBEDDING_MODELS))],
+            'semanticFilterThreshold' => ['required', 'numeric', 'between:-1,1'],
+        ]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'semantic_filter'], ['body' => $this->semanticFilter, 'model' => $this->semanticFilterModel, 'threshold' => (float) $this->semanticFilterThreshold]);
+        $result = $measure->again();
+        unset($this->documents, $this->semanticFilterFigures);
+
+        Flux::toast(variant: 'success', duration: 8000, text: __('Saved. :measured documents measured again, :below below the threshold.', $result));
+    }
+
+    // Measure every fetched document the semantic filter has not measured yet; the ones at or above the threshold go on to the screening.
+    public function applySemanticFilter(): void
+    {
+        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('likeness')->get();
+        $documents->each(fn (Document $document) => ApplySemanticFilter::queueFor($document));
+
+        Flux::toast(variant: 'success', text: __(':count documents queued for the semantic filter.', ['count' => $documents->count()]));
+    }
+
+    /**
+     * How the semantic filter stands: documents measured, how many fall
+     * below the threshold, and the examples a person marked.
+     *
+     * @return array{measured: int, below: int, like: int, unlike: int}
+     */
+    #[Computed]
+    public function semanticFilterFigures(): array
+    {
+        $threshold = EditorialPolicy::likenessThreshold();
+        $examples = SemanticFilterExample::query()->selectRaw('side, count(*) as count')->groupBy('side')->pluck('count', 'side');
+
+        return [
+            'measured' => Document::query()->whereNotNull('likeness')->count(),
+            'below' => Document::query()->where('likeness', '<', $threshold)->count(),
+            'like' => (int) ($examples['like'] ?? 0),
+            'unlike' => (int) ($examples['unlike'] ?? 0),
+        ];
+    }
+
+    // The gate: queue the screening of every fetched document that has none yet (an excluded one, or one the semantic filter left out, never gets there).
     public function screenDocuments(): void
     {
-        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('screening_id')->get();
+        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('screening_id')
+            ->where(fn ($query) => $query->whereNull('likeness')->orWhere('likeness', '>=', EditorialPolicy::likenessThreshold()))->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
 
@@ -49,7 +109,8 @@ new #[Title('文書')] class extends PagedList {
     public function rescreenRejected(): void
     {
         $prompt = Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'));
-        $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))->get();
+        $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))
+            ->where(fn ($query) => $query->whereNull('likeness')->orWhere('likeness', '>=', EditorialPolicy::likenessThreshold()))->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
 
@@ -199,6 +260,26 @@ new #[Title('文書')] class extends PagedList {
 <section class="w-full space-y-6" @if ($this->documents->contains('status', 'fetching') || $this->documents->contains(fn ($document) => $document->screening?->status === 'screening')) wire:poll.5s @endif>
     <flux:heading size="xl">{{ __('Documents') }}</flux:heading>
 
+    {{-- The semantic filter comes before the content filtering: an embedding set against definitions of what is and is not like this media, cheap enough for every document. --}}
+    <form wire:submit="saveSemanticFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Semantic filter') }}</flux:heading>
+        <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions below and with the examples marked on documents. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
+        <flux:textarea wire:model="semanticFilter" :label="__('Definitions (one per line, starting like: or unlike:)')" rows="8" class="font-mono" />
+        <div class="grid gap-3 md:grid-cols-[1fr_12rem]">
+            <flux:select wire:model="semanticFilterModel" :label="__('Embedding model')">
+                @foreach (\App\Models\EditorialPolicy::EMBEDDING_MODELS as $id => $model)
+                    <flux:select.option value="{{ $id }}">{{ $model['name'] }} — {{ __($model['description']) }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:input wire:model="semanticFilterThreshold" :label="__('Threshold')" type="number" step="0.01" min="-1" max="1" />
+        </div>
+        <flux:text size="sm" class="text-neutral-500">{{ __(':measured documents measured, :below below the threshold. Examples: :like like, :unlike unlike (marked on each document).', $this->semanticFilterFigures) }}</flux:text>
+        <div class="flex flex-wrap items-center gap-3">
+            <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
+            <flux:button type="button" wire:click="applySemanticFilter" icon="funnel">{{ __('Apply the semantic filter to the documents not measured yet') }}</flux:button>
+        </div>
+    </form>
+
     {{-- Content filtering sits with the documents because it judges what was fetched: the criteria an LLM reads a document by. --}}
     <form wire:submit="saveContentFiltering" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Content filtering') }}</flux:heading>
@@ -311,6 +392,8 @@ new #[Title('文書')] class extends PagedList {
                 <td class="px-3 pt-1 pb-2">
                     @if ($document->excluded_by !== null)
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
+                    @elseif ($document->isBelowLikeness())
+                        <flux:tooltip :content="__('Left out by the semantic filter: likeness :likeness', ['likeness' => sprintf('%+.2f', $document->likeness)])"><x-pages::status status="excluded" /></flux:tooltip>
                     @elseif ($document->status === 'failed')
                         <flux:tooltip :content="$document->status_message ?? ''"><x-pages::status :status="$document->status" /></flux:tooltip>
                     @elseif ($document->hasShortBody())
@@ -322,7 +405,7 @@ new #[Title('文書')] class extends PagedList {
                         —
                     @endif
                 </td>
-                <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" /></td>
+                <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" />@if ($document->likeness !== null) <span class="whitespace-nowrap text-xs text-neutral-500">{{ __('Likeness') }} {{ sprintf('%+.2f', $document->likeness) }}</span>@endif</td>
                 <td class="px-3 pt-1 pb-2">
                     <select wire:change="setLanguage({{ $document->id }}, $event.target.value)" aria-label="{{ __('Language') }}" class="rounded-md border border-neutral-200 bg-transparent px-1 py-0.5 text-sm dark:border-neutral-700">
                         @if ($document->language === null)

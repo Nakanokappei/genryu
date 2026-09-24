@@ -8,6 +8,8 @@ use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
 use App\Models\Document;
 use App\Models\Source;
+use Dom\Element;
+use Dom\HTMLDocument;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
@@ -23,7 +25,12 @@ use Throwable;
  * changed its layout), the agent proposes new ones, which are verified on
  * this page before they are saved to the source. The outcome lands on the
  * document (status 取得中 / 取得済み / 失敗) so the screens can show it, and a
- * fetched document goes straight on to the スクリーニング (ScreenDocument).
+ * fetched document goes straight on to the 意味フィルタ (ApplySemanticFilter)
+ * and from there to the スクリーニング (ScreenDocument).
+ * A source with a link to the full text (全文へのリンク) has its document's
+ * page stand for a summary (arXiv's abstract page): the full text it links
+ * to is what is kept and read. A document that was screened and adopted
+ * on the feed's summary is not screened again on its full text.
  */
 class FetchDocument implements ShouldQueue
 {
@@ -55,16 +62,28 @@ class FetchDocument implements ShouldQueue
     {
         $document = $this->document;
         $source = $document->source;
+        $adoptedOnSummary = $document->format === 'feed' && $document->decision() === 'adopt';
+
+        // A summary the semantic filter has left out since its full text was queued is not worth the fetch.
+        if ($document->format === 'feed' && $document->isBelowLikeness()) {
+            $document->update(['status' => 'fetched', 'status_message' => __('The semantic filter left this document out; its full text was not fetched.')]);
+
+            return;
+        }
 
         try {
-            // robots.txt is enforced by the global HTTP middleware (AppServiceProvider).
-            $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(30)->get($document->url)->throw();
-            $body = $response->body();
-            $format = str_contains(strtolower((string) $response->header('Content-Type')), 'application/pdf') || str_starts_with($body, '%PDF-') ? 'pdf' : 'html';
+            [$body, $format] = self::get($document->url);
 
             // A source still without its icon gets it from this page, which advertises the same one as the rest of the site.
             if ($format === 'html') {
                 $favicon($source, $body);
+            }
+
+            // The page may only stand for the document: the full text it links to is what is read.
+            $url = $format === 'html' ? self::fullTextUrl($body, (string) $source->full_text_link, $document->url) : null;
+
+            if ($url !== null) {
+                [$body, $format] = self::get($url);
             }
 
             // The original is kept as served, next to the other documents of the source.
@@ -73,13 +92,13 @@ class FetchDocument implements ShouldQueue
 
             [$markdown, $message] = $format === 'pdf'
                 ? [$read->pdf($body, $document->title), null]
-                : $this->markdown($body, $source, $document, $read, $propose);
+                : $this->markdown($body, $url ?? $document->url, $source, $document, $read, $propose);
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
 
-            // The gate follows the fetch on its own; an excluded document fetched by hand is left out of it.
-            if ($document->excluded_by === null) {
-                ScreenDocument::queueFor($document);
+            // The semantic filter and then the gate follow the fetch on their own; an excluded document fetched by hand, or one already adopted on its summary, is left out of them.
+            if ($document->excluded_by === null && ! $adoptedOnSummary) {
+                ApplySemanticFilter::queueFor($document);
             }
         } catch (Throwable $exception) {
             // A database error quotes the bindings, bytes that are not UTF-8 included: the message is made storable or the document would stay 取得中.
@@ -88,20 +107,63 @@ class FetchDocument implements ShouldQueue
     }
 
     /**
+     * The body served at a URL and whether it is a PDF or HTML.
+     * robots.txt is enforced by the global HTTP middleware (AppServiceProvider).
+     *
+     * @return array{0: string, 1: 'html'|'pdf'}
+     */
+    private static function get(string $url): array
+    {
+        $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(30)->get($url)->throw();
+        $body = $response->body();
+
+        return [$body, str_contains(strtolower((string) $response->header('Content-Type')), 'application/pdf') || str_starts_with($body, '%PDF-') ? 'pdf' : 'html'];
+    }
+
+    /**
+     * The link to the full text on a document's page per the source's
+     * 全文へのリンク: the selectors are tried in the order written, one per
+     * line (arXiv: the HTML version, else the PDF), and the first that
+     * finds a link wins. Null when the source has none or none matches,
+     * and the page itself is read.
+     */
+    public static function fullTextUrl(string $html, string $selectors, string $pageUrl): ?string
+    {
+        $lines = array_filter(array_map(trim(...), explode("\n", $selectors)));
+
+        if ($lines === []) {
+            return null;
+        }
+
+        $page = HTMLDocument::createFromString($html, LIBXML_NOERROR | \Dom\HTML_NO_DEFAULT_NS, 'UTF-8');
+
+        foreach ($lines as $selector) {
+            $link = $page->querySelector($selector);
+            $href = $link instanceof Element ? trim((string) $link->getAttribute('href')) : '';
+
+            if ($href !== '') {
+                return FetchUpdates::absolute($href, $pageUrl);
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Read the page with the source's document settings; when they are
      * missing or miss on this page, have new ones proposed and verified.
      *
      * @return array{0: string, 1: ?string} the Markdown and a note on how the settings came about
      */
-    private function markdown(string $html, Source $source, Document $document, ReadDocument $read, ProposeDocumentSettings $propose): array
+    private function markdown(string $html, string $url, Source $source, Document $document, ReadDocument $read, ProposeDocumentSettings $propose): array
     {
         try {
-            return [$read->html($html, $source->document_config ?? [], $document->url, $document->title), null];
+            return [$read->html($html, $source->document_config ?? [], $url, $document->title), null];
         } catch (RuntimeException) {
             // Fall through: the settings need (re)making.
         }
 
-        [$settings, $markdown] = self::verify($html, $propose($html, $document->url), $document, $read);
+        [$settings, $markdown] = self::verify($html, $propose($html, $url), $document, $read, $url);
         $source->update(['document_config' => $settings]);
 
         return [$markdown, __('Document settings proposed by the agent and verified on this page (content: :content).', ['content' => $settings['content']])];
@@ -112,11 +174,12 @@ class FetchDocument implements ShouldQueue
      * generalised first; when its content selector yields no usable body,
      * the proposal as made and then generic selectors are tried in a fixed
      * order, and the settings that actually worked are what gets saved.
+     * The URL is the page's when it is not the document's own (a full text).
      *
      * @param  array{content: string, date: string, remove: string, fixed_text: string}  $proposal
      * @return array{0: array{content: string, date: string, remove: string, fixed_text: string}, 1: string}
      */
-    public static function verify(string $html, array $proposal, Document $document, ReadDocument $read): array
+    public static function verify(string $html, array $proposal, Document $document, ReadDocument $read, ?string $url = null): array
     {
         $general = array_map(self::generalise(...), $proposal);
 
@@ -124,7 +187,7 @@ class FetchDocument implements ShouldQueue
             $settings = [...$general, 'content' => $content];
 
             try {
-                return [$settings, $read->html($html, $settings, $document->url, $document->title)];
+                return [$settings, $read->html($html, $settings, $url ?? $document->url, $document->title)];
             } catch (Throwable) {
                 // A selector that misses, or is not valid CSS: try the next one.
                 continue;

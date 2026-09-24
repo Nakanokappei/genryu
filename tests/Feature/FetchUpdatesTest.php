@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Jobs\ApplySemanticFilter;
+use App\Jobs\FetchDocument;
 use App\Models\Document;
 use App\Models\Source;
 use App\Models\User;
@@ -242,4 +244,73 @@ it('runs from the source detail screen', function () {
         ->assertDontSee('First release');
 
     expect($source->refresh()->documents()->count())->toBe(2);
+});
+
+// arXiv: the feed announces new papers, cross-lists and replaced versions, each with its abstract.
+const ARXIV_RSS = <<<'XML'
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:arxiv="http://arxiv.org/schemas/atom" version="2.0"><channel><title>cs updates on arXiv.org</title>
+<item><title>A new paper</title><link>https://arxiv.org/abs/2609.00001</link><description>arXiv:2609.00001v1 Announce Type: new
+Abstract: We show that a thing &lt;em&gt;works&lt;/em&gt;.</description><pubDate>Thu, 24 Sep 2026 00:00:00 -0400</pubDate><arxiv:announce_type>new</arxiv:announce_type></item>
+<item><title>A cross-listed paper</title><link>https://arxiv.org/abs/2609.00002</link><description>arXiv:2609.00002v1 Announce Type: cross
+Abstract: Another result.</description><pubDate>Thu, 24 Sep 2026 00:00:00 -0400</pubDate><arxiv:announce_type>cross</arxiv:announce_type></item>
+<item><title>A replaced paper</title><link>https://arxiv.org/abs/2608.00003</link><description>arXiv:2608.00003v2 Announce Type: replace
+Abstract: Revised.</description><pubDate>Thu, 24 Sep 2026 00:00:00 -0400</pubDate><arxiv:announce_type>replace</arxiv:announce_type></item>
+<item><title>A replaced cross-list</title><link>https://arxiv.org/abs/2608.00004</link><description>arXiv:2608.00004v3 Announce Type: replace-cross
+Abstract: Revised too.</description><pubDate>Thu, 24 Sep 2026 00:00:00 -0400</pubDate><arxiv:announce_type>replace-cross</arxiv:announce_type></item>
+</channel></rss>
+XML;
+
+it('leaves out the replaced versions arXiv announces again', function () {
+    Http::fake(['rss.arxiv.org/*' => Http::response(ARXIV_RSS, 200, ['Content-Type' => 'application/rss+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://rss.arxiv.org/rss/cs']);
+
+    $result = app(FetchUpdates::class)($source);
+
+    expect($result)->toMatchArray(['added' => 2])
+        ->and(Document::query()->orderBy('url')->pluck('title')->all())->toBe(['A new paper', 'A cross-listed paper']);
+    // Without a link to the full text, each document is fetched from its own page as before.
+    Queue::assertPushed(FetchDocument::class, 2);
+});
+
+// 全文へのリンク: the abstract is the document until it is adopted; it goes to the semantic filter, not fetched.
+it('screens a summary from the feed without fetching when the source links to the full text', function () {
+    Http::fake(['rss.arxiv.org/*' => Http::response(ARXIV_RSS, 200, ['Content-Type' => 'application/rss+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://rss.arxiv.org/rss/cs', 'full_text_link' => "#latexml-download-link\na.download-pdf"]);
+
+    app(FetchUpdates::class)($source);
+    $document = Document::query()->where('url', 'https://arxiv.org/abs/2609.00001')->sole();
+
+    expect($document)->toMatchArray(['format' => 'feed', 'status' => 'fetched', 'original_path' => null])
+        ->and($document->markdown)->toBe("# A new paper\n\n2026-09-24\n\nWe show that a thing works.")
+        // A summary is short by nature: not the warning that the document settings miss the body.
+        ->and($document->hasShortBody())->toBeFalse();
+    Queue::assertPushed(ApplySemanticFilter::class, 2);
+    Queue::assertNotPushed(FetchDocument::class);
+});
+
+it('saves the full text link from the source detail screen', function () {
+    $source = Source::factory()->create();
+
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])
+        ->assertSee('全文へのリンク')
+        ->set('fullTextLink', "#latexml-download-link\na.download-pdf\n")
+        ->call('saveFullTextLink');
+    expect($source->refresh()->full_text_link)->toBe("#latexml-download-link\na.download-pdf");
+
+    Livewire::test('pages::editorial.sources.show', ['source' => $source])->set('fullTextLink', ' ')->call('saveFullTextLink');
+    expect($source->refresh()->full_text_link)->toBeNull();
+});
+
+// A paper announced in two categories, each read as a source of its own, is listed once: by the source that read it first.
+it('does not list a document another source has listed already', function () {
+    Http::fake(['rss.arxiv.org/*' => Http::response(ARXIV_RSS, 200, ['Content-Type' => 'application/rss+xml'])]);
+    $first = Source::factory()->create(['url' => 'https://rss.arxiv.org/rss/cs.AI']);
+    $second = Source::factory()->create(['url' => 'https://rss.arxiv.org/rss/cs.RO']);
+
+    app(FetchUpdates::class)($first);
+    $result = app(FetchUpdates::class)($second);
+
+    expect($result)->toMatchArray(['added' => 0, 'existing' => 2])
+        ->and(Document::query()->where('url', 'https://arxiv.org/abs/2609.00001')->pluck('source_id')->all())->toBe([$first->id]);
 });

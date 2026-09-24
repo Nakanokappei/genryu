@@ -36,6 +36,9 @@ new #[Title('情報源')] class extends Component {
     /** @var array<string, string> Document settings: CSS selectors of the body, its date, what to drop inside it, and fixed text to move after it */
     public array $documentSettings = ['content' => '', 'date' => '', 'remove' => '', 'fixed_text' => ''];
 
+    /** 全文へのリンク: CSS selectors of the link to the full text on a document's page, one per line, tried in order */
+    public string $fullTextLink = '';
+
     /** How the update list is read (UI 一覧の取得方法): feed / html / json, one of them, decided once; the settings of the chosen one are what FetchUpdates uses. */
     public string $method = 'feed';
 
@@ -44,6 +47,7 @@ new #[Title('情報源')] class extends Component {
         $this->name = $this->source->name;
         $this->url = $this->source->url;
         $this->notes = $this->source->notes ?? '';
+        $this->fullTextLink = $this->source->full_text_link ?? '';
         $this->method = match (true) {
             ($this->source->json_config['url'] ?? '') !== '' => 'json',
             ($this->source->list_config['item'] ?? '') !== '' || (bool) $this->source->read_as_html => 'html',
@@ -89,6 +93,15 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
+    // 全文へのリンク is saved on its own; empty, every document is fetched from its own page as it is listed.
+    public function saveFullTextLink(): void
+    {
+        $this->validate(['fullTextLink' => ['nullable', 'string', 'max:1000']]);
+        $this->source->update(['full_text_link' => trim($this->fullTextLink) !== '' ? trim($this->fullTextLink) : null]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
+
     // The document settings are saved on their own; an empty content selector means "let the agent propose at the next fetch".
     public function saveDocumentSettings(): void
     {
@@ -124,7 +137,7 @@ new #[Title('情報源')] class extends Component {
     #[Computed]
     public function shortDocuments()
     {
-        return $this->source->documents()->where('status', 'fetched')->whereNull('excluded_by')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->orderBy('id')->get();
+        return $this->source->documents()->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->orderBy('id')->get();
     }
 
     /**
@@ -311,6 +324,12 @@ new #[Title('情報源')] class extends Component {
                 <flux:text>{{ __('The list is still read with the HTML or JSON list settings; to read the feed instead, drop them and look for the feed again:') }}</flux:text>
                 <flux:button type="button" wire:click="useFeed" wire:confirm="{{ __('Drop the HTML and JSON list settings and look for a feed?') }}">{{ __('Read the feed') }}</flux:button>
             @endif
+            {{-- For a feed that carries a summary of every document (arXiv): screened on the summary, fetched in full only once adopted. --}}
+            <form wire:submit="saveFullTextLink" class="space-y-3">
+                <flux:textarea wire:model="fullTextLink" :label="__('Full text link')" rows="2" placeholder="#latexml-download-link&#10;a.download-pdf" />
+                <flux:text>{{ __('For a feed that gives a summary of every document. Filled in, a new document is screened on the summary from the feed without being fetched, and only once it is adopted is its page fetched and the full text it links to read. CSS selectors of the link on the document\'s page, one per line, tried in order.') }}</flux:text>
+                <flux:button type="submit">{{ __('Save') }}</flux:button>
+            </form>
         @elseif ($method === 'html')
             <form wire:submit="saveList" class="space-y-3">
                 <flux:text>{{ __('CSS selectors. Left empty, the agent proposes them when the source is configured again. The next page is read only while the page just read had something new.') }}</flux:text>
