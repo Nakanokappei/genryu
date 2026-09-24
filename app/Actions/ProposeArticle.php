@@ -27,7 +27,7 @@ class ProposeArticle
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
     /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. Shown on the screen under the prompt, so nobody puts a placeholder in the prompt for it. */
-    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and the headline of its article has already been settled. Write the body of the article under that headline, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`.';
+    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and the headline of its article has already been settled. Write the body of the article under that headline, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`. When the source has numbered figures, quote at least one and at most two of them in `figures`, by number: the ones that best show what the body talks about, each with the section whose text it illustrates — opening (before the first ## heading), background (the first ## section), technology (the second) or outlook (the third). Leave `figures` empty only when the source has no figures.';
 
     /**
      * @param  array<string, mixed>  $material
@@ -91,7 +91,7 @@ class ProposeArticle
             // What belongs to the language the body is written in (言語別の追加プロンプト), then the fixed instruction.
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-            ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+            ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).self::figureList($material)],
         ];
 
         // A body to be written again is shown with what is wrong with it, so the rewrite fixes that and keeps the rest.
@@ -114,13 +114,39 @@ class ProposeArticle
                             'body' => ['type' => 'string'],
                             // Which language it wrote in, so the job knows what is left to translate into.
                             'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
+                            // The figures of the source to quote, by number, and where each stands; App\Jobs\GenerateArticle keeps only valid ones.
+                            'figures' => ['type' => 'array', 'items' => [
+                                'type' => 'object',
+                                'properties' => ['figure' => ['type' => 'integer'], 'section' => ['type' => 'string', 'enum' => Article::FIGURE_SECTIONS]],
+                                'required' => ['figure', 'section'],
+                                'additionalProperties' => false,
+                            ]],
                         ],
-                        'required' => ['body', 'language'],
+                        'required' => ['body', 'language', 'figures'],
                         'additionalProperties' => false,
                     ],
                 ],
             ],
         ];
+    }
+
+    /**
+     * The figures of the source, numbered from 1 in the order they appear,
+     * for the writer to quote by number; nothing when there are none.
+     *
+     * @param  array<string, mixed>  $material
+     */
+    private static function figureList(array $material): string
+    {
+        $figures = array_values((array) ($material['figures'] ?? []));
+
+        if ($figures === []) {
+            return '';
+        }
+
+        $lines = array_map(fn (array $figure, int $i): string => ($i + 1).'. '.trim(($figure['alt'] ?? '').' '.($figure['caption'] ?? '')), $figures, array_keys($figures));
+
+        return "\n\nFigures of the source (quote by number):\n".implode("\n", $lines);
     }
 
     /**

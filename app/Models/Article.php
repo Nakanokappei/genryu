@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Str;
 
 /**
  * 記事 (UI: "Articles"): written from a material by App\Jobs\GenerateArticle
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  * prompt version and the model it was written with, with the usage of
  * the call, so articles written under different policies can be compared.
  *
+ * @property list<array{url: string, alt: string, caption: ?string, section: string}>|null $figures 図版: the source's figures quoted, by URL, each with its section
  * @property string|null $language
  * @property array<string, mixed>|null $headline_review what the headline scored against the rubric, with every attempt
  * @property CarbonImmutable|null $scheduled_at when this language version is to be published (公開予定日時), stored in UTC
@@ -87,15 +89,29 @@ class Article extends Model
         'fr' => 'Europe/Paris',
     ];
 
+    /**
+     * Where a quoted figure can stand (UI 図版): at the end of the opening
+     * (before the first ## heading), or of the first, second or third ##
+     * section — the background, the new technology, the world once it is
+     * real.
+     */
+    public const FIGURE_SECTIONS = ['opening', 'background', 'technology', 'outlook'];
+
+    /** At most this many figures are quoted in one article, so the article stays the main thing and the figures serve it. */
+    public const MAX_FIGURES = 2;
+
+    /** How a quoted figure's source is labelled, in the language of the article. */
+    public const SOURCE_LABELS = ['ja' => '出典', 'en' => 'Source', 'zh-Hant' => '出處', 'zh-Hans' => '出处', 'de' => 'Quelle', 'ko' => '출처', 'fr' => 'Source'];
+
     protected $fillable = [
-        'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'status', 'status_message', 'published_at', 'scheduled_at', 'image_path', 'image_time',
+        'material_id', 'language', 'translated_from_id', 'prompt_id', 'model', 'title', 'body', 'figures', 'status', 'status_message', 'published_at', 'scheduled_at', 'image_path', 'image_time',
         'headline_prompt_id', 'headline_model', 'headline_review',
         'input_tokens', 'cached_tokens', 'cache_write_tokens', 'output_tokens', 'latency_ms', 'estimated_total_cost',
     ];
 
     protected function casts(): array
     {
-        return ['published_at' => 'datetime', 'scheduled_at' => 'datetime', 'estimated_total_cost' => 'float', 'headline_review' => 'array'];
+        return ['published_at' => 'datetime', 'scheduled_at' => 'datetime', 'estimated_total_cost' => 'float', 'headline_review' => 'array', 'figures' => 'array'];
     }
 
     /**
@@ -111,6 +127,74 @@ class Article extends Model
     public function languageName(): string
     {
         return self::LANGUAGE_NAMES[$this->language] ?? (string) $this->language;
+    }
+
+    /**
+     * The figures of the primary source this article quotes, each with
+     * the section it stands in: the original's, for a translation too.
+     *
+     * @return list<array{url: string, alt: string, caption: ?string, section: string}>
+     */
+    public function quotedFigures(): array
+    {
+        $original = $this->isOriginal() ? $this : $this->translatedFrom;
+
+        return $original === null ? [] : ($original->figures ?? []);
+    }
+
+    /**
+     * The body as HTML, with the quoted figures set in after the section
+     * each stands in. A figure is a quotation, never a copy: the image is
+     * the source's own URL, loaded by the reader's browser (no referrer
+     * sent, gone from the page if the source will not serve it), shown no
+     * larger than the article can carry and never cropped, apart from
+     * the text in a frame of its own, with the source's caption as it
+     * was and the source named and linked in the article's language.
+     */
+    public function bodyHtml(): string
+    {
+        // The body in its sections: the opening before the first ## heading, then one section per heading.
+        $sections = preg_split('/^(?=## )/m', (string) $this->body) ?: [''];
+        $figures = $this->quotedFigures();
+        $html = '';
+
+        foreach ($sections as $index => $section) {
+            $html .= Str::markdown($section, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+
+            foreach ($figures as $figure) {
+                // A figure whose section the body does not have stands after the opening.
+                $at = array_search($figure['section'], self::FIGURE_SECTIONS, true);
+                $at = is_int($at) && $at < count($sections) ? $at : 0;
+
+                if ($at === $index) {
+                    $html .= $this->figureHtml($figure);
+                }
+            }
+        }
+
+        return $html;
+    }
+
+    /**
+     * One quoted figure.
+     *
+     * @param  array{url: string, alt: string, caption: ?string, section: string}  $figure
+     */
+    private function figureHtml(array $figure): string
+    {
+        $document = $this->material?->document;
+        $label = self::SOURCE_LABELS[$this->language] ?? self::SOURCE_LABELS['en'];
+        $caption = trim((string) ($figure['caption'] ?? ''));
+        $source = $document !== null
+            ? e($label).': <a href="'.e($document->url).'" target="_blank" rel="noopener noreferrer">'.e($document->title).'</a>（'.e($document->source->name).'）'
+            : '';
+
+        return '<figure data-quotation style="margin:1.5rem 0;padding:0.75rem;border:1px solid rgba(128,128,128,0.35);border-radius:0.5rem">'
+            .'<img src="'.e($figure['url']).'" alt="'.e($figure['alt']).'" loading="lazy" decoding="async" referrerpolicy="no-referrer"'
+            .' style="display:block;margin:0 auto;max-width:100%;max-height:400px;width:auto;height:auto;object-fit:contain"'
+            .' onerror="this.closest(\'figure\').remove()">'
+            .'<figcaption style="margin-top:0.5rem;font-size:0.75rem;opacity:0.75">'.($caption !== '' ? e($caption).' ' : '').$source.'</figcaption>'
+            .'</figure>';
     }
 
     /** Whether this is the article as written, rather than a translation of one. */

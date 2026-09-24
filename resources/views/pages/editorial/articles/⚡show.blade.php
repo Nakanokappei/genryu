@@ -143,7 +143,7 @@ new #[Title('記事')] class extends Component {
 {{ $this->reading->body }}</pre>
             @else
                 <flux:heading size="lg">{{ $this->reading->title }}</flux:heading>
-                <div class="text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! Str::markdown($this->reading->body, ['html_input' => 'strip', 'allow_unsafe_links' => false]) !!}</div>
+                <div class="text-sm leading-relaxed [&_a]:underline [&_h1]:my-3 [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:my-3 [&_h2]:text-base [&_h2]:font-semibold [&_h3]:my-2 [&_h3]:font-semibold [&_li]:my-1 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-2 [&_ul]:list-disc [&_ul]:ps-5">{!! $this->reading->bodyHtml() !!}</div>
             @endif
         </div>
     @else

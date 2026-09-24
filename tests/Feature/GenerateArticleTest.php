@@ -99,8 +99,10 @@ it('has the agent write the body under the settled headline from an extracted ma
         && $request['model'] === 'gpt-5.6-luna'
         && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
         && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
-        && $request['text']['format']['schema']['required'] === ['body', 'language']
+        && $request['text']['format']['schema']['required'] === ['body', 'language', 'figures']
         && str_contains($request['input'][2]['content'], 'Headline: '.ARTICLE_HEADLINE)
+        // A source without figures offers none to quote.
+        && ! str_contains($request['input'][2]['content'], 'Figures of the source')
         && str_contains($request['input'][2]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
         && str_contains($request['input'][2]['content'], 'アンモニア燃焼器')
         && str_contains($request['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
@@ -302,4 +304,61 @@ it('writes a body again when its shape comes apart', function () {
     expect($article->body)->toBe(ARTICLE_ANSWER['body'])
         ->and($article->status_message)->not->toContain('検査を通りませんでした');
     Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), '- The body starts with a heading'));
+});
+
+// 図版: the writer quotes up to two figures of the source by number; the job keeps valid choices, with the URL from the material.
+it('quotes the figures the writer chose, taking the figure from the material', function () {
+    Http::fake(['api.openai.com/*' => Http::response(articleAgentAnswer([...ARTICLE_ANSWER, 'figures' => [
+        ['figure' => 2, 'section' => 'technology'],
+        ['figure' => 9, 'section' => 'opening'],
+        ['figure' => 2, 'section' => 'outlook'],
+        ['figure' => 1, 'section' => 'background'],
+        ['figure' => 3, 'section' => 'outlook'],
+    ]]))]);
+    $material = Material::factory()->create(['data' => ['要約' => '燃焼器の開発。', 'figures' => [
+        ['url' => 'https://www.nedo.go.jp/img/1.png', 'alt' => '概要図', 'caption' => null],
+        ['url' => 'https://www.nedo.go.jp/img/2.png', 'alt' => '燃焼器', 'caption' => '図2 燃焼器の構造'],
+        ['url' => 'https://www.nedo.go.jp/img/3.png', 'alt' => '', 'caption' => null],
+    ]]]);
+
+    $article = generateArticle($material);
+
+    // A number the source has not, the same figure twice and a third figure are dropped.
+    expect($article->figures)->toBe([
+        ['url' => 'https://www.nedo.go.jp/img/2.png', 'alt' => '燃焼器', 'caption' => '図2 燃焼器の構造', 'section' => 'technology'],
+        ['url' => 'https://www.nedo.go.jp/img/1.png', 'alt' => '概要図', 'caption' => null, 'section' => 'background'],
+    ]);
+    Http::assertSent(fn (Request $request): bool => str_contains((string) collect($request['input'])->last()['content'], "Figures of the source (quote by number):\n1. 概要図\n2. 燃焼器 図2 燃焼器の構造\n3. ")
+        && $request['text']['format']['schema']['required'] === ['body', 'language', 'figures']);
+});
+
+// A source with figures always has one in its article: the first, in the section on the new technology, when the writer chose none.
+it('quotes the first figure when the writer chose none of a source that has figures', function () {
+    $figures = [['url' => 'https://www.nedo.go.jp/img/1.png', 'alt' => '概要図', 'caption' => null], ['url' => 'https://www.nedo.go.jp/img/2.png', 'alt' => '', 'caption' => null]];
+
+    expect(GenerateArticle::figures([], $figures))->toBe([['url' => 'https://www.nedo.go.jp/img/1.png', 'alt' => '概要図', 'caption' => null, 'section' => 'technology']])
+        ->and(GenerateArticle::figures([['figure' => 7, 'section' => 'opening']], $figures)[0]['url'])->toBe('https://www.nedo.go.jp/img/1.png')
+        ->and(GenerateArticle::figures([], []))->toBe([]);
+});
+
+// A figure is a quotation: the source's own URL, loaded by the reader's browser, in its section, framed, with the source named in the article's language.
+it('sets the quoted figures into the body as quotations from the source', function () {
+    $material = Material::factory()->create(['data' => ['要約' => '燃焼器の開発。']]);
+    $material->document->update(['title' => 'アンモニア燃焼器', 'url' => ARTICLE_URL]);
+    $original = Article::factory()->for($material)->create(['language' => 'ja', 'body' => articleBody(100), 'figures' => [
+        ['url' => 'https://www.nedo.go.jp/img/2.png', 'alt' => '燃焼器', 'caption' => '図2 燃焼器の構造', 'section' => 'technology'],
+    ]]);
+    $translation = Article::factory()->for($material)->create(['language' => 'en', 'translated_from_id' => $original->id, 'body' => "Lead.\n\n## Background\n\nText.\n\n## The technology\n\nText.\n\n## Outlook\n\nText.\n\n## Sources\n\n[NEDO](".ARTICLE_URL.')']);
+
+    $html = $original->bodyHtml();
+
+    expect($html)->toContain('<img src="https://www.nedo.go.jp/img/2.png" alt="燃焼器" loading="lazy" decoding="async" referrerpolicy="no-referrer"')
+        ->toContain('max-height:400px')->toContain('object-fit:contain')
+        ->toContain('図2 燃焼器の構造 出典: <a href="'.ARTICLE_URL.'"')
+        // In the new-technology section: after its text, before the outlook's heading.
+        ->and(strpos($html, '<figure'))->toBeGreaterThan(strpos($html, '転。'))
+        ->and(strpos($html, '<figure'))->toBeLessThan(strpos($html, '結の見出し'));
+    // A translation quotes its original's figures, labelled in its own language.
+    expect($translation->bodyHtml())->toContain('https://www.nedo.go.jp/img/2.png')->toContain('Source: <a href=')
+        ->and(strpos($translation->bodyHtml(), '<figure'))->toBeLessThan(strpos($translation->bodyHtml(), 'Outlook'));
 });

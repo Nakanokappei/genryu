@@ -215,6 +215,21 @@ The history under `docs/` (Phase 0) keeps the old name.
   rules (one short line, no colon-subtitle, no two claims joined by a
   comma) had to go into the policy before the rewrites read like
   headlines rather than contents pages.
+- **An article quotes the source's figures; it never serves them**
+  (decided 2026-09-25). When the material has figures (図版), the writer
+  is offered them by number and must quote one or two, each with the
+  section it illustrates (`Article::FIGURE_SECTIONS`: opening /
+  background / technology / outlook); `GenerateArticle::figures` keeps
+  valid choices only, takes URL, alt and caption from the material, never
+  from the answer, and falls back to the first figure in the technology
+  section when none was chosen. `articles.figures` holds the URLs only;
+  a translation shows its original's. `Article::bodyHtml` sets each in
+  after its section as a quotation meeting 著作権法32条: the image is the
+  source's own URL loaded by the reader's browser (`referrerpolicy
+  no-referrer`, removed from the page if it will not load), framed apart
+  from the text, sized to the article (max 400px high, never cropped),
+  at most two, with the source's caption as it was and 出典 (labelled in
+  the article's language) naming and linking the document.
 - **品質チェック is the first screen of 編成** (built 2026-09-23,
   `production/quality`). `App\Jobs\CheckQuality` (agent
   `App\Actions\ScoreQuality`, Responses API, the policy cached) scores a

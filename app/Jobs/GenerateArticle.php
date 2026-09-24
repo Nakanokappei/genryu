@@ -131,6 +131,7 @@ class GenerateArticle implements ShouldQueue
 
             $article->update([
                 'body' => Article::separateBlocks($body),
+                'figures' => self::figures((array) ($result['json']['figures'] ?? []), $material->figures()),
                 // The language the agent says it wrote in, which is the material's and so the primary source's.
                 'language' => in_array($result['json']['language'] ?? null, Article::SOURCE_LANGUAGES, true) ? $result['json']['language'] : null,
                 'status' => 'draft',
@@ -150,6 +151,53 @@ class GenerateArticle implements ShouldQueue
         }
 
         CheckQuality::queueFor($article);
+    }
+
+    /**
+     * The figures the writer chose to quote, checked: a number the
+     * source's figures have, a section an article has, each figure once,
+     * at most Article::MAX_FIGURES. The URL, the alt text and the caption
+     * are taken from the material, never from the model's answer. A source
+     * with figures always has one in its article (decided 2026-09-25):
+     * when the writer chose none that holds, the first stands in the
+     * section on the new technology.
+     *
+     * @param  array<int, mixed>  $chosen
+     * @param  list<array<string, mixed>>  $figures
+     * @return list<array{url: string, alt: string, caption: ?string, section: string}>
+     */
+    public static function figures(array $chosen, array $figures): array
+    {
+        $kept = [];
+
+        foreach ($chosen as $choice) {
+            $number = is_array($choice) && is_int($choice['figure'] ?? null) ? $choice['figure'] : 0;
+            $section = is_array($choice) ? ($choice['section'] ?? null) : null;
+            $figure = $figures[$number - 1] ?? null;
+
+            if ($figure === null || ! in_array($section, Article::FIGURE_SECTIONS, true) || isset($kept[$number]) || count($kept) >= Article::MAX_FIGURES) {
+                continue;
+            }
+
+            $kept[$number] = self::figure($figure, (string) $section);
+        }
+
+        if ($kept === [] && $figures !== []) {
+            $kept[1] = self::figure($figures[0], 'technology');
+        }
+
+        return array_values($kept);
+    }
+
+    /**
+     * A figure of the material as the article keeps it.
+     *
+     * @param  array<string, mixed>  $figure
+     * @return array{url: string, alt: string, caption: ?string, section: string}
+     */
+    private static function figure(array $figure, string $section): array
+    {
+        return ['url' => (string) $figure['url'], 'alt' => (string) ($figure['alt'] ?? ''), 'caption' => isset($figure['caption']) ? (string) $figure['caption'] : null, 'section' => $section];
     }
 
     /**
