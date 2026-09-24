@@ -1,0 +1,51 @@
+<?php
+
+namespace App\Models;
+
+use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+
+/**
+ * 抜き取り点検 (UI: "Spot check"): a document drawn for a person to judge
+ * whether it is like this media, set against what the semantic filter
+ * made of it when it was drawn (App\Actions\DrawSpotCheck).
+ *
+ * @property CarbonImmutable $drawn_on
+ * @property CarbonImmutable|null $decided_at
+ */
+class SpotCheck extends Model
+{
+    /**
+     * The strata of a day's draw and how many each gives (UI 通過 / 閾値のすぐ下
+     * / それより下): drawn at random the draw would be almost all below the
+     * threshold (94% of arXiv on 2026-09-24), which says little about the
+     * line itself.
+     */
+    public const STRATA = ['passed' => 3, 'near' => 4, 'far' => 3];
+
+    /** How far below the threshold "just below" reaches. */
+    public const NEAR_WIDTH = 0.10;
+
+    /** A person's verdict: like this media, unlike it, or cannot tell. */
+    public const VERDICTS = ['like', 'unlike', 'unsure'];
+
+    protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'passed', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at'];
+
+    protected function casts(): array
+    {
+        return ['drawn_on' => 'immutable_date', 'weight' => 'float', 'likeness' => 'float', 'threshold' => 'float', 'passed' => 'boolean', 'decided_at' => 'datetime'];
+    }
+
+    /** @return BelongsTo<Document, $this> */
+    public function document(): BelongsTo
+    {
+        return $this->belongsTo(Document::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function decider(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'decided_by');
+    }
+}

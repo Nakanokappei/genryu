@@ -21,6 +21,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('documents/{document}', 'pages::editorial.documents.show')->name('documents.show');
         // The original file (UI: "Original") of a document, as it was served, from the local disk.
         Route::get('documents/{document}/original', fn (Document $document) => Storage::disk('local')->download((string) $document->original_path, basename((string) $document->original_path)))->name('documents.original');
+        // 意味フィルタ: the definitions and the examples of one side (like / unlike), each on a screen of its own.
+        Route::livewire('semantic-filter/{side}', 'pages::editorial.semantic-filter.show')->whereIn('side', ['like', 'unlike'])->name('semantic-filter.show');
         Route::livewire('materials', 'pages::editorial.materials.index')->name('materials.index');
         Route::livewire('materials/{material}', 'pages::editorial.materials.show')->name('materials.show');
         Route::livewire('articles', 'pages::editorial.articles.index')->name('articles.index');
@@ -35,6 +37,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // A top image as it was drawn, from the local disk.
         Route::get('images/{image}/file', fn (ArticleImage $image) => Storage::disk('local')->response((string) $image->path))->name('images.file');
         Route::livewire('articles', 'pages::production.articles.index')->name('articles.index');
+    });
+
+    // 監督 (Supervision): a person looking over what the stages did, after the fact; nothing in the pipeline waits for it.
+    Route::prefix('supervision')->name('supervision.')->group(function () {
+        Route::livewire('spot-checks', 'pages::supervision.spot-checks.index')->name('spot-checks.index');
     });
 
     // 編集方針 (Editorial policy): one screen, one body of text per layer.

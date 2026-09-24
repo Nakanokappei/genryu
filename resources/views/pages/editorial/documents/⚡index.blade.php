@@ -18,9 +18,6 @@ use Livewire\Attributes\Url;
 
 // 文書 (Documents): the content filtering of the editorial policy (the developer prompt and the model of the スクリーニング, the LLM gate that reads the fetched documents and decides 採用 / 不採用 / 要確認; the title filter is on 情報源), with the figures of the screenings run so far, and the documents fetched from the sources (original kept, Markdown made), sortable and filterable by source, published date, format, fetched time and decision, each with its state (fetched / fetching / failed / excluded by the title filter).
 new #[Title('文書')] class extends PagedList {
-    /** 意味フィルタ: the definitions, one per line starting like: or unlike: */
-    public string $semanticFilter = '';
-
     /** The embedding model of the semantic filter (UI 埋め込みモデル), one of EditorialPolicy::EMBEDDING_MODELS. */
     public string $semanticFilterModel = EditorialPolicy::DEFAULT_EMBEDDING_MODEL;
 
@@ -36,7 +33,6 @@ new #[Title('文書')] class extends PagedList {
     public function mount(): void
     {
         $filter = EditorialPolicy::semanticFilter();
-        $this->semanticFilter = EditorialPolicy::bodyFor('semantic_filter');
         $this->semanticFilterModel = $filter['model'];
         $this->semanticFilterThreshold = sprintf('%.2f', $filter['threshold']);
         $this->contentFiltering = EditorialPolicy::bodyFor('content_filtering');
@@ -51,14 +47,14 @@ new #[Title('文書')] class extends PagedList {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
-    // Saved, the definitions and the threshold are applied again to every document already embedded: only a new definition line calls the model.
+    // Saved, the model and the threshold are applied again to every document already embedded (the definitions are on a screen of each side).
     public function saveSemanticFilter(MeasureLikeness $measure): void
     {
         $this->validate([
             'semanticFilterModel' => ['required', 'in:'.implode(',', array_keys(EditorialPolicy::EMBEDDING_MODELS))],
             'semanticFilterThreshold' => ['required', 'numeric', 'between:-1,1'],
         ]);
-        EditorialPolicy::query()->updateOrCreate(['layer' => 'semantic_filter'], ['body' => $this->semanticFilter, 'model' => $this->semanticFilterModel, 'threshold' => (float) $this->semanticFilterThreshold]);
+        EditorialPolicy::query()->updateOrCreate(['layer' => 'semantic_filter'], ['body' => '', 'model' => $this->semanticFilterModel, 'threshold' => (float) $this->semanticFilterThreshold]);
         $result = $measure->again();
         unset($this->documents, $this->semanticFilterFigures);
 
@@ -78,7 +74,7 @@ new #[Title('文書')] class extends PagedList {
      * How the semantic filter stands: documents measured, how many fall
      * below the threshold, and the examples a person marked.
      *
-     * @return array{measured: int, below: int, like: int, unlike: int}
+     * @return array{measured: int, below: int, like: int, unlike: int, like_definitions: int, unlike_definitions: int}
      */
     #[Computed]
     public function semanticFilterFigures(): array
@@ -91,6 +87,7 @@ new #[Title('文書')] class extends PagedList {
             'below' => Document::query()->where('likeness', '<', $threshold)->count(),
             'like' => (int) ($examples['like'] ?? 0),
             'unlike' => (int) ($examples['unlike'] ?? 0),
+            ...array_map(fn (string $side): int => count(array_filter(EditorialPolicy::semanticFilter()['definitions'], fn (array $definition): bool => $definition['side'] === $side)), ['like_definitions' => 'like', 'unlike_definitions' => 'unlike']),
         ];
     }
 
@@ -263,8 +260,16 @@ new #[Title('文書')] class extends PagedList {
     {{-- The semantic filter comes before the content filtering: an embedding set against definitions of what is and is not like this media, cheap enough for every document. --}}
     <form wire:submit="saveSemanticFilter" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Semantic filter') }}</flux:heading>
-        <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions below and with the examples marked on documents. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
-        <flux:textarea wire:model="semanticFilter" :label="__('Definitions (one per line, starting like: or unlike:)')" rows="8" class="font-mono" />
+        <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions and the examples of each side. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
+        {{-- The two sides are set on screens of their own: what this media is like, and what it is not like. --}}
+        <div class="grid gap-3 sm:grid-cols-2">
+            @foreach (['like' => __('Like this media'), 'unlike' => __('Unlike this media')] as $side => $label)
+                <a href="{{ route('editorial.semantic-filter.show', $side) }}" class="rounded-lg border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800" wire:navigate>
+                    <div class="font-medium">{{ $label }} →</div>
+                    <div class="text-sm text-neutral-500">{{ __(':definitions definitions, :examples examples', ['definitions' => $this->semanticFilterFigures[$side.'_definitions'], 'examples' => $this->semanticFilterFigures[$side]]) }}</div>
+                </a>
+            @endforeach
+        </div>
         <div class="grid gap-3 md:grid-cols-[1fr_12rem]">
             <flux:select wire:model="semanticFilterModel" :label="__('Embedding model')">
                 @foreach (\App\Models\EditorialPolicy::EMBEDDING_MODELS as $id => $model)
@@ -273,7 +278,7 @@ new #[Title('文書')] class extends PagedList {
             </flux:select>
             <flux:input wire:model="semanticFilterThreshold" :label="__('Threshold')" type="number" step="0.01" min="-1" max="1" />
         </div>
-        <flux:text size="sm" class="text-neutral-500">{{ __(':measured documents measured, :below below the threshold. Examples: :like like, :unlike unlike (marked on each document).', $this->semanticFilterFigures) }}</flux:text>
+        <flux:text size="sm" class="text-neutral-500">{{ __(':measured documents measured, :below below the threshold.', $this->semanticFilterFigures) }}</flux:text>
         <div class="flex flex-wrap items-center gap-3">
             <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
             <flux:button type="button" wire:click="applySemanticFilter" icon="funnel">{{ __('Apply the semantic filter to the documents not measured yet') }}</flux:button>

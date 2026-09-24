@@ -125,6 +125,12 @@ class Document extends Model
         return $this->hasOne(DocumentEmbedding::class);
     }
 
+    /** @return HasOne<SpotCheck, $this> the document drawn for 抜き取り点検, when it was */
+    public function spotCheck(): HasOne
+    {
+        return $this->hasOne(SpotCheck::class);
+    }
+
     /** @return HasOne<SemanticFilterExample, $this> the document as an example of the semantic filter, when a person made it one */
     public function semanticFilterExample(): HasOne
     {

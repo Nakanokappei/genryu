@@ -47,6 +47,13 @@
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 
+                {{-- 監督 (Supervision): a person looking over what the stages did, after the fact (human on the loop). --}}
+                <flux:sidebar.group :heading="__('Supervision')" class="grid">
+                    <flux:sidebar.item icon="clipboard-document-check" :href="route('supervision.spot-checks.index')" :current="request()->routeIs('supervision.spot-checks.*')" wire:navigate>
+                        {{ __('Spot check') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
+
                 {{-- What the stages decide by (docs/HANDOVER.md §1), one layer per stage. --}}
             </flux:sidebar.nav>
 

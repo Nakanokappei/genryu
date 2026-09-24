@@ -394,6 +394,27 @@ the product (purpose, the five stages, stack); read it first.
   the way: a definition with a broad word (measure, AI) pulls everything
   towards it, and an example pulls in its topic more than its kind (one
   paper on public trust in LLMs lifted every LLM paper).
+  The definitions of each side are on a screen of their own
+  (`editorial/semantic-filter/{like|unlike}`, layers `semantic_like` /
+  `semantic_unlike`, one per line, with that side's examples); the
+  model and the threshold stay on 文書.
+- **監督 (Supervision) is the third sidebar group: a person looking over
+  what the stages did, after the fact** (2026-09-24). Its first screen is
+  **抜き取り点検 (Spot check)**, Stet's idea from the NYT comparison
+  (artifact "NYT の AI 道具箱と Technology Watch"): `App\Actions\DrawSpotCheck`
+  draws 10 of the day's documents the semantic filter measured, stratified
+  (`SpotCheck::STRATA`: passed 3 / just below the threshold 4 / far below 3,
+  since at random 94% would be below), each row with its stratum's weight
+  and the likeness, threshold and outcome as they were when drawn;
+  examples and documents drawn before are left out; a day is drawn once.
+  `App\Jobs\TranslateSpotCheck` puts the title and gist into Japanese.
+  One document at a time, keys **4 like / 5 cannot tell / 6 unlike**,
+  ← → to move, the next one after a verdict; the likeness is hidden
+  until judged. Planned next: the figures (estimated miss rates, a table
+  of thresholds) once a few days are judged, then verdicts as examples
+  (rates computed from the likeness at drawing, before they taught the
+  filter), then a daily draw by the scheduler (docs/TODO.md), then the
+  same for the screening, the headline scores and the quality check.
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings

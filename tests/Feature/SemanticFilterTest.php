@@ -40,7 +40,9 @@ beforeEach(function () {
     Http::preventStrayRequests();
     Queue::fake();
     config(['services.openai.key' => 'test-key']);
-    EditorialPolicy::query()->create(['layer' => 'semantic_filter', 'body' => "like: society\nUnlike: theory\nNot a definition line", 'model' => 'text-embedding-3-large', 'threshold' => 0.10]);
+    EditorialPolicy::query()->create(['layer' => 'semantic_filter', 'body' => '', 'model' => 'text-embedding-3-large', 'threshold' => 0.10]);
+    EditorialPolicy::query()->create(['layer' => 'semantic_like', 'body' => "society\n\n"]);
+    EditorialPolicy::query()->create(['layer' => 'semantic_unlike', 'body' => 'theory']);
     $this->actingAs(User::factory()->create());
 });
 
@@ -108,19 +110,24 @@ it('measures documents against the examples a person marked', function () {
     expect(SemanticFilterExample::query()->count())->toBe(0)->and($near->refresh()->isBelowLikeness())->toBeTrue();
 });
 
-// Saved on 文書, the filter measures the embedded documents again without embedding them again.
-it('saves the semantic filter on the documents screen and measures again', function () {
+// Saved on the screen of a side, the definitions measure the embedded documents again without embedding them again.
+it('saves the definitions of each side on a screen of its own and measures again', function () {
     fakeEmbeddings();
     $document = Document::factory()->fetched()->create(['title' => 'Robots', 'markdown' => 'robot']);
     app(MeasureLikeness::class)($document);
     $calls = count(Http::recorded());
 
+    Livewire::test('pages::editorial.semantic-filter.show', ['side' => 'like'])
+        ->assertSee('このメディアらしいもの')
+        ->set('definitions', 'robot')
+        ->call('save');
     Livewire::test('pages::editorial.documents.index')
         ->assertSee('意味フィルタ')
-        ->set('semanticFilter', "like: robot\nunlike: theory")
         ->set('semanticFilterThreshold', '0.05')
         ->call('saveSemanticFilter')
         ->assertHasNoErrors();
+    $this->get(route('editorial.semantic-filter.show', 'unlike'))->assertOk()->assertSee('theory');
+    $this->get('/editorial/semantic-filter/other')->assertNotFound();
 
     expect(EditorialPolicy::semanticFilter()['threshold'])->toBe(0.05)
         ->and($document->refresh()->likeness_detail['like']['label'])->toBe('robot')

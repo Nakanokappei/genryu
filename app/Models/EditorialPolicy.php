@@ -24,12 +24,13 @@ use Illuminate\Support\Once;
 class EditorialPolicy extends Model
 {
     /** The layers, in flow order: 取捨選択 (the title filter, the semantic filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック and 画像. */
-    public const LAYERS = ['exclude_keywords', 'semantic_filter', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
+    public const LAYERS = ['exclude_keywords', 'semantic_filter', 'semantic_like', 'semantic_unlike', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
 
     /** What a layer says until someone edits it on the screen. */
     public const DEFAULTS = [
         'exclude_keywords' => '',
-        'semantic_filter' => '',
+        'semantic_like' => '',
+        'semantic_unlike' => '',
         'content_filtering' => '',
         'structuring' => '',
         'headline' => '',
@@ -112,13 +113,6 @@ class EditorialPolicy extends Model
      */
     public const DEFAULT_THRESHOLD = 0.10;
 
-    /**
-     * How a definition line of the semantic filter starts: like: (UI
-     * らしい) or unlike: (UI らしくない). English whatever language the
-     * definitions are written in, so the form reads the same to everyone.
-     */
-    public const SEMANTIC_SIDES = ['like', 'unlike'];
-
     protected $fillable = ['layer', 'body', 'model', 'image_model', 'threshold'];
 
     /**
@@ -136,9 +130,10 @@ class EditorialPolicy extends Model
     }
 
     /**
-     * The semantic filter as set on 文書 (or the defaults): its
-     * definitions, one per line starting like: or unlike:, the
-     * embedding model and the threshold of likeness.
+     * The semantic filter as set (or the defaults): its definitions, one
+     * per line on a screen of each side (layers semantic_like, UI らしい,
+     * and semantic_unlike, UI らしくない), and the embedding model and the
+     * threshold of likeness set on 文書 (layer semantic_filter).
      *
      * @return array{definitions: list<array{side: string, text: string}>, model: string, threshold: float}
      */
@@ -147,9 +142,11 @@ class EditorialPolicy extends Model
         $policy = static::query()->where('layer', 'semantic_filter')->first();
         $definitions = [];
 
-        foreach (preg_split('/\R/u', $policy !== null ? (string) $policy->body : self::DEFAULTS['semantic_filter']) ?: [] as $line) {
-            if (preg_match('/^\s*(unlike|like)\s*[:：]\s*(.+?)\s*$/iu', $line, $match) === 1) {
-                $definitions[] = ['side' => strtolower($match[1]), 'text' => $match[2]];
+        foreach (['like' => 'semantic_like', 'unlike' => 'semantic_unlike'] as $side => $layer) {
+            foreach (preg_split('/\R/u', self::bodyFor($layer)) ?: [] as $line) {
+                if (trim($line) !== '') {
+                    $definitions[] = ['side' => $side, 'text' => trim($line)];
+                }
             }
         }
 

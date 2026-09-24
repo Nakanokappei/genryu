@@ -121,7 +121,7 @@ class ProposeDecision
      *
      * @param  array<string, mixed>|null  $body
      */
-    private static function outputText(?array $body): string
+    public static function outputText(?array $body): string
     {
         foreach ($body['output'] ?? [] as $item) {
             if (($item['type'] ?? '') !== 'message') {
