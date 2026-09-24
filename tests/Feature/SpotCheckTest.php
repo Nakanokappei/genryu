@@ -88,3 +88,26 @@ it('takes a verdict on each drawn document and shows the likeness only once judg
 
     $this->get(route('supervision.spot-checks.index'))->assertOk()->assertSee('抜き取り点検');
 });
+
+// Once every one is judged the day is closed with 確定; a closed day takes no verdict until it is reopened.
+it('confirms a day once every document of it is judged, and reopens it', function () {
+    $first = SpotCheck::query()->create(['document_id' => measured(0.2)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'passed', 'weight' => 1, 'likeness' => 0.2, 'threshold' => 0.1, 'passed' => true, 'title_ja' => '一つ目']);
+    $second = SpotCheck::query()->create(['document_id' => measured(-0.3)->id, 'drawn_on' => '2026-09-24', 'stratum' => 'far', 'weight' => 1, 'likeness' => -0.3, 'threshold' => 0.1, 'passed' => false, 'title_ja' => '二つ目']);
+
+    $page = Livewire::test('pages::supervision.spot-checks.index')
+        ->call('confirm')
+        ->call('decide', 'like')
+        ->call('decide', 'unlike')
+        // After the last one, the confirmation rather than the last page.
+        ->assertSet('check', null)->assertSee('この日の文書をすべて判定しました');
+    expect($first->refresh()->confirmed_at)->toBeNull();
+
+    $page->call('confirm')->assertSee('この日の点検は確定済みです');
+    expect($first->refresh()->confirmed_at)->not->toBeNull()->and($second->refresh()->confirmed_by)->toBe(auth()->id());
+
+    // Closed: a verdict does nothing until the day is reopened.
+    $page->call('show', $first->id)->call('decide', 'unlike');
+    expect($first->refresh()->verdict)->toBe('like');
+    $page->call('reopen')->call('show', $first->id)->call('decide', 'unlike');
+    expect($first->refresh())->toMatchArray(['verdict' => 'unlike', 'confirmed_at' => null]);
+});

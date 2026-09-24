@@ -442,5 +442,12 @@
     "Keys: 4 like, 5 cannot tell, 6 unlike; ← → to move.": "キー：4 らしい、5 分からない、6 らしくない。← → で前後に移動。",
     "Nothing drawn for this day yet.": "この日はまだ抜き取っていません。",
     "The agent did not return a translation.": "エージェントが翻訳を返しませんでした。",
-    "let through": "通過"
+    "let through": "通過",
+    "The spot check of :day is confirmed.": ":day の点検を確定しました。",
+    "The spot check of this day is confirmed": "この日の点検は確定済みです",
+    "Every document of this day is judged": "この日の文書をすべて判定しました",
+    "Confirmed :when by :who": ":when に :who が確定",
+    "Reopen": "確定を取り消す",
+    "Confirm": "確定する",
+    "Confirm to close the day. The verdicts cannot be changed until it is reopened.": "確定すると、この日の点検を締めくくります。確定を取り消すまで、判定は変えられません。"
 }

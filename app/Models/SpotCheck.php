@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  *
  * @property CarbonImmutable $drawn_on
  * @property CarbonImmutable|null $decided_at
+ * @property CarbonImmutable|null $confirmed_at when a person closed the day's spot check (確定), on every row of the day
  */
 class SpotCheck extends Model
 {
@@ -30,17 +31,23 @@ class SpotCheck extends Model
     /** A person's verdict: like this media, unlike it, or cannot tell. */
     public const VERDICTS = ['like', 'unlike', 'unsure'];
 
-    protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'passed', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at'];
+    protected $fillable = ['document_id', 'drawn_on', 'stratum', 'weight', 'likeness', 'threshold', 'passed', 'title_ja', 'summary_ja', 'translation_error', 'verdict', 'decided_by', 'decided_at', 'confirmed_at', 'confirmed_by'];
 
     protected function casts(): array
     {
-        return ['drawn_on' => 'immutable_date', 'weight' => 'float', 'likeness' => 'float', 'threshold' => 'float', 'passed' => 'boolean', 'decided_at' => 'datetime'];
+        return ['drawn_on' => 'immutable_date', 'weight' => 'float', 'likeness' => 'float', 'threshold' => 'float', 'passed' => 'boolean', 'decided_at' => 'datetime', 'confirmed_at' => 'datetime'];
     }
 
     /** @return BelongsTo<Document, $this> */
     public function document(): BelongsTo
     {
         return $this->belongsTo(Document::class);
+    }
+
+    /** @return BelongsTo<User, $this> who closed the day's spot check */
+    public function confirmer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'confirmed_by');
     }
 
     /** @return BelongsTo<User, $this> */

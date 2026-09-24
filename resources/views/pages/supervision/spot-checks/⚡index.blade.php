@@ -9,20 +9,20 @@ use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
 
-// 抜き取り点検 (Spot check): a day's documents, drawn from what the semantic filter measured, judged one at a time by a person — like this media, cannot tell, unlike it — with the keys 4 / 5 / 6. The likeness stays hidden until the verdict is given, so it cannot sway it.
+// 抜き取り点検 (Spot check): a day's documents, drawn from what the semantic filter measured, judged one at a time by a person — like this media, cannot tell, unlike it — with the keys 4 / 5 / 6. The likeness stays hidden until the verdict is given, so it cannot sway it. Once all are judged the day is closed with 確定 (Enter), and a closed day cannot be changed until it is reopened.
 new #[Title('抜き取り点検')] class extends Component {
     /** The day whose draw is shown (Y-m-d, display timezone), in the URL. */
     #[Url]
     public string $day = '';
 
-    /** The spot check in view. */
+    /** The spot check in view; none once every one of the day is judged (the day is then to be confirmed, or is confirmed). */
     #[Url]
     public ?int $check = null;
 
     public function mount(): void
     {
         $this->day = $this->day !== '' ? $this->day : (string) (SpotCheck::query()->max('drawn_on') ?? $this->today());
-        $this->check ??= $this->firstUndecided()?->id ?? $this->checks->first()?->id;
+        $this->check ??= $this->isConfirmed() ? null : $this->firstUndecided()?->id;
     }
 
     private function today(): string
@@ -36,7 +36,7 @@ new #[Title('抜き取り点検')] class extends Component {
         $result = $draw(CarbonImmutable::parse($this->today()));
         $this->day = $this->today();
         unset($this->checks, $this->days, $this->current);
-        $this->check = $this->firstUndecided()?->id;
+        $this->check = $this->isConfirmed() ? null : $this->firstUndecided()?->id;
 
         Flux::toast(variant: $result['already'] ? 'warning' : 'success', text: $result['already']
             ? __('Today\'s spot check is already drawn.')
@@ -49,7 +49,7 @@ new #[Title('抜き取り点検')] class extends Component {
         abort_unless(in_array($verdict, SpotCheck::VERDICTS, true), 422);
         $current = $this->current;
 
-        if ($current === null) {
+        if ($current === null || $this->isConfirmed()) {
             return;
         }
 
@@ -57,15 +57,43 @@ new #[Title('抜き取り点検')] class extends Component {
         $ids = $this->checks->pluck('id')->values();
         $next = $ids->get((int) $ids->search($current->id) + 1);
         unset($this->checks, $this->current);
-        $this->check = $next ?? $this->firstUndecided()?->id ?? $current->id;
+        // After the last one: back to one not judged yet, or, all judged, to the confirmation.
+        $this->check = $next ?? $this->firstUndecided()?->id;
     }
 
-    // The previous (-1) or next (+1) document of the day.
+    // Close the day: every document of it judged, the verdicts are final until the day is reopened.
+    public function confirm(): void
+    {
+        if ($this->checks->isEmpty() || $this->firstUndecided() !== null || $this->isConfirmed()) {
+            return;
+        }
+
+        SpotCheck::query()->whereDate('drawn_on', $this->day)->update(['confirmed_at' => now(), 'confirmed_by' => auth()->id()]);
+        unset($this->checks, $this->current);
+        $this->check = null;
+
+        Flux::toast(variant: 'success', text: __('The spot check of :day is confirmed.', ['day' => $this->day]));
+    }
+
+    // Reopen a confirmed day, to change a verdict.
+    public function reopen(): void
+    {
+        SpotCheck::query()->whereDate('drawn_on', $this->day)->update(['confirmed_at' => null, 'confirmed_by' => null]);
+        unset($this->checks, $this->current);
+    }
+
+    private function isConfirmed(): bool
+    {
+        return $this->checks->isNotEmpty() && $this->checks->first()->confirmed_at !== null;
+    }
+
+    // The previous (-1) or next (+1) document of the day; past the last one, the confirmation.
     public function move(int $step): void
     {
         $ids = $this->checks->pluck('id')->values();
-        $index = $ids->search($this->check);
-        $this->check = $ids->get(max(0, min($ids->count() - 1, ($index === false ? 0 : $index) + $step)));
+        $index = $this->check === null ? $ids->count() : $ids->search($this->check);
+        $target = ($index === false ? 0 : $index) + $step;
+        $this->check = $target >= $ids->count() && $this->firstUndecided() === null ? null : $ids->get(max(0, min($ids->count() - 1, $target)));
         unset($this->current);
     }
 
@@ -78,7 +106,7 @@ new #[Title('抜き取り点検')] class extends Component {
     public function updatedDay(): void
     {
         unset($this->checks, $this->current);
-        $this->check = $this->firstUndecided()?->id ?? $this->checks->first()?->id;
+        $this->check = $this->isConfirmed() ? null : $this->firstUndecided()?->id;
     }
 
     private function firstUndecided(): ?SpotCheck
@@ -122,6 +150,7 @@ new #[Title('抜き取り点検')] class extends Component {
         if ($event.target.closest('input, textarea, select, [contenteditable]') || $event.metaKey || $event.ctrlKey || $event.altKey) return;
         const verdicts = { '4': 'like', '5': 'unsure', '6': 'unlike' };
         if (verdicts[$event.key]) { $event.preventDefault(); $wire.decide(verdicts[$event.key]); }
+        else if ($event.key === 'Enter' && $event.target.closest('button, a') === null) { $event.preventDefault(); $wire.confirm(); }
         else if ($event.key === 'ArrowLeft') { $event.preventDefault(); $wire.move(-1); }
         else if ($event.key === 'ArrowRight') { $event.preventDefault(); $wire.move(1); }
     ">
@@ -175,6 +204,23 @@ new #[Title('抜き取り点検')] class extends Component {
             @endif
             <flux:text size="sm" class="text-neutral-500">{{ __('Keys: 4 like, 5 cannot tell, 6 unlike; ← → to move.') }}</flux:text>
         </div>
+    @elseif ($this->checks->isNotEmpty())
+        {{-- Every one judged: the day is to be confirmed, or is confirmed. --}}
+        @php($first = $this->checks->first())
+        <div class="space-y-4 rounded-xl border border-neutral-200 p-5 dark:border-neutral-700">
+            <flux:heading size="lg">{{ $first->confirmed_at !== null ? __('The spot check of this day is confirmed') : __('Every document of this day is judged') }}</flux:heading>
+            <flux:text>{{ collect($labels)->map(fn ($label, $verdict) => $label.' '.$this->checks->where('verdict', $verdict)->count())->implode(' / ') }}</flux:text>
+            @if ($first->confirmed_at !== null)
+                <flux:text size="sm" class="text-neutral-500">{{ __('Confirmed :when by :who', ['when' => $first->confirmed_at->display(), 'who' => $first->confirmer?->name ?? '—']) }}</flux:text>
+                <flux:button size="sm" wire:click="reopen">{{ __('Reopen') }}</flux:button>
+            @else
+                <div class="flex flex-wrap items-center gap-3">
+                    <flux:button size="sm" icon="chevron-left" wire:click="move(-1)" :aria-label="__('Previous')" />
+                    <flux:button variant="primary" wire:click="confirm"><kbd class="me-1 rounded border border-current px-1 text-xs">Enter</kbd> {{ __('Confirm') }}</flux:button>
+                </div>
+                <flux:text size="sm" class="text-neutral-500">{{ __('Confirm to close the day. The verdicts cannot be changed until it is reopened.') }}</flux:text>
+            @endif
+        </div>
     @else
         <flux:text class="text-neutral-500">{{ __('Nothing drawn for this day yet.') }}</flux:text>
     @endif
@@ -183,7 +229,7 @@ new #[Title('抜き取り点検')] class extends Component {
     @if ($this->checks->isNotEmpty())
         <div class="divide-y divide-neutral-200 rounded-xl border border-neutral-200 dark:divide-neutral-700 dark:border-neutral-700">
             @foreach ($this->checks as $check)
-                <button type="button" wire:click="show({{ $check->id }})" wire:key="row-{{ $check->id }}" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm {{ $check->id === $this->check ? 'bg-neutral-100 dark:bg-neutral-800' : '' }}">
+                <button type="button" wire:click="show({{ $check->id }})" @disabled($check->confirmed_at !== null) wire:key="row-{{ $check->id }}" class="flex w-full items-center gap-3 px-4 py-2 text-left text-sm {{ $check->id === $this->check ? 'bg-neutral-100 dark:bg-neutral-800' : '' }}">
                     <span class="w-24 shrink-0">{{ $check->verdict !== null ? $labels[$check->verdict] : '—' }}</span>
                     <span class="min-w-0 flex-1 truncate">{{ $check->title_ja ?? $check->document->title }}</span>
                 </button>

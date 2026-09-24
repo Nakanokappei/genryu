@@ -410,7 +410,10 @@ the product (purpose, the five stages, stack); read it first.
   `App\Jobs\TranslateSpotCheck` puts the title and gist into Japanese.
   One document at a time, keys **4 like / 5 cannot tell / 6 unlike**,
   ← → to move, the next one after a verdict; the likeness is hidden
-  until judged. Planned next: the figures (estimated miss rates, a table
+  until judged. After the last one the day is closed with **確定**
+  (Enter, `spot_checks.confirmed_at` on every row of the day) rather than
+  left open on its last page; a confirmed day takes no verdict until it
+  is reopened, and only confirmed days are to count in the figures. Planned next: the figures (estimated miss rates, a table
   of thresholds) once a few days are judged, then verdicts as examples
   (rates computed from the likeness at drawing, before they taught the
   filter), then a daily draw by the scheduler (docs/TODO.md), then the
