@@ -5,6 +5,10 @@ namespace App\Jobs;
 use App\Actions\FetchFavicon;
 use App\Actions\FetchUpdates;
 use App\Actions\ProposeListSettings;
+use App\Crawl\Crawler;
+use App\Crawl\Feed;
+use App\Crawl\HtmlList;
+use App\Crawl\JsonList;
 use App\Models\Source;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -39,18 +43,18 @@ class ConfigureSource implements ShouldQueue
         $source = $this->source;
 
         try {
-            $html = $fetch->page($source->url);
+            $html = Crawler::get($source->url)->body();
             // The site's icon, for the 情報源 screen; nothing depends on it.
             $favicon($source, $html);
-            $feed = $source->read_as_html ? null : $fetch->discoverFeed($source->url, $html);
+            $feed = $source->read_as_html ? null : Feed::discover($source->url, $html);
 
             if ($feed !== null) {
                 // How many feed entries the page itself links to: a probed feed
                 // that shares nothing with the page is probably another list.
-                $overlap = count(array_filter(FetchUpdates::previewFeed($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
+                $overlap = count(array_filter(Feed::entries($feed[1]), fn (array $entry): bool => str_contains($html, (string) parse_url($entry['url'], PHP_URL_PATH))));
 
                 $source->update(['feed_url' => $feed[0], 'list_config' => null, 'json_config' => null, 'status' => 'ready', 'status_message' => __('Feed found: :feed (:overlap entries also linked on the page)', ['feed' => $feed[0], 'overlap' => $overlap])]);
-            } elseif (($json = $fetch->discoverJsonList($html, $source->url)) !== null) {
+            } elseif (($json = JsonList::discover($html, $source->url)) !== null) {
                 // 三菱電機: the page holds no entries, a script draws them from a JSON file.
                 $source->update(['feed_url' => null, 'list_config' => null, 'json_config' => $json['config'], 'status' => 'ready', 'status_message' => __('JSON list found: :url (:count entries)', ['url' => $json['config']['url'], 'count' => count($json['entries'])])]);
             } else {
@@ -96,7 +100,7 @@ class ConfigureSource implements ShouldQueue
         foreach (array_unique([$proposal['title'], 'h1, h2, h3, h4', 'a[href]']) as $title) {
             foreach (array_unique([$proposal['date'], 'time', '']) as $date) {
                 $settings = [...$proposal, 'title' => $title, 'date' => $date];
-                $entries = FetchUpdates::previewList($html, $settings, $url);
+                $entries = HtmlList::preview($html, $settings, $url);
                 $dated = count(array_filter($entries, fn (array $entry): bool => $entry['published_at'] !== null));
 
                 if (count($entries) >= self::MINIMUM_ENTRIES && ($date === '' || $dated > 0)) {

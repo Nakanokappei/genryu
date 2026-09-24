@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Crawl\Crawler;
+use App\Crawl\Url;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Response;
@@ -51,12 +53,12 @@ class FetchFavicon
         }
 
         $html ??= $this->pageOrNothing($source->url);
-        $candidates = array_unique([...self::advertisedIcons($html, $source->url), FetchUpdates::absolute('/favicon.ico', $source->url)]);
+        $candidates = array_unique([...self::advertisedIcons($html, $source->url), Url::absolute('/favicon.ico', $source->url)]);
 
         foreach ($candidates as $url) {
             try {
                 // robots.txt is enforced by the global HTTP middleware (AppServiceProvider).
-                $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(10)->get($url);
+                $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(10)->get($url);
             } catch (Throwable) {
                 // Forbidden, unreachable or faked away: try the next candidate.
                 continue;
@@ -78,7 +80,7 @@ class FetchFavicon
     private function refresh(Source $source): ?string
     {
         try {
-            $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(10)
+            $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(10)
                 ->withHeaders($source->favicon_modified_at !== null ? ['If-Modified-Since' => $source->favicon_modified_at->toRfc7231String()] : [])
                 ->get((string) $source->favicon_url);
         } catch (Throwable) {
@@ -130,7 +132,7 @@ class FetchFavicon
     private function pageOrNothing(string $url): string
     {
         try {
-            return Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(20)->get($url)->body();
+            return Http::withUserAgent(Crawler::USER_AGENT)->timeout(20)->get($url)->body();
         } catch (Throwable) {
             return '';
         }
@@ -152,7 +154,7 @@ class FetchFavicon
 
         foreach ($tags[0] as $tag) {
             if (preg_match('/\brel\s*=\s*["\']?[^"\'>]*\bicon\b/i', $tag) === 1 && preg_match('/\bhref\s*=\s*["\']([^"\']+)["\']/i', $tag, $href) === 1) {
-                $icons[] = FetchUpdates::absolute(html_entity_decode($href[1]), $baseUrl);
+                $icons[] = Url::absolute(html_entity_decode($href[1]), $baseUrl);
             }
         }
 

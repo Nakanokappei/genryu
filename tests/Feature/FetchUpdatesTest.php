@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\FetchUpdates;
+use App\Crawl\Crawler;
 use App\Jobs\ApplySemanticFilter;
 use App\Jobs\FetchDocument;
 use App\Models\Document;
@@ -230,7 +231,7 @@ it('does not list the same URL twice for a source', function () {
 
     expect($second)->toMatchArray(['added' => 0, 'existing' => 2])
         ->and(Document::query()->count())->toBe(2);
-    Http::assertSent(fn (Request $request): bool => $request->hasHeader('User-Agent', FetchUpdates::USER_AGENT));
+    Http::assertSent(fn (Request $request): bool => $request->hasHeader('User-Agent', Crawler::USER_AGENT));
 });
 
 it('runs from the source detail screen', function () {

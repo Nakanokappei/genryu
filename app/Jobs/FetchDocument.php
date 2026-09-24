@@ -3,9 +3,10 @@
 namespace App\Jobs;
 
 use App\Actions\FetchFavicon;
-use App\Actions\FetchUpdates;
 use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
+use App\Crawl\Crawler;
+use App\Crawl\Url;
 use App\Models\Document;
 use App\Models\Source;
 use Dom\Element;
@@ -114,7 +115,7 @@ class FetchDocument implements ShouldQueue
      */
     private static function get(string $url): array
     {
-        $response = Http::withUserAgent(FetchUpdates::USER_AGENT)->timeout(30)->get($url)->throw();
+        $response = Http::withUserAgent(Crawler::USER_AGENT)->timeout(30)->get($url)->throw();
         $body = $response->body();
 
         return [$body, str_contains(strtolower((string) $response->header('Content-Type')), 'application/pdf') || str_starts_with($body, '%PDF-') ? 'pdf' : 'html'];
@@ -142,7 +143,7 @@ class FetchDocument implements ShouldQueue
             $href = $link instanceof Element ? trim((string) $link->getAttribute('href')) : '';
 
             if ($href !== '') {
-                return FetchUpdates::absolute($href, $pageUrl);
+                return Url::absolute($href, $pageUrl);
             }
         }
 

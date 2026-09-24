@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Crawl\PublishedDate;
+use App\Crawl\Url;
 use App\Pdf\PdfMarkdown;
 use App\Pdf\PdfParser;
 use Dom\Element;
@@ -111,7 +113,7 @@ class ReadDocument
         // Links and images must still work once the Markdown is read away from the page.
         foreach ([['a', 'href'], ['img', 'src']] as [$tag, $attribute]) {
             foreach ($content->querySelectorAll("{$tag}[{$attribute}]") as $node) {
-                $node->setAttribute($attribute, FetchUpdates::absolute(trim((string) $node->getAttribute($attribute)), $url));
+                $node->setAttribute($attribute, Url::absolute(trim((string) $node->getAttribute($attribute)), $url));
             }
         }
 
@@ -239,7 +241,7 @@ class ReadDocument
             return sprintf('%04d-%02d-%02d', $ymd[1], $ymd[2], $ymd[3]);
         }
 
-        return FetchUpdates::date($raw) ?? $raw;
+        return PublishedDate::parse($raw) ?? $raw;
     }
 
     /**

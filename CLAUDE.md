@@ -68,7 +68,9 @@ The history under `docs/` (Phase 0) keeps the old name.
   `services.openai.prices`) and adds several up (`sum`).
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
   2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
-  更新リストを取得 on the source) and fetched by `App\Jobs\FetchDocument`
+  更新リストを取得 on the source; how a feed, an HTML list and a JSON list
+  are read, and the crawler's URL and date helpers, are in `App\Crawl`)
+  and fetched by `App\Jobs\FetchDocument`
   (`status` null → fetching → fetched | failed), queued for every newly
   listed document and from the 文書を取得 buttons. The original is
   kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;
@@ -407,7 +409,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   (`FetchUpdates::store` skips a URL another source has). A single
   category's feed can be served from a cache a day behind, dated today
   (cs.RO on 2026-09-24); accepted: the papers arrive a day late, and
-  the feed is not cache-busted. `FetchUpdates::feedEntries` drops what arXiv announces
+  the feed is not cache-busted. `App\Crawl\Feed::entries` drops what arXiv announces
   again (`arxiv:announce_type` replace / replace-cross). A source with
   **全文へのリンク** (`sources.full_text_link`, CSS selectors one per
   line, tried in order; arXiv `#latexml-download-link` then
@@ -541,7 +543,7 @@ The history under `docs/` (Phase 0) keeps the old name.
   failed ones with their reasons.
 - **公開日時 when the source gives one, 公開日 when it does not** (2026-09-23):
   a feed's pubDate names a time and its zone, an HTML list usually gives
-  only a day. `FetchUpdates::date` keeps the time only when the zone is
+  only a day. `App\Crawl\PublishedDate::parse` keeps the time only when the zone is
   named too (a bare 10:00 could be any zone, and a guessed instant would
   be shown as a wrong time); `documents.published_has_time` says which it
   is, and `Document::publishedDisplay` shows an instant in the display
