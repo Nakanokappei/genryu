@@ -19,7 +19,8 @@ The history under `docs/` (Phase 0) keeps the old name.
 
 > The parent directory's CLAUDE.md (`../CLAUDE.md`) also applies here:
 > behavioral guidelines, external-SSD cautions (`._` files, `dot_clean`),
-> literate-programming comment style, file-based debug logging.
+> file-based debug logging, and comments per function and per control
+> structure — kept brief here (see Conventions).
 
 ## How we work (decided 2026-09-21)
 
@@ -606,6 +607,13 @@ came with the scaffold; leave them as they are.
 
 ## Conventions
 
+- **Comments are brief; names carry the meaning** (decided 2026-09-25).
+  As `../CLAUDE.md` asks, comment each function and each control
+  structure, but in a short statement of what it does: the comments are
+  read by Claude, which leans little on them, and long ones drift. No
+  history or rationale beside the code (those belong here or in
+  `docs/`). Make variables, functions, status values, tables and columns
+  describe their entity exactly, and rename rather than explain.
 - Tests never hit the network.
 - Store timestamps in UTC; apply timezone only for display.
 - Do not log response bodies, secrets, or personal data.
