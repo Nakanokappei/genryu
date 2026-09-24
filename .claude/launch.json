@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "technologywatch",
-      "runtimeExecutable": "php",
-      "runtimeArgs": ["artisan", "serve", "--port=8036"],
-      "port": 8036
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "php artisan serve --port=\"${PORT:-8036}\""],
+      "port": 8036,
+      "autoPort": true
     }
   ]
 }
