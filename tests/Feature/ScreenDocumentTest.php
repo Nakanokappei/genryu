@@ -282,7 +282,7 @@ it('queues screenings from the screens and shows the decisions', function () {
     $component = Livewire::test('pages::editorial.documents.index')->assertSee('採用')->assertSee('要確認')->assertSee('判定中')->assertSee('実環境での実証');
     expect($titles($component->set('decision', 'adopt')))->toBe(['Adopted doc'])
         ->and($titles($component->set('decision', 'review')))->toBe(['Reviewed doc'])
-        ->and($titles($component->set('decision', 'none')))->toBe(['Excluded doc', 'Unfetched doc']);
+        ->and($titles($component->set('decision', 'none')))->toBe(['Excluded doc', 'Fresh doc', 'Unfetched doc']);
 
     // Review with a higher model from the document's screen: the next model up is proposed for a 要確認 document.
     Livewire::test('pages::editorial.documents.show', ['document' => $adopted->refresh()])->assertSet('screeningModel', 'gpt-5.6-terra');

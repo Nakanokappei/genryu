@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Actions\DetectLanguage;
 use Carbon\CarbonImmutable;
 use Database\Factories\DocumentFactory;
+use Illuminate\Database\Eloquent\Attributes\Scope;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -106,7 +108,7 @@ class Document extends Model
      */
     public function wantsFullText(): bool
     {
-        return $this->format === 'feed' && $this->status === 'fetched' && $this->excluded_by === null && ! $this->isBelowLikeness() && $this->decision() === 'adopt';
+        return $this->format === 'feed' && $this->status === 'fetched' && $this->excluded_by === null && ! $this->isLeftOut() && $this->decision() === 'adopt';
     }
 
     /**
@@ -114,7 +116,7 @@ class Document extends Model
      * its likeness was measured and falls below the threshold set on
      * 文書. A document not measured yet is not held back.
      */
-    public function isBelowLikeness(): bool
+    public function isLeftOut(): bool
     {
         return $this->likeness !== null && $this->likeness < EditorialPolicy::likenessThreshold();
     }
@@ -209,5 +211,62 @@ class Document extends Model
     public function isRejected(): bool
     {
         return $this->decision() === 'reject';
+    }
+
+    /**
+     * Documents whose standing decision (see decision()) is the one given.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function decidedAs(Builder $query, string $decision): void
+    {
+        $query->where(fn (Builder $query) => $query->where('human_decision', $decision)
+            ->orWhere(fn (Builder $query) => $query->whereNull('human_decision')->whereRelation('screening', fn (Builder $screening) => $screening->where('status', 'screened')->where('decision', $decision))));
+    }
+
+    /**
+     * Documents with no standing decision (decision() is null).
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function undecided(Builder $query): void
+    {
+        $query->whereNull('human_decision')->whereDoesntHave('screening', fn (Builder $screening) => $screening->where('status', 'screened')->whereNotNull('decision'));
+    }
+
+    /**
+     * Documents the semantic filter left out (see isLeftOut()).
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function leftOut(Builder $query): void
+    {
+        $query->where('likeness', '<', EditorialPolicy::likenessThreshold());
+    }
+
+    /**
+     * Documents the semantic filter lets through: not measured yet, or at or above the threshold.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function notLeftOut(Builder $query): void
+    {
+        $query->where(fn (Builder $query) => $query->whereNull('likeness')->orWhere('likeness', '>=', EditorialPolicy::likenessThreshold()));
+    }
+
+    /**
+     * Documents with a short body (see hasShortBody()).
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function withShortBody(Builder $query): void
+    {
+        $query->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')
+            ->whereRaw('coalesce(length(markdown), 0) < ?', [self::SHORT_BODY_CHARS]);
     }
 }

@@ -66,7 +66,7 @@ class FetchDocument implements ShouldQueue
         $adoptedOnSummary = $document->format === 'feed' && $document->decision() === 'adopt';
 
         // A summary the semantic filter has left out since its full text was queued is not worth the fetch.
-        if ($document->format === 'feed' && $document->isBelowLikeness()) {
+        if ($document->format === 'feed' && $document->isLeftOut()) {
             $document->update(['status' => 'fetched', 'status_message' => __('The semantic filter left this document out; its full text was not fetched.')]);
 
             return;

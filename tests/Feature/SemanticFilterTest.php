@@ -64,10 +64,10 @@ it('sends a document like this media on to the screening and leaves one unlike i
     (new ApplySemanticFilter($unlike))->handle(app(MeasureLikeness::class));
 
     expect($like->refresh()->likeness)->toBeGreaterThan(0.1)
-        ->and($like->isBelowLikeness())->toBeFalse()
+        ->and($like->isLeftOut())->toBeFalse()
         ->and($like->likeness_detail['like']['label'])->toBe('society')
         ->and($unlike->refresh()->likeness)->toBeLessThan(0.1)
-        ->and($unlike->isBelowLikeness())->toBeTrue()
+        ->and($unlike->isLeftOut())->toBeTrue()
         ->and($like->embedding->model)->toBe('text-embedding-3-large');
     Queue::assertPushed(ScreenDocument::class, 1);
     expect($like->refresh()->screening)->not->toBeNull()->and($unlike->refresh()->screening)->toBeNull();
@@ -94,20 +94,20 @@ it('measures documents against the examples a person marked', function () {
     $measure = app(MeasureLikeness::class);
     $measure($example);
     $measure($near);
-    expect($near->refresh()->isBelowLikeness())->toBeTrue();
+    expect($near->refresh()->isLeftOut())->toBeTrue();
 
     Livewire::test('pages::editorial.documents.show', ['document' => $example])->call('markExample', 'like');
 
     expect(SemanticFilterExample::query()->sole())->toMatchArray(['document_id' => $example->id, 'side' => 'like'])
         ->and($near->refresh()->likeness_detail['like']['label'])->toBe("example:{$example->id}:Robot robot robot")
-        ->and($near->isBelowLikeness())->toBeFalse()
+        ->and($near->isLeftOut())->toBeFalse()
         // The example is measured without itself: only the definitions are left to it.
         ->and($example->refresh()->likeness_detail['like']['label'])->toBe('society');
     // An example is not a verdict.
     expect($example->human_decision)->toBeNull();
 
     Livewire::test('pages::editorial.documents.show', ['document' => $example])->call('markExample', 'none');
-    expect(SemanticFilterExample::query()->count())->toBe(0)->and($near->refresh()->isBelowLikeness())->toBeTrue();
+    expect(SemanticFilterExample::query()->count())->toBe(0)->and($near->refresh()->isLeftOut())->toBeTrue();
 });
 
 // Saved on the screen of a side, the definitions measure the embedded documents again without embedding them again.
@@ -131,7 +131,7 @@ it('saves the definitions of each side on a screen of its own and measures again
 
     expect(EditorialPolicy::semanticFilter()['threshold'])->toBe(0.05)
         ->and($document->refresh()->likeness_detail['like']['label'])->toBe('robot')
-        ->and($document->isBelowLikeness())->toBeFalse();
+        ->and($document->isLeftOut())->toBeFalse();
     // One call for the new definition line only.
     expect(count(Http::recorded()) - $calls)->toBe(1);
 });

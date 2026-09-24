@@ -137,7 +137,7 @@ new #[Title('情報源')] class extends Component {
     #[Computed]
     public function shortDocuments()
     {
-        return $this->source->documents()->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS])->orderBy('id')->get();
+        return $this->source->documents()->withShortBody()->orderBy('id')->get();
     }
 
     /**

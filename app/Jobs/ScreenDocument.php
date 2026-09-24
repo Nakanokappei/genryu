@@ -75,7 +75,7 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The document is excluded by the title filter.'));
             }
 
-            if ($document->isBelowLikeness()) {
+            if ($document->isLeftOut()) {
                 throw new RuntimeException(__('The semantic filter left this document out (likeness :likeness).', ['likeness' => sprintf('%+.3f', $document->likeness)]));
             }
 

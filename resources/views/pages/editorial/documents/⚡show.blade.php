@@ -179,7 +179,7 @@ new #[Title('文書')] class extends Component {
             @if ($document->likeness === null)
                 <flux:text class="flex-1">{{ isset($document->likeness_detail['error']) ? __('The semantic filter could not measure this document: :reason', ['reason' => $document->likeness_detail['error']]) : __('Not measured yet.') }}</flux:text>
             @else
-                @if ($document->isBelowLikeness())
+                @if ($document->isLeftOut())
                     <x-pages::status status="excluded" />
                 @endif
                 <flux:text class="flex-1">{{ __('Likeness') }} <span class="font-medium">{{ sprintf('%+.3f', $document->likeness) }}</span>（{{ __('threshold') }} {{ sprintf('%+.2f', \App\Models\EditorialPolicy::likenessThreshold()) }}）</flux:text>

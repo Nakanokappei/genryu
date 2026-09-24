@@ -80,12 +80,11 @@ new #[Title('文書')] class extends PagedList {
     #[Computed]
     public function semanticFilterFigures(): array
     {
-        $threshold = EditorialPolicy::likenessThreshold();
         $examples = SemanticFilterExample::query()->selectRaw('side, count(*) as count')->groupBy('side')->pluck('count', 'side');
 
         return [
             'measured' => Document::query()->whereNotNull('likeness')->count(),
-            'below' => Document::query()->where('likeness', '<', $threshold)->count(),
+            'below' => Document::query()->leftOut()->count(),
             'like' => (int) ($examples['like'] ?? 0),
             'unlike' => (int) ($examples['unlike'] ?? 0),
             ...array_map(fn (string $side): int => count(array_filter(EditorialPolicy::semanticFilter()['definitions'], fn (array $definition): bool => $definition['side'] === $side)), ['like_definitions' => 'like', 'unlike_definitions' => 'unlike']),
@@ -96,7 +95,7 @@ new #[Title('文書')] class extends PagedList {
     public function screenDocuments(): void
     {
         $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('screening_id')
-            ->where(fn ($query) => $query->whereNull('likeness')->orWhere('likeness', '>=', EditorialPolicy::likenessThreshold()))->get();
+            ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
 
@@ -108,7 +107,7 @@ new #[Title('文書')] class extends PagedList {
     {
         $prompt = Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'));
         $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))
-            ->where(fn ($query) => $query->whereNull('likeness')->orWhere('likeness', '>=', EditorialPolicy::likenessThreshold()))->get();
+            ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
 
@@ -176,8 +175,8 @@ new #[Title('文書')] class extends PagedList {
             ->when($this->fetchedFrom !== '', fn ($query) => $query->where('fetched_at', '>=', $this->displayDay($this->fetchedFrom)))
             ->when($this->fetchedTo !== '', fn ($query) => $query->where('fetched_at', '<', $this->displayDay($this->fetchedTo)->addDay()))
             // The decision that stands: a person's, else the latest screening's.
-            ->when($this->decision === 'none', fn ($query) => $query->whereNull('human_decision')->whereNull('screening_id'))
-            ->when(in_array($this->decision, Screening::DECISIONS, true), fn ($query) => $query->where(fn ($query) => $query->where('human_decision', $this->decision)->orWhere(fn ($query) => $query->whereNull('human_decision')->whereRelation('screening', 'decision', $this->decision))))
+            ->when($this->decision === 'none', fn ($query) => $query->undecided())
+            ->when(in_array($this->decision, Screening::DECISIONS, true), fn ($query) => $query->decidedAs($this->decision))
             // A document without a date goes last either way rather than heading the list (PostgreSQL puts nulls first in descending order).
             ->orderByRaw(self::SORTS[$sort].' '.$direction.' NULLS LAST')
             ->when($sort === 'source', fn ($query) => $query->orderBy('documents.title', $direction))
@@ -367,7 +366,7 @@ new #[Title('文書')] class extends PagedList {
                 <td class="px-3 pt-1 pb-2">
                     @if ($document->excluded_by !== null)
                         <flux:tooltip :content="__('Excluded by keyword: :keyword', ['keyword' => $document->excluded_by])"><x-pages::status status="excluded" /></flux:tooltip>
-                    @elseif ($document->isBelowLikeness())
+                    @elseif ($document->isLeftOut())
                         <flux:tooltip :content="__('Left out by the semantic filter: likeness :likeness', ['likeness' => sprintf('%+.2f', $document->likeness)])"><x-pages::status status="excluded" /></flux:tooltip>
                     @elseif ($document->status === 'failed')
                         <flux:tooltip :content="$document->status_message ?? ''"><x-pages::status :status="$document->status" /></flux:tooltip>

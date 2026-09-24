@@ -48,7 +48,7 @@ new #[Title('情報源')] class extends PagedList {
                 'documents',
                 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed'),
                 // Fetched bodies shorter than Document::SHORT_BODY_CHARS, excluded documents aside: the document settings may miss the body (its detail says which and offers a fix).
-                'documents as short_documents_count' => fn ($query) => $query->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereRaw('length(markdown) < ?', [Document::SHORT_BODY_CHARS]),
+                'documents as short_documents_count' => fn ($query) => $query->withShortBody(),
             ])
             ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
