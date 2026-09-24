@@ -16,7 +16,7 @@ use Illuminate\Support\Sleep;
  */
 class RobotsPolicy
 {
-    public const TOKEN = 'TechnologyWatch';
+    public const TOKEN = 'Genryu';
 
     private const CACHE_SECONDS = 3600;
 

@@ -2,7 +2,7 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "technologywatch",
+      "name": "genryu",
       "runtimeExecutable": "sh",
       "runtimeArgs": ["-c", "php artisan serve --port=\"${PORT:-8036}\""],
       "port": 8036,

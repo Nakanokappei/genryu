@@ -2,13 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-# Technology Watch
+# Genryu
 
 Builds articles from primary sources: fetch update lists from official
 sites, store each document as original + Markdown, extract structured
 material (JSON) per the editorial policy, generate articles per the
 editorial policy, publish. `docs/HANDOVER.md` is the one-page definition of
 the product (purpose, the five stages, stack); read it first.
+
+**Genryu (源流) is the system; Technology Watch is the first media made
+with it** (renamed 2026-09-25, when the pipeline had become general): the
+editorial policy — emerging technology on its way from the laboratory to
+industry, a senior editor of MIT Technology Review as the model — is
+Technology Watch's, the sources, filters, screens and jobs are Genryu's.
+The history under `docs/` (Phase 0) keeps the old name.
 
 > The parent directory's CLAUDE.md (`../CLAUDE.md`) also applies here:
 > behavioral guidelines, external-SSD cautions (`._` files, `dot_clean`),
@@ -510,10 +517,10 @@ guide. Reuse its ideas or code only when a screen calls for them.
 | Layer | Choice |
 |---|---|
 | Framework | Laravel 13 (PHP 8.5 via Herd), Livewire 4 single-file pages under `resources/views/pages`, Flux UI, Fortify auth |
-| Database | PostgreSQL 5432, database `technologywatch` (tests use `technologywatch_test`) |
+| Database | PostgreSQL 5432, database `genryu` (tests use `genryu_test`) |
 | Tests | Pest 5, Pint, PHPStan (`composer test` runs all three) |
 | Frontend | Vite + Tailwind (`npm run build`) |
-| Local URL | http://technologywatch.test (Herd); `.claude/launch.json` has `artisan serve` on 8036 |
+| Local URL | http://genryu.test (Herd); `.claude/launch.json` has `artisan serve` on 8036 |
 | UI locale | `APP_LOCALE=ja`; Japanese strings via `lang/ja.json`, keys are the English UI labels |
 
 The starter kit's auth screens (login, register, settings, 2FA, passkeys)

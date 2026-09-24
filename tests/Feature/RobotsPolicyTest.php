@@ -16,7 +16,7 @@ beforeEach(function () {
 });
 
 it('follows the rules of our own group over the * group, longest match first', function () {
-    Http::fake(['www.example.org/robots.txt' => Http::response("User-agent: *\nDisallow: /\n\nUser-agent: TechnologyWatch\nDisallow: /private/\nAllow: /private/press/\nDisallow: /*.pdf$\n", 200)]);
+    Http::fake(['www.example.org/robots.txt' => Http::response("User-agent: *\nDisallow: /\n\nUser-agent: Genryu\nDisallow: /private/\nAllow: /private/press/\nDisallow: /*.pdf$\n", 200)]);
     $robots = new RobotsPolicy;
 
     expect($robots->allows('https://www.example.org/news'))->toBeTrue()
@@ -81,7 +81,7 @@ it('waits out the Crawl-delay between two requests to the same host', function (
 it('takes the Crawl-delay of our own group over the * group', function () {
     Sleep::fake(syncWithCarbon: true);
     Http::fake([
-        'www.example.org/robots.txt' => Http::response("User-agent: *\nCrawl-delay: 30\n\nUser-agent: TechnologyWatch\nCrawl-delay: 2\n", 200),
+        'www.example.org/robots.txt' => Http::response("User-agent: *\nCrawl-delay: 30\n\nUser-agent: Genryu\nCrawl-delay: 2\n", 200),
         '*' => Http::response('ok', 200),
     ]);
 

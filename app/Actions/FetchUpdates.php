@@ -28,7 +28,7 @@ use SimpleXMLElement;
  */
 class FetchUpdates
 {
-    public const USER_AGENT = 'TechnologyWatch/0.2 (+https://technologywatch.test)';
+    public const USER_AGENT = 'Genryu/0.2 (+https://genryu.test)';
 
     /**
      * Paths sites commonly serve a feed at without advertising it (DARPA
