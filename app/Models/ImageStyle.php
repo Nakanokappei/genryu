@@ -10,14 +10,14 @@ use Illuminate\Database\Eloquent\Model;
  * the last one round midnight to the first; an article's top image is
  * drawn in the style of the band its slot falls in, so the five articles
  * of a day look like the hours they go out at rather than like one
- * another. Decided 2026-09-23; on 2026-09-25 the pop art moved from
- * お昼休み前 to お昼休み中, お昼休み前 became machines with no people, and the
- * picture book was dropped. One row per band; the defaults stand until
- * the screen saves them.
+ * another. Decided 2026-09-23. One row per band. The styles are prompts,
+ * and prompts are assets: they live in the database, never in the
+ * repository (see EditorialPolicy::DEFAULTS); the defaults here only name
+ * the bands and when they start.
  */
 class ImageStyle extends Model
 {
-    /** The bands of the day, earliest first: the name shown, the local time it starts at, and the style the image model is given. */
+    /** The bands of the day, earliest first: the name shown, the local time it starts at, and the style the image model is given (empty here; set on the screen). */
     public const DEFAULTS = [
         'before_work' => ['name' => '始業前', 'starts_at' => '06:00', 'style' => ''],
         'before_lunch' => ['name' => 'お昼休み前', 'starts_at' => '09:00', 'style' => ''],

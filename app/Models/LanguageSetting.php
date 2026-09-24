@@ -11,8 +11,9 @@ use Illuminate\Database\Eloquent\Model;
  * 記事を用意する, none = 記事を作らない), and the additional prompt (言語別の
  * 追加プロンプト) every writer — headline, body and translation — is given
  * when it writes in that language: what belongs to the language, such as
- * だ・である調, rather than to the article. One row per language; the
- * defaults stand until the screen saves them.
+ * だ・である調, rather than to the article. One row per language. The
+ * prompts live in the database, never in the repository (see
+ * EditorialPolicy::DEFAULTS).
  *
  * An article is written first in the language of its primary source and
  * translated from there, so the original is written whenever any
@@ -34,9 +35,6 @@ class LanguageSetting extends Model
         'zh-Hans' => 'all',
     ];
 
-    /** The additional prompts until the screen saves them: the Japanese rules that used to sit in every layer. */
-    public const DEFAULT_PROMPTS = [];
-
     protected $fillable = ['language', 'coverage', 'prompt'];
 
     /** Which primary sources get an article in a language: all, own or none. */
@@ -54,7 +52,7 @@ class LanguageSetting extends Model
 
         $row = static::query()->where('language', $language)->first();
 
-        return trim((string) ($row !== null ? $row->prompt : (self::DEFAULT_PROMPTS[$language] ?? '')));
+        return trim((string) $row?->prompt);
     }
 
     /**

@@ -17,6 +17,10 @@ use Livewire\Livewire;
 const IMAGE_POLICY = "記事の未来の場面を1つ選ぶ。\n";
 
 beforeEach(function () {
+    // Placeholder styles: the real ones are prompts, kept in the database, never in the repository.
+    foreach (ImageStyle::DEFAULTS as $band => $settings) {
+        ImageStyle::query()->create(['band' => $band, ...$settings, 'style' => "Style of {$band} (test)."]);
+    }
     Http::preventStrayRequests();
     Queue::fake();
     Storage::fake('local');
@@ -69,7 +73,7 @@ it('draws the top image of a scheduled article in the style of its hour', functi
         ->and($image->time)->toBe('12:00')
         ->and($image->band)->toBe('lunch_break')
         ->and($image->scene)->toBe('A family eats lunch beside a quiet chemical plant.')
-        ->and($image->image_prompt)->toContain('Pop art')->toContain(DrawImage::NEVER)
+        ->and($image->image_prompt)->toContain('Style of lunch_break (test).')->toContain(DrawImage::NEVER)
         ->and($image->estimated_total_cost)->toBeGreaterThan(0.0);
     Storage::disk('local')->assertExists($image->path);
     expect($article->refresh())->toMatchArray(['image_path' => $image->path, 'image_time' => '12:00'])
@@ -78,7 +82,7 @@ it('draws the top image of a scheduled article in the style of its hour', functi
     // The writer is told the hour's style and given what could change, never the source's figures.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
         && $request['input'][0]['content'][0]['text'] === IMAGE_POLICY
-        && str_contains($request['input'][2]['content'], 'Pop art')
+        && str_contains($request['input'][2]['content'], 'Style of lunch_break (test).')
         && str_contains($request['input'][2]['content'], '千葉のコンビナート')
         && ! str_contains($request['input'][2]['content'], 'fig1.jpg'));
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/images/generations')

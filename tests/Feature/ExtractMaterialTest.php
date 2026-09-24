@@ -147,7 +147,8 @@ it('does not ask the agent about a document that has not been fetched', function
 // The structuring layer and its model are set above the materials, on the 素材情報 screen.
 it('reads the structuring layer and its model from the materials screen', function () {
     EditorialPolicy::query()->delete();
-    expect(EditorialPolicy::bodyFor('structuring'))->toContain('- angle:')
+    // No prompt in the repository (prompts are assets): nothing until the screen saves one.
+    expect(EditorialPolicy::bodyFor('structuring'))->toBe('')
         ->and(EditorialPolicy::modelFor('structuring'))->toBe(EditorialPolicy::DEFAULT_MODEL);
 
     Livewire::test('pages::editorial.materials.index')

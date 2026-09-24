@@ -76,6 +76,20 @@ The history under `docs/` (Phase 0) keeps the old name.
   settings (content / remove CSS selectors). When those are missing or no
   longer match, `App\Actions\ProposeDocumentSettings` (OpenAI) proposes new
   ones, which are verified on the page before being saved to the source.
+- **Prompts are assets and never go into the repository** (decided
+  2026-09-25; the repository is public on GitHub). The prompts edited on
+  the screens — every layer of the editorial policy, the styles of the top
+  images, the definitions of the semantic filter, the additional prompts
+  per language — live in the database only: `EditorialPolicy::DEFAULTS`,
+  `ImageStyle::DEFAULTS` (styles) and the language prompts are empty in
+  code, and a fresh database has no prompts until they are imported.
+  `php artisan prompts:export` / `prompts:import` copy them to and from
+  `prompts/` (one Markdown file each, in `.gitignore`) to back them up or
+  move them to another environment. Tests use placeholder prompts; never
+  paste a real prompt into code, tests, docs or a commit message. The
+  history was rewritten on 2026-09-25 to take the old defaults out. The
+  fixed instructions in the code (a stage's `INSTRUCTIONS`,
+  `DrawImage::NEVER`, the headline rubric) are not screen-edited and stay.
 - **Editorial policy lives in the app** (`EditorialPolicy`, one body per
   layer with its model, defaults in the model). **Each layer is set on the
   screen it governs**, not on a page of its own: the title filter on 情報源,

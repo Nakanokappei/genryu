@@ -46,3 +46,6 @@ yarn-error.log
 # Python bytecode (the Phase 0 worker)
 __pycache__/
 *.pyc
+
+# Prompts are assets: they live in the database, copied here by prompts:export, never committed
+/prompts/

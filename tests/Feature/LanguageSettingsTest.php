@@ -82,14 +82,17 @@ it('writes no article for a source no language wants', function () {
 
 // The additional prompt of a language is shared by the headline, the body and the translation, sent between the policy and the fixed instruction.
 it('gives every writer the additional prompt of the language it writes in', function () {
+    // A placeholder: the real prompts are assets and live in the database, not in the repository.
+    LanguageSetting::query()->create(['language' => 'ja', 'coverage' => 'all', 'prompt' => '日本語の追加ルール（テスト用）。']);
+
     Livewire::test('pages::editorial.articles.index')
-        ->assertSet('languagePrompts.ja', LanguageSetting::DEFAULT_PROMPTS['ja'])
+        ->assertSet('languagePrompts.ja', '日本語の追加ルール（テスト用）。')
         ->set('promptLanguage', 'ko')->set('languagePrompts.ko', '합니다체로 쓴다.')
         ->call('savePolicy')->assertHasNoErrors();
 
     $body = ProposeArticle::request('policy', 'gpt-5.6-luna', ['angle' => 'x'], '見出し', '文書', 'https://example.jp', null, 'ja');
     expect(array_column($body['input'], 'role'))->toBe(['developer', 'developer', 'developer', 'user'])
-        ->and($body['input'][1]['content'])->toContain('日本語')->toContain('だ・である')
+        ->and($body['input'][1]['content'])->toContain('日本語')->toContain('日本語の追加ルール（テスト用）。')
         ->and($body['input'][2]['content'])->toBe(ProposeArticle::INSTRUCTIONS);
 
     // English has no additional prompt, so nothing is added.

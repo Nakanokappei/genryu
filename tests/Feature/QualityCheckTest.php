@@ -103,12 +103,13 @@ it('queues the checks from the screen and shows those in progress', function () 
     $this->get(route('production.quality.index'))->assertSee('チェック中');
 });
 
-it('keeps the quality layer on the quality check screen, with a default until it is saved', function () {
+it('keeps the quality layer on the quality check screen, empty until it is saved', function () {
     EditorialPolicy::query()->delete();
-    expect(EditorialPolicy::bodyFor('quality'))->toContain('## The rubric (100 points)');
+    // No prompt in the repository (prompts are assets): nothing until the screen saves one.
+    expect(EditorialPolicy::bodyFor('quality'))->toBe('');
 
     Livewire::test('pages::production.quality.index')
-        ->assertSet('quality', EditorialPolicy::DEFAULTS['quality'])
+        ->assertSet('quality', '')
         ->set('quality', '正確さ 50 点、読みやすさ 50 点')
         ->set('qualityModel', 'gpt-5.6-terra')
         ->call('savePolicy')->assertHasNoErrors();

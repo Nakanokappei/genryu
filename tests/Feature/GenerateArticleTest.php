@@ -180,12 +180,13 @@ it('does not ask the agent about a material that has not been extracted', functi
     Http::assertNothingSent();
 });
 
-it('reads the article generation layer from the articles screen, with a default until it is saved', function () {
+it('reads the article generation layer from the articles screen, empty until it is saved', function () {
     EditorialPolicy::query()->delete();
-    expect(EditorialPolicy::bodyFor('article'))->toContain('- Format: Markdown');
+    // No prompt in the repository (prompts are assets): nothing until the screen saves one.
+    expect(EditorialPolicy::bodyFor('article'))->toBe('');
 
     Livewire::test('pages::editorial.articles.index')
-        ->assertSet('article', EditorialPolicy::DEFAULTS['article'])
+        ->assertSet('article', '')
         ->set('article', '- 長さ: 300 字')
         ->call('savePolicy')->assertHasNoErrors();
 
