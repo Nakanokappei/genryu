@@ -21,6 +21,8 @@ class PublishedDate
         }
 
         $raw = (string) preg_replace('/^(\d{4})年(\d{1,2})月(\d{1,2})日/u', '$1-$2-$3', $raw);
+        // The printed date wins: a leading weekday is dropped, or Carbon moves to the next such day.
+        $raw = (string) preg_replace('/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*\.?,?/i', '', $raw);
 
         // Unparseable: no date.
         try {
