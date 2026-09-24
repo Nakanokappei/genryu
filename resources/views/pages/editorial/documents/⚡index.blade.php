@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\MeasureLikeness;
+use App\Actions\ScreeningFigures;
 use App\Jobs\ApplySemanticFilter;
 use App\Jobs\ScreenDocument;
 use App\Livewire\PagedList;
@@ -115,45 +116,14 @@ new #[Title('文書')] class extends PagedList {
     }
 
     /**
-     * The figures of the screenings, per prompt version: how many were
-     * screened and how they were decided, how much of the input came
-     * from the cache or was written to it, and what a screening and an
-     * adoption cost on average; the reason classes counted apart.
+     * The figures of the screenings, per prompt version and per reason class.
      *
      * @return array{versions: list<array<string, mixed>>, reasons: list<array{primary_reason: string, decision: string, meaning: string, count: int, share: float}>}
      */
     #[Computed]
     public function screeningFigures(): array
     {
-        $versions = Screening::query()->where('status', 'screened')
-            ->join('prompts', 'prompts.id', '=', 'screenings.prompt_id')
-            ->groupBy('prompts.version')->orderByDesc('prompts.version')
-            ->selectRaw('prompts.version, count(*) as screened, sum(case when decision = ? then 1 else 0 end) as adopted, sum(case when decision = ? then 1 else 0 end) as rejected, sum(case when decision = ? then 1 else 0 end) as reviewed, sum(input_tokens) as input_tokens, sum(cached_tokens) as cached_tokens, sum(cache_write_tokens) as cache_write_tokens, sum(output_tokens) as output_tokens, sum(estimated_total_cost) as cost', ['adopt', 'reject', 'review'])
-            ->get();
-
-        // The reason classes counted over the latest screening of each document, in the order of the gate's list.
-        $counted = Screening::query()->where('status', 'screened')->whereIn('id', Document::query()->whereNotNull('screening_id')->select('screening_id'))->groupBy('primary_reason')->selectRaw('primary_reason, count(*) as count')->pluck('count', 'primary_reason');
-        $total = max(1, (int) $counted->sum());
-        $reasons = [];
-
-        foreach (Screening::REASONS as $reason => $about) {
-            $reasons[] = ['primary_reason' => $reason, 'decision' => $about['decision'], 'meaning' => $about['meaning'], 'count' => (int) ($counted[$reason] ?? 0), 'share' => (int) ($counted[$reason] ?? 0) / $total];
-        }
-
-        return [
-            'versions' => $versions->map(fn ($row): array => [
-                'version' => (int) $row->version,
-                'screened' => (int) $row->screened,
-                'adopted' => (int) $row->adopted,
-                'rejected' => (int) $row->rejected,
-                'reviewed' => (int) $row->reviewed,
-                'cache_hit_rate' => $row->input_tokens > 0 ? $row->cached_tokens / $row->input_tokens : null,
-                'cache_write_rate' => $row->input_tokens > 0 ? $row->cache_write_tokens / $row->input_tokens : null,
-                'average_cost' => $row->cost !== null ? $row->cost / $row->screened : null,
-                'cost_per_adopt' => $row->cost !== null && $row->adopted > 0 ? $row->cost / $row->adopted : null,
-            ])->all(),
-            'reasons' => $reasons,
-        ];
+        return app(ScreeningFigures::class)();
     }
 
     /** The sortable columns (UI 情報源／タイトル / 公開日 / 形式 / 取得日時) and the SQL each one orders by; the source's documents are ordered by title within it. */
