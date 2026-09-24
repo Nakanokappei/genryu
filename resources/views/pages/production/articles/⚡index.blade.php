@@ -54,10 +54,10 @@ new #[Title('記事')] class extends Component {
                             @if ($list === 'published')
                                 {{ $article->published_at->display() }}
                             @else
-                                {{ $article->scheduledLocal()?->locale(app()->getLocale())->isoFormat('YYYY-MM-DD（ddd） HH:mm') ?? '—' }}
+                                {{ $article->scheduledLocalDisplay() ?? '—' }}
                             @endif
                         </td>
-                        <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
+                        <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                         <td class="whitespace-nowrap px-3 py-2 tabular-nums" title="{{ $article->qualityCheck?->reason }}">{{ $article->qualityCheck?->score ?? '—' }}</td>
                         {{-- The language versions that go out; the original is struck through when its language does not publish it (言語設定). --}}
                         <td class="px-3 py-2 text-neutral-500">

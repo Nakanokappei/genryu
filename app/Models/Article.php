@@ -279,6 +279,12 @@ class Article extends Model
         return $this->scheduled_at?->setTimezone($this->timezone());
     }
 
+    /** The scheduled local time as the screens show it, with the weekday. */
+    public function scheduledLocalDisplay(): ?string
+    {
+        return $this->scheduledLocal()?->settings(['locale' => app()->getLocale()])->isoFormat('YYYY-MM-DD（ddd） HH:mm');
+    }
+
     /** @return HasMany<ArticleImage, $this> every drawing of this article's top image */
     public function images(): HasMany
     {

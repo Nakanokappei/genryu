@@ -81,7 +81,7 @@ new #[Title('品質チェック')] class extends PagedList {
         @foreach ($this->articles as $article)
             @php $check = $article->qualityCheck; @endphp
             <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
+                <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                 <td class="whitespace-nowrap px-3 py-2">
                     @if ($check === null)
                         <span class="text-neutral-500">—</span>

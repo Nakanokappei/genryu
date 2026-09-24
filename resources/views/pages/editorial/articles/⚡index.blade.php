@@ -186,7 +186,7 @@ new #[Title('記事')] class extends PagedList {
     <x-pages::table :columns="[__('Headline'), __('Status'), __('Languages'), __('Published at'), __('Created')]" :empty="$this->articles->isEmpty()">
         @foreach ($this->articles as $article)
             <tr>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
+                <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                 <td class="px-3 py-2"><x-pages::status :status="$article->status" /> <span class="text-neutral-500">{{ $article->body === null ? $article->status_message : '' }}</span></td>
                 {{-- The original and every translation that is written, so a missing language shows as a missing name. --}}
                 <td class="px-3 py-2 text-neutral-500">{{ implode(' / ', $article->translations->where('status', '!=', 'failed')->prepend($article)->map(fn ($written) => $written->languageName())->all()) }}</td>

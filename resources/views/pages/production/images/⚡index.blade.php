@@ -125,9 +125,9 @@ new #[Title('画像')] class extends Component {
                         <div class="aspect-video w-40 rounded-md border border-dashed border-neutral-300 dark:border-neutral-600"></div>
                     @endif
                 </td>
-                <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ $article->scheduledLocal()?->locale(app()->getLocale())->isoFormat('YYYY-MM-DD（ddd） HH:mm') }}</td>
+                <td class="whitespace-nowrap px-3 py-2 tabular-nums">{{ $article->scheduledLocalDisplay() }}</td>
                 <td class="whitespace-nowrap px-3 py-2">{{ $bands[$band]['name'] ?? $band }}</td>
-                <td class="px-3 py-2"><x-pages::favicon :source="$article->material?->document->source" /> <a href="{{ route('editorial.articles.show', $article) }}" class="underline" wire:navigate>{{ $article->displayHeadline() }}</a></td>
+                <td class="px-3 py-2"><x-pages::article-headline :article="$article" /></td>
                 <td class="whitespace-nowrap px-3 py-2">
                     <x-pages::status :status="$article->publicationStatus()" />
                     @if ($image !== null)
