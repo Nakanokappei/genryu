@@ -8,6 +8,7 @@ use App\Models\EditorialPolicy;
 use App\Models\Prompt;
 use App\Models\QualityCheck;
 use App\OpenAi\Usage;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -39,7 +40,7 @@ class CheckQuality implements ShouldQueue
     public static function queueFor(Article $article): QualityCheck
     {
         $check = $article->qualityChecks()->create([
-            'prompt_id' => Prompt::current('quality', EditorialPolicy::bodyFor('quality'))->id,
+            'prompt_id' => Prompt::forLayer('quality')->id,
             'model' => EditorialPolicy::modelFor('quality'),
             'status' => 'checking',
         ]);
@@ -59,11 +60,7 @@ class CheckQuality implements ShouldQueue
                 throw new RuntimeException(__('Only a written original article is checked.'));
             }
 
-            $policy = $check->prompt !== null ? $check->prompt->text : '';
-
-            if (trim($policy) === '') {
-                throw new RuntimeException(__('The quality layer of the editorial policy is empty.'));
-            }
+            $policy = Prompt::textOf($check->prompt, 'quality');
 
             $model = (string) $check->model;
             $result = $score($policy, $model, $article, (array) $article->material?->data);
@@ -82,7 +79,7 @@ class CheckQuality implements ShouldQueue
                 'estimated_total_cost' => Usage::estimatedCost($model, $result['usage'])['estimated_total_cost'],
             ]);
         } catch (Throwable $exception) {
-            $check->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            $check->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
         }
     }
 }

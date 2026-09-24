@@ -10,6 +10,7 @@ use App\Models\EditorialPolicy;
 use App\Models\Material;
 use App\Models\Prompt;
 use App\OpenAi\Usage;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -52,7 +53,7 @@ class ExtractMaterial implements ShouldQueue
                 'status' => 'extracting',
                 'status_message' => null,
                 'document_revision_id' => $document->recordRevision()?->id,
-                'prompt_id' => Prompt::current('structuring', EditorialPolicy::bodyFor('structuring'))->id,
+                'prompt_id' => Prompt::forLayer('structuring')->id,
                 'model' => EditorialPolicy::modelFor('structuring'),
             ],
         );
@@ -78,11 +79,7 @@ class ExtractMaterial implements ShouldQueue
                 throw new RuntimeException(__('The screening rejected this document.'));
             }
 
-            $policy = $material->prompt !== null ? $material->prompt->text : '';
-
-            if (trim($policy) === '') {
-                throw new RuntimeException(__('The structuring layer of the editorial policy is empty.'));
-            }
+            $policy = Prompt::textOf($material->prompt, 'structuring');
 
             $model = (string) $material->model;
 
@@ -115,7 +112,7 @@ class ExtractMaterial implements ShouldQueue
                 'estimated_total_cost' => self::cost($model, $usage),
             ]);
         } catch (Throwable $exception) {
-            $material->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000), ...Usage::sum($usage)]);
+            $material->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception), ...Usage::sum($usage)]);
         }
     }
 

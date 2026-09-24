@@ -9,6 +9,7 @@ use App\Crawl\Crawler;
 use App\Crawl\Url;
 use App\Models\Document;
 use App\Models\Source;
+use App\Support\ErrorMessage;
 use Dom\Element;
 use Dom\HTMLDocument;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -103,7 +104,7 @@ class FetchDocument implements ShouldQueue
             }
         } catch (Throwable $exception) {
             // A database error quotes the bindings, bytes that are not UTF-8 included: the message is made storable or the document would stay 取得中.
-            $document->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000)]);
+            $document->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
         }
     }
 

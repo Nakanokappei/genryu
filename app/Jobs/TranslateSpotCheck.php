@@ -6,6 +6,7 @@ use App\Actions\MeasureLikeness;
 use App\Models\EditorialPolicy;
 use App\Models\SpotCheck;
 use App\OpenAi\Responses;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -56,7 +57,7 @@ class TranslateSpotCheck implements ShouldQueue
 
             $this->check->update(['title_ja' => trim((string) $answer['title']), 'summary_ja' => trim((string) ($answer['summary'] ?? '')), 'translation_error' => null]);
         } catch (Throwable $exception) {
-            $this->check->update(['translation_error' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 500)]);
+            $this->check->update(['translation_error' => ErrorMessage::of($exception, 500)]);
         }
     }
 }

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Actions\MeasureLikeness;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -40,7 +41,7 @@ class ApplySemanticFilter implements ShouldQueue
         try {
             $likeness = $measure($document);
         } catch (Throwable $exception) {
-            $document->update(['likeness' => null, 'likeness_detail' => ['error' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 500)]]);
+            $document->update(['likeness' => null, 'likeness_detail' => ['error' => ErrorMessage::of($exception, 500)]]);
             ScreenDocument::queueFor($document);
 
             return;

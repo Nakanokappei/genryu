@@ -7,6 +7,7 @@ use App\Actions\ScoreHeadline;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -49,7 +50,7 @@ class RefineHeadline implements ShouldQueue
     public static function queueFor(Article $article): Article
     {
         $article->update([
-            'headline_prompt_id' => Prompt::current('headline', EditorialPolicy::bodyFor('headline'))->id,
+            'headline_prompt_id' => Prompt::forLayer('headline')->id,
             'headline_model' => EditorialPolicy::modelFor('headline'),
         ]);
 
@@ -68,11 +69,7 @@ class RefineHeadline implements ShouldQueue
                 throw new RuntimeException(__('The material has not been extracted yet.'));
             }
 
-            $policy = $article->headlinePrompt !== null ? $article->headlinePrompt->text : '';
-
-            if (trim($policy) === '') {
-                throw new RuntimeException(__('The headline layer of the editorial policy is empty.'));
-            }
+            $policy = Prompt::textOf($article->headlinePrompt, 'headline');
 
             $data = (array) $material->data;
             // The headline is written in the source's language, with what belongs to that language.
@@ -115,7 +112,7 @@ class RefineHeadline implements ShouldQueue
             ]);
         } catch (Throwable $exception) {
             // There is no body without a headline, so the article fails here.
-            $article->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            $article->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
 
             return;
         }

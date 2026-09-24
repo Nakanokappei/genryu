@@ -10,6 +10,7 @@ use App\Crawl\Feed;
 use App\Crawl\HtmlList;
 use App\Crawl\JsonList;
 use App\Models\Source;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -79,7 +80,7 @@ class ConfigureSource implements ShouldQueue
 
             $fetch($source->refresh());
         } catch (Throwable $exception) {
-            $source->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            $source->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
         }
     }
 

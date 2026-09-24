@@ -23,8 +23,20 @@ use Illuminate\Support\Once;
  */
 class EditorialPolicy extends Model
 {
-    /** The layers, in flow order: 取捨選択 (the title filter, the semantic filter, then the content filtering) / 構造化 / 見出し / 記事生成 / 翻訳, then 編成's 品質チェック and 画像. */
-    public const LAYERS = ['exclude_keywords', 'semantic_filter', 'semantic_like', 'semantic_unlike', 'content_filtering', 'structuring', 'headline', 'article', 'translation', 'quality', 'image'];
+    /** The layers in flow order, each with its UI label. */
+    public const LAYER_LABELS = [
+        'exclude_keywords' => 'Title filter',
+        'semantic_filter' => 'Semantic filter',
+        'semantic_like' => 'Like this media',
+        'semantic_unlike' => 'Unlike this media',
+        'content_filtering' => 'Content filtering',
+        'structuring' => 'Structuring',
+        'headline' => 'Headline',
+        'article' => 'Article generation',
+        'translation' => 'Translation',
+        'quality' => 'Quality check',
+        'image' => 'Image',
+    ];
 
     /**
      * What a layer says until someone edits it on the screen: nothing.

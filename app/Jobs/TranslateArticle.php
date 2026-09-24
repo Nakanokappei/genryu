@@ -8,6 +8,7 @@ use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
 use App\OpenAi\Usage;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -47,7 +48,7 @@ class TranslateArticle implements ShouldQueue
                 'translated_from_id' => $original->id,
                 'status' => 'generating',
                 'status_message' => null,
-                'prompt_id' => Prompt::current('translation', EditorialPolicy::bodyFor('translation'))->id,
+                'prompt_id' => Prompt::forLayer('translation')->id,
                 'model' => EditorialPolicy::modelFor('translation'),
             ],
         );
@@ -69,11 +70,7 @@ class TranslateArticle implements ShouldQueue
             }
 
             // The policy read is the version pinned when the job was queued, not whatever the screen holds by now.
-            $policy = $translation->prompt !== null ? $translation->prompt->text : '';
-
-            if (trim($policy) === '') {
-                throw new RuntimeException(__('The translation layer of the editorial policy is empty.'));
-            }
+            $policy = Prompt::textOf($translation->prompt, 'translation');
 
             $document = $original->material?->document;
             $model = (string) $translation->model;
@@ -96,7 +93,7 @@ class TranslateArticle implements ShouldQueue
                 'estimated_total_cost' => Usage::estimatedCost($model, $result['usage'])['estimated_total_cost'],
             ]);
         } catch (Throwable $exception) {
-            $translation->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            $translation->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
         }
     }
 }

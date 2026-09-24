@@ -10,6 +10,7 @@ use App\Models\EditorialPolicy;
 use App\Models\ImageStyle;
 use App\Models\Prompt;
 use App\OpenAi\Usage;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
@@ -47,7 +48,7 @@ class MakeImage implements ShouldQueue
         $time = (string) $article->scheduledLocal()?->format('H:i');
 
         $image = $article->images()->create([
-            'prompt_id' => Prompt::current('image', EditorialPolicy::bodyFor('image'))->id,
+            'prompt_id' => Prompt::forLayer('image')->id,
             'model' => EditorialPolicy::modelFor('image'),
             'image_model' => EditorialPolicy::imageModel(),
             'time' => $time,
@@ -70,11 +71,7 @@ class MakeImage implements ShouldQueue
                 throw new RuntimeException(__('Only a scheduled original article gets a top image.'));
             }
 
-            $policy = $image->prompt !== null ? $image->prompt->text : '';
-
-            if (trim($policy) === '') {
-                throw new RuntimeException(__('The image layer of the editorial policy is empty.'));
-            }
+            $policy = Prompt::textOf($image->prompt, 'image');
 
             $style = ImageStyle::bands()[$image->band]['style'] ?? '';
             $scene = $propose($policy, (string) $image->model, $article, (array) $article->material?->data, $style);
@@ -106,7 +103,7 @@ class MakeImage implements ShouldQueue
             // The article carries its image, and the time of day it was made for.
             $article->update(['image_path' => $path, 'image_time' => $image->time]);
         } catch (Throwable $exception) {
-            $image->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);
+            $image->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
         }
     }
 

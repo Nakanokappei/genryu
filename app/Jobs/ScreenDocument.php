@@ -9,6 +9,7 @@ use App\Models\EditorialPolicy;
 use App\Models\Prompt;
 use App\Models\Screening;
 use App\OpenAi\Usage;
+use App\Support\ErrorMessage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -53,7 +54,7 @@ class ScreenDocument implements ShouldQueue
         $screening = Screening::query()->create([
             'document_id' => $document->id,
             'document_revision_id' => $document->recordRevision()?->id,
-            'prompt_id' => Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'))->id,
+            'prompt_id' => Prompt::forLayer('content_filtering')->id,
             'model' => $model ?? EditorialPolicy::modelFor('content_filtering'),
             'pass' => $pass,
             'status' => 'screening',
@@ -86,11 +87,7 @@ class ScreenDocument implements ShouldQueue
                 throw new RuntimeException(__('The document has not been fetched yet.'));
             }
 
-            $prompt = $screening->prompt->text;
-
-            if (trim($prompt) === '') {
-                throw new RuntimeException(__('The content filtering prompt is empty.'));
-            }
+            $prompt = Prompt::textOf($screening->prompt, 'content_filtering');
 
             $result = $propose($prompt, $screening->model, $markdown, $screening->pass);
 
@@ -101,7 +98,7 @@ class ScreenDocument implements ShouldQueue
                 'status_message' => null,
             ]);
         } catch (Throwable $exception) {
-            $screening->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000)]);
+            $screening->update(['status' => 'failed', 'status_message' => ErrorMessage::of($exception)]);
 
             return;
         }
@@ -136,7 +133,7 @@ class ScreenDocument implements ShouldQueue
         try {
             $result = $revise($document->source, $document);
         } catch (Throwable $exception) {
-            $this->screening->update(['status_message' => __('Short body; the document settings could not be revised: :reason', ['reason' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 500)])]);
+            $this->screening->update(['status_message' => __('Short body; the document settings could not be revised: :reason', ['reason' => ErrorMessage::of($exception, 500)])]);
 
             return;
         }

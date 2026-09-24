@@ -6,6 +6,7 @@ use Database\Factories\PromptFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use RuntimeException;
 
 /**
  * A version of a prompt a stage runs with (UI: プロンプト版): the text of a
@@ -48,6 +49,24 @@ class Prompt extends Model
             'text' => $text,
             'activated_at' => now(),
         ]);
+    }
+
+    /** The version in force for a layer of the editorial policy, as its screen holds it now. */
+    public static function forLayer(string $layer): self
+    {
+        return self::current($layer, EditorialPolicy::bodyFor($layer));
+    }
+
+    /** The text of a pinned version, which a run cannot do without. */
+    public static function textOf(?self $prompt, string $layer): string
+    {
+        $text = (string) $prompt?->text;
+
+        if (trim($text) === '') {
+            throw new RuntimeException(__('The :layer layer of the editorial policy is empty.', ['layer' => __(EditorialPolicy::LAYER_LABELS[$layer] ?? $layer)]));
+        }
+
+        return $text;
     }
 
     /** @return HasMany<Screening, $this> */

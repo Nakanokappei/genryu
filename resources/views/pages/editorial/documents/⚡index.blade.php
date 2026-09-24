@@ -105,7 +105,7 @@ new #[Title('文書')] class extends PagedList {
     // A changed prompt can rescue a document it would now adopt: queue again every reject an older version of the prompt decided.
     public function rescreenRejected(): void
     {
-        $prompt = Prompt::current('content_filtering', EditorialPolicy::bodyFor('content_filtering'));
+        $prompt = Prompt::forLayer('content_filtering');
         $documents = Document::query()->whereHas('screening', fn ($screening) => $screening->where('decision', 'reject')->where('prompt_id', '!=', $prompt->id))
             ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
