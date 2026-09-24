@@ -27,7 +27,7 @@ class ProposeArticle
     private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
     /** What the model is told after the cached policy: what the input is, that nothing may be added to it, and to say which language it wrote in. Shown on the screen under the prompt, so nobody puts a placeholder in the prompt for it. */
-    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and the headline of its article has already been settled. Write the body of the article under that headline, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Name that language in `language`. When the source has numbered figures, quote at least one and at most two of them in `figures`, by number: the ones that best show what the body talks about, each with the section whose text it illustrates — opening (before the first ## heading), background (the first ## section), technology (the second) or outlook (the third). Leave `figures` empty only when the source has no figures.';
+    public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and the headline of its article has already been settled. Write the body of the article under that headline, following the policy above, in the language the material is written in. Use only what the material says; never invent facts, figures or quotes that are not in it. Then, having written the body, write its lead in `lead`: one short paragraph that sums up the whole article — what changed and why it matters to the reader — so that someone who reads only the headline and the lead knows what the article says. The lead stands above the body and reads on its own: never begin it with a conjunction or refer back to anything, do not repeat the headline word for word, and say nothing the body does not say. The body itself starts with the opening, not with the lead. Name the language in `language`. When the source has numbered figures, quote at least one and at most two of them in `figures`, by number: the ones that best show what the body talks about, each with the section whose text it illustrates — opening (before the first ## heading), background (the first ## section), technology (the second) or outlook (the third). Leave `figures` empty only when the source has no figures.';
 
     /**
      * @param  array<string, mixed>  $material
@@ -112,6 +112,8 @@ class ProposeArticle
                         'type' => 'object',
                         'properties' => [
                             'body' => ['type' => 'string'],
+                            // After the body, so it is written as a summary of the body just written.
+                            'lead' => ['type' => 'string'],
                             // Which language it wrote in, so the job knows what is left to translate into.
                             'language' => ['type' => 'string', 'enum' => Article::SOURCE_LANGUAGES],
                             // The figures of the source to quote, by number, and where each stands; App\Jobs\GenerateArticle keeps only valid ones.
@@ -122,7 +124,7 @@ class ProposeArticle
                                 'additionalProperties' => false,
                             ]],
                         ],
-                        'required' => ['body', 'language', 'figures'],
+                        'required' => ['body', 'lead', 'language', 'figures'],
                         'additionalProperties' => false,
                     ],
                 ],

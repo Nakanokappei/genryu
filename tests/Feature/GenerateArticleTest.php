@@ -26,17 +26,17 @@ const ARTICLE_HEADLINE = '工業炉の炎はアンモニアでも燃える';
 const ARTICLE_URL = 'https://www.nedo.go.jp/news/press/1.html';
 
 /**
- * A body in the shape the policy asks for — the lead, the opening with no
- * heading, three ## sections and the sources — that counts the given
- * number of characters before its sources.
+ * A body in the shape the policy asks for — the opening with no heading,
+ * three ## sections and the sources; the lead comes apart from it — that
+ * counts the given number of characters before its sources.
  */
 function articleBody(int $characters = 900): string
 {
-    // リード。起の段落。承の見出し 承。転の見出し 転。結の見出し: 28 characters before the filler.
-    return "リード。\n\n起の段落。\n\n## 承の見出し\n\n承。\n\n## 転の見出し\n\n転。\n\n## 結の見出し\n\n".str_repeat('炉', $characters - 28)."\n\n## 出典\n\n[NEDO「アンモニア燃焼器」](".ARTICLE_URL.')';
+    // 起の段落。承の見出し 承。転の見出し 転。結の見出し: 24 characters before the filler.
+    return "起の段落。\n\n## 承の見出し\n\n承。\n\n## 転の見出し\n\n転。\n\n## 結の見出し\n\n".str_repeat('炉', $characters - 24)."\n\n## 出典\n\n[NEDO「アンモニア燃焼器」](".ARTICLE_URL.')';
 }
 
-define('ARTICLE_ANSWER', ['body' => articleBody(), 'language' => 'ja']);
+define('ARTICLE_ANSWER', ['body' => articleBody(), 'lead' => 'リード。', 'language' => 'ja']);
 
 /**
  * What the agent would answer, as the Responses API wire format.
@@ -78,7 +78,9 @@ it('has the agent write the body under the settled headline from an extracted ma
 
     expect($article->status)->toBe('draft')
         ->and($article->title)->toBe(ARTICLE_HEADLINE)
-        ->and($article->body)->toBe(ARTICLE_ANSWER['body'])
+        // The lead the writer wrote after the body goes above it, the separator line between them.
+        ->and($article->body)->toBe("リード。\n\n-----\n\n".ARTICLE_ANSWER['body'])
+        ->and($article->leadAndBody())->toBe(['リード。', ARTICLE_ANSWER['body']])
         ->and($article->status_message)->toContain('gpt-5.6-luna')
         // The version of the policy and the model it ran on are pinned, with what the call used.
         ->and($article->prompt->version)->toBe(1)
@@ -99,7 +101,7 @@ it('has the agent write the body under the settled headline from an extracted ma
         && $request['model'] === 'gpt-5.6-luna'
         && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
         && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
-        && $request['text']['format']['schema']['required'] === ['body', 'language', 'figures']
+        && $request['text']['format']['schema']['required'] === ['body', 'lead', 'language', 'figures']
         && str_contains($request['input'][2]['content'], 'Headline: '.ARTICLE_HEADLINE)
         // A source without figures offers none to quote.
         && ! str_contains($request['input'][2]['content'], 'Figures of the source')
@@ -239,13 +241,13 @@ it('counts the length of a body as the policy does', function () {
 // A body outside the range is written once more with its count in hand, and the one nearer the range is kept.
 it('writes a body again when it is too long and keeps the nearer one', function () {
     Http::fake(['api.openai.com/*' => Http::sequence()
-        ->push(articleAgentAnswer(['body' => articleBody(1400), 'language' => 'ja']))
-        ->push(articleAgentAnswer(['body' => articleBody(1100), 'language' => 'ja']))]);
+        ->push(articleAgentAnswer(['body' => articleBody(1400), 'lead' => 'リード。', 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1100), 'lead' => 'リード。', 'language' => 'ja']))]);
 
     $article = generateArticle(Material::factory()->create());
 
     expect($article->status)->toBe('draft')
-        ->and(ValidateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1100)
+        ->and(ValidateArticle::lengthOf($article->leadAndBody()[1], 'ja')['count'])->toBe(1100)
         ->and($article->status_message)->not->toContain('検査を通りませんでした')
         // Both calls are paid for, so both are counted.
         ->and($article->input_tokens)->toBe(6000);
@@ -255,14 +257,14 @@ it('writes a body again when it is too long and keeps the nearer one', function 
 // A rewrite that is no nearer is dropped, and the count is shown rather than anything waiting on a person.
 it('keeps the first body when no rewrite is nearer, and says so', function () {
     Http::fake(['api.openai.com/*' => Http::sequence()
-        ->push(articleAgentAnswer(['body' => articleBody(1300), 'language' => 'ja']))
-        ->push(articleAgentAnswer(['body' => articleBody(1500), 'language' => 'ja']))
-        ->push(articleAgentAnswer(['body' => articleBody(1400), 'language' => 'ja']))]);
+        ->push(articleAgentAnswer(['body' => articleBody(1300), 'lead' => 'リード。', 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1500), 'lead' => 'リード。', 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => articleBody(1400), 'lead' => 'リード。', 'language' => 'ja']))]);
 
     $article = generateArticle(Material::factory()->create());
 
     expect($article->status)->toBe('draft')
-        ->and(ValidateArticle::lengthOf($article->body, 'ja')['count'])->toBe(1300)
+        ->and(ValidateArticle::lengthOf($article->leadAndBody()[1], 'ja')['count'])->toBe(1300)
         ->and($article->status_message)->toContain('検査を通りませんでした')->toContain('It is 1300 characters long');
     // The first write and both rewrites.
     expect(Http::recorded())->toHaveCount(1 + GenerateArticle::MAX_REWRITES);
@@ -281,7 +283,7 @@ it('finds where the shape of a body comes apart', function () {
 
     expect($problems(articleBody()))->toBe([])
         // Opens on a heading, so the lead is gone.
-        ->and($problems("## 始まり\n\n".articleBody()))->toContain('The body starts with a heading; it must start with the lead, one paragraph with no heading.')
+        ->and($problems("## 始まり\n\n".articleBody()))->toContain('The body starts with a heading; it must start with the opening, with no heading.')
         // The opening swallowed 承: only two sections before the sources.
         ->and(implode(' ', $problems(str_replace("## 承の見出し\n\n", '', articleBody()))))->toContain('exactly 3 ## headings')
         // A heading that is only the name of its part, a heading other than ##, and a section with nothing under it.
@@ -296,12 +298,12 @@ it('finds where the shape of a body comes apart', function () {
 // A body that came apart is written again with its problems in hand, and the one that holds together is kept.
 it('writes a body again when its shape comes apart', function () {
     Http::fake(['api.openai.com/*' => Http::sequence()
-        ->push(articleAgentAnswer(['body' => "## 始まり\n\n".str_repeat('炉', 900)."\n\n## 出典\n\n[NEDO](".ARTICLE_URL.')', 'language' => 'ja']))
+        ->push(articleAgentAnswer(['body' => "## 始まり\n\n".str_repeat('炉', 900)."\n\n## 出典\n\n[NEDO](".ARTICLE_URL.')', 'lead' => 'リード。', 'language' => 'ja']))
         ->push(articleAgentAnswer(ARTICLE_ANSWER))]);
 
     $article = generateArticle(Material::factory()->create());
 
-    expect($article->body)->toBe(ARTICLE_ANSWER['body'])
+    expect($article->leadAndBody()[1])->toBe(ARTICLE_ANSWER['body'])
         ->and($article->status_message)->not->toContain('検査を通りませんでした');
     Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), '- The body starts with a heading'));
 });
@@ -329,7 +331,7 @@ it('quotes the figures the writer chose, taking the figure from the material', f
         ['url' => 'https://www.nedo.go.jp/img/1.png', 'alt' => '概要図', 'caption' => null, 'section' => 'background'],
     ]);
     Http::assertSent(fn (Request $request): bool => str_contains((string) collect($request['input'])->last()['content'], "Figures of the source (quote by number):\n1. 概要図\n2. 燃焼器 図2 燃焼器の構造\n3. ")
-        && $request['text']['format']['schema']['required'] === ['body', 'language', 'figures']);
+        && $request['text']['format']['schema']['required'] === ['body', 'lead', 'language', 'figures']);
 });
 
 // A source with figures always has one in its article: the first, in the section on the new technology, when the writer chose none.
@@ -361,4 +363,31 @@ it('sets the quoted figures into the body as quotations from the source', functi
     // A translation quotes its original's figures, labelled in its own language.
     expect($translation->bodyHtml())->toContain('https://www.nedo.go.jp/img/2.png')->toContain('Source: <a href=')
         ->and(strpos($translation->bodyHtml(), '<figure'))->toBeLessThan(strpos($translation->bodyHtml(), 'Outlook'));
+});
+
+// Our Markdown's rule: the lead, a line of five hyphens, the body; a body without the line has no lead.
+it('splits an article into its lead and its body at the separator line', function () {
+    $article = Article::factory()->make(['body' => Article::withLead('リード。', "起の段落。\n\n## 承\n\n承。")]);
+
+    expect($article->leadAndBody())->toBe(['リード。', "起の段落。\n\n## 承\n\n承。"])
+        ->and(Article::factory()->make(['body' => "# 見出し\n\n起の段落。"])->leadAndBody())->toBe([null, '起の段落。'])
+        ->and($article->bodyHtml())->toStartWith('<div data-lead><p>リード。</p>')->toContain('</div><div data-body><p>起の段落。</p>')->not->toContain('<hr');
+});
+
+// A lead left out is a problem like any other: the body is written again with it in hand.
+it('writes the article again when the writer leaves out the lead', function () {
+    Http::fake(['api.openai.com/*' => Http::sequence()
+        ->push(articleAgentAnswer(['body' => articleBody(), 'lead' => '', 'language' => 'ja']))
+        ->push(articleAgentAnswer(ARTICLE_ANSWER))]);
+
+    $article = generateArticle(Material::factory()->create());
+
+    expect($article->leadAndBody()[0])->toBe('リード。');
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), 'The lead is missing'));
+});
+
+it('takes a sources heading with its translation after a slash', function () {
+    $body = str_replace('## 出典', '## 出典 / Sources', articleBody());
+
+    expect(ValidateArticle::shapeProblems($body, ARTICLE_HEADLINE, ARTICLE_URL))->toBe([]);
 });

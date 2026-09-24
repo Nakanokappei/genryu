@@ -47,6 +47,13 @@
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 
+                {{-- プレビュー (Preview): the media as a reader sees it, opened in a tab of its own. --}}
+                <flux:sidebar.group :heading="__('Preview')" class="grid">
+                    <flux:sidebar.item icon="newspaper" :href="route('media.index')" target="_blank">
+                        {{ __('Media site') }}
+                    </flux:sidebar.item>
+                </flux:sidebar.group>
+
                 {{-- 監督 (Supervision): a person looking over what the stages did, after the fact (human on the loop). --}}
                 <flux:sidebar.group :heading="__('Supervision')" class="grid">
                     <flux:sidebar.item icon="clipboard-document-check" :href="route('supervision.spot-checks.index')" :current="request()->routeIs('supervision.spot-checks.*')" wire:navigate>

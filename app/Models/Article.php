@@ -97,6 +97,16 @@ class Article extends Model
      */
     public const FIGURE_SECTIONS = ['opening', 'background', 'technology', 'outlook'];
 
+    /**
+     * The line between the lead and the rest of the body (a rule of our
+     * own Markdown, 2026-09-25): the lead is written after the body, as a
+     * summary of it (the writer's `lead`, App\Jobs\GenerateArticle), and
+     * put above it with this line between them, so
+     * whatever shows the article knows whether there is a lead and where
+     * the body begins. Five hyphens, a thematic break to any other reader.
+     */
+    public const LEAD_SEPARATOR = '-----';
+
     /** At most this many figures are quoted in one article, so the article stays the main thing and the figures serve it. */
     public const MAX_FIGURES = 2;
 
@@ -153,10 +163,13 @@ class Article extends Model
      */
     public function bodyHtml(): string
     {
+        [$lead, $body] = $this->leadAndBody();
+        // The lead on its own, so the page can set it apart from the body that follows.
+        $html = $lead !== null ? '<div data-lead>'.Str::markdown($lead, ['html_input' => 'strip', 'allow_unsafe_links' => false]).'</div>' : '';
         // The body in its sections: the opening before the first ## heading, then one section per heading.
-        $sections = preg_split('/^(?=## )/m', (string) $this->body) ?: [''];
+        $sections = preg_split('/^(?=## )/m', $body) ?: [''];
         $figures = $this->quotedFigures();
-        $html = '';
+        $html .= '<div data-body>';
 
         foreach ($sections as $index => $section) {
             $html .= Str::markdown($section, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
@@ -172,7 +185,35 @@ class Article extends Model
             }
         }
 
-        return $html;
+        return $html.'</div>';
+    }
+
+    /**
+     * The body without the headline some translators put at its head as a
+     * # line: the headline is the title shown above the body.
+     */
+    public function bodyWithoutHeadline(): string
+    {
+        return (string) preg_replace('/\A\s*#\s[^\n]*\n*/u', '', (string) $this->body);
+    }
+
+    /** A lead and a body as the article keeps them: the lead, the separator line, the body. */
+    public static function withLead(string $lead, string $body): string
+    {
+        return trim($lead)."\n\n".self::LEAD_SEPARATOR."\n\n".trim($body);
+    }
+
+    /**
+     * The lead and the rest of the body, split at the separator line; no
+     * lead when there is no separator.
+     *
+     * @return array{0: ?string, 1: string}
+     */
+    public function leadAndBody(): array
+    {
+        $parts = preg_split('/^'.preg_quote(self::LEAD_SEPARATOR, '/').'\s*$/m', $this->bodyWithoutHeadline(), 2) ?: [''];
+
+        return count($parts) === 2 ? [trim($parts[0]), trim($parts[1])] : [null, trim($parts[0])];
     }
 
     /**

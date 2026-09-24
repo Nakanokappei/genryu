@@ -31,7 +31,7 @@ class ProposeTranslation
     private const MAX_MARKDOWN_CHARS = 60000;
 
     /** What the model is told after the cached policy: which language to write, and what the context is for. Shown on the screen under the prompt, so nobody puts a placeholder in the prompt for it. */
-    public const INSTRUCTIONS = 'Translate the article below into %s. The primary source and the material follow it as context for terms, names and numbers only: never translate them instead of the article, and never let them add to it or correct it. Return the title and the body in the target language.';
+    public const INSTRUCTIONS = 'Translate the article below into %s. The primary source and the material follow it as context for terms, names and numbers only: never translate them instead of the article, and never let them add to it or correct it. Return the title and the body in the target language. Keep the line of five hyphens (-----) that sets the lead apart from the rest of the body exactly as it is, where it is.';
 
     /**
      * @param  array<string, mixed>  $material  the material the article was written from, as context

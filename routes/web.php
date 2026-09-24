@@ -1,12 +1,23 @@
 <?php
 
+use App\Http\Controllers\MediaController;
+use App\Models\Article;
 use App\Models\ArticleImage;
 use App\Models\Document;
 use App\Models\Source;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 
-Route::view('/', 'welcome')->name('home');
+// The site opens on the media made with Genryu (its demo, プレビュー); the screens that make it are behind the sign-in.
+Route::redirect('/', '/media')->name('home');
+
+// メディアサイト (UI: "Media site"): Technology Watch as a reader sees it, the last 30 days, open to anyone.
+Route::prefix('media')->name('media.')->group(function () {
+    Route::get('/', [MediaController::class, 'index'])->name('index');
+    Route::get('images/{article}', [MediaController::class, 'image'])->name('image');
+    Route::get('{language}', [MediaController::class, 'index'])->whereIn('language', Article::LANGUAGES)->name('language');
+    Route::get('{language}/articles/{article}', [MediaController::class, 'show'])->whereIn('language', Article::LANGUAGES)->name('article');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');

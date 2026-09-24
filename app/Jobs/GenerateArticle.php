@@ -31,6 +31,12 @@ use Throwable;
  * with the fewest problems, then the nearest length, is kept. Nothing
  * waits for a person, so a body that still has problems is kept and
  * they are shown in its status message.
+ *
+ * The lead comes back in the same answer, after the body (the schema
+ * names it second, and a model writes the properties in that order), as
+ * a summary of the body it has just written (2026-09-25: written before
+ * the body, it ran into the opening, which began with "しかし"); it is
+ * put above the body with Article::LEAD_SEPARATOR between them.
  */
 class GenerateArticle implements ShouldQueue
 {
@@ -97,11 +103,13 @@ class GenerateArticle implements ShouldQueue
             $check = function (array $result) use ($validate, $article, $document): array {
                 $body = trim((string) ($result['json']['body'] ?? ''));
                 $language = $result['json']['language'] ?? null;
+                $lead = trim((string) ($result['json']['lead'] ?? ''));
 
                 return [
                     'result' => $result,
                     'body' => $body,
-                    'problems' => $validate($body, $language, (string) $article->title, $document->url),
+                    'lead' => $lead,
+                    'problems' => [...$validate($body, $language, (string) $article->title, $document->url), ...($lead === '' ? ['The lead is missing: after the body, sum it up in `lead`.'] : [])],
                     'off' => abs(ValidateArticle::lengthOf($body, $language)['off']),
                 ];
             };
@@ -130,7 +138,8 @@ class GenerateArticle implements ShouldQueue
             $result['usage'] = self::sumUsage($usages);
 
             $article->update([
-                'body' => Article::separateBlocks($body),
+                // The lead the writer summed the body up in, above it; none if it left the lead out.
+                'body' => Article::separateBlocks($best['lead'] !== '' ? Article::withLead($best['lead'], $body) : $body),
                 'figures' => self::figures((array) ($result['json']['figures'] ?? []), $material->figures()),
                 // The language the agent says it wrote in, which is the material's and so the primary source's.
                 'language' => in_array($result['json']['language'] ?? null, Article::SOURCE_LANGUAGES, true) ? $result['json']['language'] : null,

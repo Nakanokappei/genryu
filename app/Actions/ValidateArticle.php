@@ -6,10 +6,12 @@ namespace App\Actions;
  * The checks the body of an article goes through before it is kept: its
  * shape and its length, both of which can be counted rather than judged.
  * The shape is the one the article layer of the editorial policy asks
- * for — a lead, the opening (起) with no heading of its own, 承 / 転 / 結
+ * for — the opening (起) with no heading of its own, 承 / 転 / 結
  * under ## headings, and a final sources section linking to the primary
  * source; the headline is not in the body, the screen puts it above as
- * its # heading. Each problem is one line the agent can act on, and the
+ * its # heading, and the lead comes back apart from the body, written
+ * after it, and is put above it when kept, so it is not here either. Each
+ * problem is one line the agent can act on, and the
  * rewrite is given them as they are. Whether the article is any good is
  * not a validator's call.
  *
@@ -25,8 +27,12 @@ class ValidateArticle
     /** How many ## headings come between the opening and the sources: 承, 転 and 結. */
     public const SECTIONS = 3;
 
-    /** The heading of the sources section, in the languages an article is written in. */
-    private const SOURCES_HEADING = '/^(出典|出处|出處|출처|Sources?|Quellen)$/iu';
+    /**
+     * The heading of the sources section, in the languages an article is
+     * written in; the word may be followed by its translation after a
+     * slash (a writer once put "出典 / Sources" four times in a row).
+     */
+    private const SOURCES_HEADING = '/^(出典|出处|出處|출처|Sources?|Quellen)(\s*[\/／|]\s*\S.*)?$/iu';
 
     /**
      * The problems of a body, none when it passes.
@@ -52,9 +58,9 @@ class ValidateArticle
             return ['The body is empty.'];
         }
 
-        // The lead comes first: a body that opens on a heading has lost it, or repeats the headline.
+        // The opening comes first: a body that opens on a heading has lost it, or repeats the headline.
         if (str_starts_with($lines[0], '#')) {
-            $problems[] = 'The body starts with a heading; it must start with the lead, one paragraph with no heading.';
+            $problems[] = 'The body starts with a heading; it must start with the opening, with no heading.';
         }
 
         // Split the body at its ## headings: what comes before the first, then each heading with the paragraphs under it.
@@ -83,9 +89,9 @@ class ValidateArticle
             }
         }
 
-        // The lead and then the opening (起), neither under a heading.
-        if ($opening < 2) {
-            $problems[] = "Before the first ## heading there must be the lead and then the opening, at least two paragraphs; found {$opening}.";
+        // The opening (起), not under a heading.
+        if ($opening < 1) {
+            $problems[] = 'Before the first ## heading there must be the opening, at least one paragraph; found none.';
         }
 
         // The sources close the article and link to the primary source.

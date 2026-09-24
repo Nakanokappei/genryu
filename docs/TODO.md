@@ -43,3 +43,9 @@ loop — nothing waits for a person, a person looks after the fact.
   sources, not only its own — instead of the latest ones of the source.
   Needs an embedding column (pgvector) and one embedding call per
   document at fetch time.
+
+- **Run the scheduler in production** (2026-09-25): `media:prune-images`
+  is scheduled daily in `routes/console.php` to delete the top images
+  drawn more than 30 days ago, but nothing runs the scheduler locally.
+  In production, run `php artisan schedule:run` every minute (cron or the
+  platform's scheduler). Until then it can be run by hand.

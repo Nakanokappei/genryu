@@ -449,5 +449,7 @@
     "Confirmed :when by :who": ":when に :who が確定",
     "Reopen": "確定を取り消す",
     "Confirm": "確定する",
-    "Confirm to close the day. The verdicts cannot be changed until it is reopened.": "確定すると、この日の点検を締めくくります。確定を取り消すまで、判定は変えられません。"
+    "Confirm to close the day. The verdicts cannot be changed until it is reopened.": "確定すると、この日の点検を締めくくります。確定を取り消すまで、判定は変えられません。",
+    "Preview": "プレビュー",
+    "Media site": "メディアサイト"
 }

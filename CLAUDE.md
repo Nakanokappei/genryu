@@ -172,13 +172,23 @@ The history under `docs/` (Phase 0) keeps the old name.
   new technology, 結 the world once it is real — and the translations
   follow the body. **The Markdown has one shape** (2026-09-23): the
   headline is the `#` the screen puts above the body, so the body is a
-  lead (the whole article in one paragraph), 起 with no heading, 承 / 転 /
-  結 under `##`, and `## 出典` with the source as a link; every line is
+  lead (the whole article in one paragraph), **a line of five hyphens
+  `-----`** (our own Markdown rule, `Article::LEAD_SEPARATOR`, 2026-09-25:
+  what shows the article learns from it whether there is a lead and where
+  the body begins — `Article::leadAndBody`, `bodyHtml` renders them as
+  `data-lead` / `data-body`), 起 with no heading, 承 / 転 /
+  結 under `##`, and `## 出典` with the source as a link. **The lead is
+  written after the body, in the same call**: the writer answers `body`
+  then `lead` (the schema names them in that order, and a model writes
+  them in that order), so the lead sums up the body just written; asked
+  for together inside the body, the lead ran into the opening, which
+  began with "しかし". A missing lead is a problem the rewrite fixes, and
+  the translator keeps the separator line; every line is
   set apart by a blank line when it is kept (`Article::separateBlocks`),
   because models write paragraphs one newline apart and Markdown runs
   them together. **The shape and the length are checked in code**
-  (`App\Actions\ValidateArticle`): the lead and the opening before the
-  first `##`, exactly three `##` sections, no label headings (起…) or
+  (`App\Actions\ValidateArticle`, on the body without its lead): the
+  opening before the first `##`, exactly three `##` sections, no label headings (起…) or
   other levels, text under every heading, and a final 出典 linking the
   source's URL; the length is 800–1,200 characters in Chinese or
   Japanese, 500–800 words otherwise, the sources and the Markdown marks
@@ -441,6 +451,24 @@ The history under `docs/` (Phase 0) keeps the old name.
   (rates computed from the likeness at drawing, before they taught the
   filter), then a daily draw by the scheduler (docs/TODO.md), then the
   same for the screening, the headline scores and the quality check.
+- **プレビュー (Preview) is a sidebar group, and its メディアサイト is the
+  media as a reader sees it** (2026-09-25): Technology Watch at `/media`
+  (Japanese) and `/media/{language}`, one page per article at
+  `/media/{language}/articles/{id}`, open without signing in; `/`
+  redirects there. It doubles as the demo of what Genryu makes.
+  `App\Http\Controllers\MediaController` with plain Blade views under
+  `resources/views/media` (not Livewire: nothing on it changes). Nothing
+  is published yet, so it shows every language version with a body that
+  言語設定 publishes, dated at its scheduled local time or, unscheduled,
+  when written, back `WINDOW_DAYS` (30) days; a future time is marked
+  公開予定. The top image is ours and is served by the site
+  (`media.image`, the original's for every language); the source's
+  figures are quoted by URL as on 記事. What readers are told (AI wrote
+  and translated the article, AI drew the image, figures are quotations)
+  is in the footer in each language. `media:prune-images` (scheduled
+  daily) deletes the top images drawn more than 30 days ago. A body a
+  translator began with the headline as a `#` line does not show it
+  twice (`Article::bodyWithoutHeadline`).
 - **Document Markdown** (`App\Actions\ReadDocument`) reads heading, date,
   body, then fixed text after a `---`; the document title is `#` and body
   headings keep their relative levels from `##` down. Document settings
