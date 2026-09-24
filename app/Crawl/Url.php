@@ -31,7 +31,7 @@ class Url
             str_starts_with($href, '//') => $scheme.':'.$href,
             str_starts_with($href, '/') => $origin.self::withoutDotSegments($href),
             str_starts_with($href, '?') => $origin.$path.$href,
-            default => $origin.self::withoutDotSegments(rtrim(dirname($path), '/').'/'.$href),
+            default => $origin.self::withoutDotSegments(substr($path, 0, (int) strrpos($path, '/') + 1).$href),
         };
     }
 
