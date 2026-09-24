@@ -2,7 +2,7 @@
 
 namespace App\Actions;
 
-use Illuminate\Support\Facades\Http;
+use App\OpenAi\Client;
 use RuntimeException;
 
 /**
@@ -13,8 +13,6 @@ use RuntimeException;
  */
 class DrawImage
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/images/generations';
-
     /** 16:9, both sides multiples of 16 as the API asks. */
     public const SIZE = '1536x864';
 
@@ -32,18 +30,9 @@ class DrawImage
      */
     public function __invoke(string $model, string $prompt): array
     {
-        $key = (string) config('services.openai.key');
-
-        if ($key === '') {
-            throw new RuntimeException(__('OPENAI_API_KEY is not set.'));
-        }
-
         $started = hrtime(true);
 
-        $response = Http::withToken($key)
-            ->timeout(300)
-            ->post(self::ENDPOINT, ['model' => $model, 'prompt' => $prompt, 'size' => self::SIZE, 'quality' => 'medium', 'output_format' => 'jpeg', 'n' => 1])
-            ->throw();
+        $response = Client::post('images/generations', ['model' => $model, 'prompt' => $prompt, 'size' => self::SIZE, 'quality' => 'medium', 'output_format' => 'jpeg', 'n' => 1], 300);
 
         $bytes = base64_decode((string) $response->json('data.0.b64_json'), true);
 

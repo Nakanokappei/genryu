@@ -65,7 +65,12 @@ The history under `docs/` (Phase 0) keeps the old name.
   An agent keeps only its instruction, its input and its schema, and its
   public `request()` so tests and screens can read what is sent.
   `App\OpenAi\Usage` prices a call (`estimatedCost`, from
-  `services.openai.prices`) and adds several up (`sum`).
+  `services.openai.prices`) and adds several up (`sum`). **Every call to
+  OpenAI goes out through `App\OpenAi\Client::post`** (the second
+  refactoring, 2026-09-25: the key checked, the error status thrown);
+  the two settings agents stay on Chat Completions through
+  `App\OpenAi\ChatCompletions`, the images and embeddings call `Client`
+  directly.
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
   2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
   更新リストを取得 on the source; how a feed, an HTML list and a JSON list

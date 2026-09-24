@@ -8,7 +8,6 @@ use App\Models\SpotCheck;
 use App\OpenAi\Responses;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 use Throwable;
 
@@ -22,8 +21,6 @@ use Throwable;
 class TranslateSpotCheck implements ShouldQueue
 {
     use Queueable;
-
-    private const ENDPOINT = 'https://api.openai.com/v1/responses';
 
     /** How much of the document is read for the gist. */
     private const MAX_CHARS = 4000;
@@ -41,7 +38,7 @@ class TranslateSpotCheck implements ShouldQueue
         $document = $this->check->document;
 
         try {
-            $body = Http::withToken((string) config('services.openai.key'))->timeout(90)->post(self::ENDPOINT, [
+            $answer = Responses::send([
                 'model' => array_key_first(EditorialPolicy::MODELS),
                 'input' => [
                     ['role' => 'developer', 'content' => self::INSTRUCTION],
@@ -51,11 +48,9 @@ class TranslateSpotCheck implements ShouldQueue
                     'type' => 'object', 'additionalProperties' => false, 'required' => ['title', 'summary'],
                     'properties' => ['title' => ['type' => 'string'], 'summary' => ['type' => 'string']],
                 ]]],
-            ])->throw()->json();
+            ], timeout: 90, invalid: 'The agent did not return a translation.')['json'];
 
-            $answer = json_decode(Responses::outputText($body), true);
-
-            if (! is_array($answer) || trim((string) ($answer['title'] ?? '')) === '') {
+            if (trim((string) ($answer['title'] ?? '')) === '') {
                 throw new RuntimeException(__('The agent did not return a translation.'));
             }
 

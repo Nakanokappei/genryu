@@ -2,7 +2,7 @@
 
 namespace App\Actions;
 
-use Illuminate\Support\Facades\Http;
+use App\OpenAi\Client;
 
 /**
  * Embed texts with the OpenAI Embeddings API, for the 意味フィルタ. The
@@ -11,8 +11,6 @@ use Illuminate\Support\Facades\Http;
  */
 class Embed
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/embeddings';
-
     private const BATCH = 100;
 
     /**
@@ -25,8 +23,7 @@ class Embed
         $tokens = 0;
 
         foreach (array_chunk($texts, self::BATCH) as $batch) {
-            $body = Http::withToken((string) config('services.openai.key'))->timeout(120)
-                ->post(self::ENDPOINT, ['model' => $model, 'input' => $batch])->throw()->json();
+            $body = Client::post('embeddings', ['model' => $model, 'input' => $batch], 120)->json();
 
             foreach ($body['data'] as $row) {
                 $vectors[] = self::unit($row['embedding']);

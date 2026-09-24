@@ -2,8 +2,7 @@
 
 namespace App\Actions;
 
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
+use App\OpenAi\ChatCompletions;
 
 /**
  * The agent behind the document settings: given one document page of a
@@ -15,8 +14,6 @@ use RuntimeException;
  */
 class ProposeDocumentSettings
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/chat/completions';
-
     private const MAX_HTML_CHARS = 60000;
 
     /**
@@ -24,30 +21,15 @@ class ProposeDocumentSettings
      */
     public function __invoke(string $html, string $url): array
     {
-        $key = (string) config('services.openai.key');
-
-        if ($key === '') {
-            throw new RuntimeException(__('OPENAI_API_KEY is not set.'));
-        }
-
-        $response = Http::withToken($key)
-            ->timeout(60)
-            ->post(self::ENDPOINT, [
-                'model' => (string) config('services.openai.model'),
-                'temperature' => 0,
-                'response_format' => ['type' => 'json_object'],
-                'messages' => [
-                    ['role' => 'developer', 'content' => self::instructions()],
-                    ['role' => 'user', 'content' => "URL: {$url}\n\nHTML:\n".self::trim($html)],
-                ],
-            ])
-            ->throw();
-
-        $proposal = json_decode((string) $response->json('choices.0.message.content'), true);
-
-        if (! is_array($proposal)) {
-            throw new RuntimeException(__('The agent did not return valid JSON.'));
-        }
+        $proposal = ChatCompletions::send([
+            'model' => (string) config('services.openai.model'),
+            'temperature' => 0,
+            'response_format' => ['type' => 'json_object'],
+            'messages' => [
+                ['role' => 'developer', 'content' => self::instructions()],
+                ['role' => 'user', 'content' => "URL: {$url}\n\nHTML:\n".self::trim($html)],
+            ],
+        ]);
 
         $settings = [];
 

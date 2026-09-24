@@ -2,7 +2,6 @@
 
 namespace App\OpenAi;
 
-use Illuminate\Support\Facades\Http;
 use RuntimeException;
 
 /**
@@ -16,8 +15,6 @@ use RuntimeException;
  */
 class Responses
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/responses';
-
     /**
      * The request around an agent's input: the model, explicit prompt
      * caching, and the answer constrained to the schema under its name.
@@ -71,18 +68,8 @@ class Responses
      */
     public static function send(array $request, int $timeout = 300, string $invalid = 'The agent did not return valid JSON.'): array
     {
-        $key = (string) config('services.openai.key');
-
-        if ($key === '') {
-            throw new RuntimeException(__('OPENAI_API_KEY is not set.'));
-        }
-
         $started = hrtime(true);
-
-        $response = Http::withToken($key)
-            ->timeout($timeout)
-            ->post(self::ENDPOINT, $request)
-            ->throw();
+        $response = Client::post('responses', $request, $timeout);
 
         $latency = (int) round((hrtime(true) - $started) / 1_000_000);
         $json = json_decode(self::outputText($response->json()), true);
@@ -109,7 +96,7 @@ class Responses
      *
      * @param  array<string, mixed>|null  $body
      */
-    public static function outputText(?array $body): string
+    private static function outputText(?array $body): string
     {
         foreach ($body['output'] ?? [] as $item) {
             if (($item['type'] ?? '') !== 'message') {
