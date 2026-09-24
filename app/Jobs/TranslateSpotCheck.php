@@ -3,9 +3,9 @@
 namespace App\Jobs;
 
 use App\Actions\MeasureLikeness;
-use App\Actions\ProposeDecision;
 use App\Models\EditorialPolicy;
 use App\Models\SpotCheck;
+use App\OpenAi\Responses;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
@@ -53,7 +53,7 @@ class TranslateSpotCheck implements ShouldQueue
                 ]]],
             ])->throw()->json();
 
-            $answer = json_decode(ProposeDecision::outputText($body), true);
+            $answer = json_decode(Responses::outputText($body), true);
 
             if (! is_array($answer) || trim((string) ($answer['title'] ?? '')) === '') {
                 throw new RuntimeException(__('The agent did not return a translation.'));

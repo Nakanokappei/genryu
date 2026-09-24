@@ -13,6 +13,7 @@ use App\Models\Prompt;
 use App\Models\Screening;
 use App\Models\Source;
 use App\Models\User;
+use App\OpenAi\Usage;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -120,9 +121,9 @@ it('estimates the cost of a screening from the configured prices', function () {
     // Keyed by model id; the ids have dots in them, so the prices are set as one array, not by dot path.
     config(['services.openai.prices' => ['gpt-5.6-terra' => ['input' => 2.0, 'cached' => 0.5, 'output' => 8.0]]]);
 
-    expect(ScreenDocument::estimatedCost('gpt-5.6-terra', ['input_tokens' => 1_000_000, 'cached_tokens' => 500_000, 'output_tokens' => 100_000]))
+    expect(Usage::estimatedCost('gpt-5.6-terra', ['input_tokens' => 1_000_000, 'cached_tokens' => 500_000, 'output_tokens' => 100_000]))
         ->toBe(['estimated_input_cost' => 1.25, 'estimated_output_cost' => 0.8, 'estimated_total_cost' => 2.05])
-        ->and(ScreenDocument::estimatedCost('gpt-6-astra', ['input_tokens' => 10, 'cached_tokens' => 0, 'output_tokens' => 1]))
+        ->and(Usage::estimatedCost('gpt-6-astra', ['input_tokens' => 10, 'cached_tokens' => 0, 'output_tokens' => 1]))
         ->toBe(['estimated_input_cost' => null, 'estimated_output_cost' => null, 'estimated_total_cost' => null]);
 });
 

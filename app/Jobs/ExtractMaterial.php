@@ -9,6 +9,7 @@ use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Material;
 use App\Models\Prompt;
+use App\OpenAi\Usage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -110,23 +111,12 @@ class ExtractMaterial implements ShouldQueue
                 'validation' => [],
                 'status' => 'extracted',
                 'status_message' => __('Extracted by :model.', ['model' => $model]),
-                ...self::summed($usage),
+                ...Usage::sum($usage),
                 'estimated_total_cost' => self::cost($model, $usage),
             ]);
         } catch (Throwable $exception) {
-            $material->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000), ...self::summed($usage)]);
+            $material->update(['status' => 'failed', 'status_message' => mb_substr(mb_scrub($exception->getMessage(), 'UTF-8'), 0, 1000), ...Usage::sum($usage)]);
         }
-    }
-
-    /**
-     * @param  list<array<string, ?int>>  $usage
-     * @return array<string, ?int>
-     */
-    private static function summed(array $usage): array
-    {
-        $sum = fn (string $key): ?int => array_any($usage, fn (array $call): bool => $call[$key] !== null) ? array_sum(array_map(fn (array $call): int => (int) $call[$key], $usage)) : null;
-
-        return ['input_tokens' => $sum('input_tokens'), 'cached_tokens' => $sum('cached_tokens'), 'cache_write_tokens' => $sum('cache_write_tokens'), 'output_tokens' => $sum('output_tokens'), 'latency_ms' => $sum('latency_ms')];
     }
 
     /**
@@ -137,7 +127,7 @@ class ExtractMaterial implements ShouldQueue
         $total = null;
 
         foreach ($usage as $call) {
-            $cost = ScreenDocument::estimatedCost($model, ['input_tokens' => $call['input_tokens'], 'cached_tokens' => $call['cached_tokens'], 'output_tokens' => $call['output_tokens']])['estimated_total_cost'];
+            $cost = Usage::estimatedCost($model, ['input_tokens' => $call['input_tokens'], 'cached_tokens' => $call['cached_tokens'], 'output_tokens' => $call['output_tokens']])['estimated_total_cost'];
 
             if ($cost === null) {
                 return null;

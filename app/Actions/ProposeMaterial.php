@@ -2,8 +2,7 @@
 
 namespace App\Actions;
 
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
+use App\OpenAi\Responses;
 
 /**
  * The agent behind 素材情報 (UI: "Materials", stage 2.3 of docs/HANDOVER.md):
@@ -27,8 +26,6 @@ use RuntimeException;
  */
 class ProposeMaterial
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/responses';
-
     private const MAX_MARKDOWN_CHARS = 120000;
 
     /** The parts of a material, as the screens read them: the angle first, then the change it rests on, what each side gives, and what follows from it. The schema asks for them in another order. */
@@ -48,36 +45,9 @@ class ProposeMaterial
      */
     public function __invoke(string $policy, string $model, string $markdown, array $errors = []): array
     {
-        $key = (string) config('services.openai.key');
+        $result = Responses::send(self::request($policy, $model, $markdown, $errors));
 
-        if ($key === '') {
-            throw new RuntimeException(__('OPENAI_API_KEY is not set.'));
-        }
-
-        $started = hrtime(true);
-
-        $response = Http::withToken($key)
-            ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $markdown, $errors))
-            ->throw();
-
-        $latency = (int) round((hrtime(true) - $started) / 1_000_000);
-        $json = json_decode(self::outputText($response->json()), true);
-
-        if (! is_array($json)) {
-            throw new RuntimeException(__('The agent did not return valid JSON.'));
-        }
-
-        return [
-            'json' => self::dossier($json),
-            'usage' => [
-                'input_tokens' => self::count($response->json('usage.input_tokens')),
-                'cached_tokens' => self::count($response->json('usage.input_tokens_details.cached_tokens')),
-                'cache_write_tokens' => self::count($response->json('usage.input_tokens_details.cache_write_tokens')),
-                'output_tokens' => self::count($response->json('usage.output_tokens')),
-                'latency_ms' => $latency,
-            ],
-        ];
+        return ['json' => self::dossier($result['json']), 'usage' => $result['usage']];
     }
 
     /**
@@ -96,28 +66,11 @@ class ProposeMaterial
             $instructions[] = self::REPAIR."\n- ".implode("\n- ", $errors);
         }
 
-        return [
-            'model' => $model,
-            'prompt_cache_options' => ['mode' => 'explicit'],
-            'input' => [
-                [
-                    'role' => 'developer',
-                    'content' => [
-                        ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
-                    ],
-                ],
-                ['role' => 'developer', 'content' => implode("\n\n", $instructions)],
-                ['role' => 'user', 'content' => "Primary source:\n".mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS)],
-            ],
-            'text' => [
-                'format' => [
-                    'type' => 'json_schema',
-                    'name' => 'material',
-                    'strict' => true,
-                    'schema' => self::schema(),
-                ],
-            ],
-        ];
+        return Responses::request($model, [
+            Responses::policy($policy),
+            ['role' => 'developer', 'content' => implode("\n\n", $instructions)],
+            ['role' => 'user', 'content' => "Primary source:\n".mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS)],
+        ], 'material', self::schema());
     }
 
     /**
@@ -180,33 +133,5 @@ class ProposeMaterial
     private static function object(array $properties): array
     {
         return ['type' => 'object', 'properties' => $properties, 'required' => array_keys($properties), 'additionalProperties' => false];
-    }
-
-    /**
-     * The text of the answer: the output_text of the first message in
-     * the output (reasoning items and the like are passed over).
-     *
-     * @param  array<string, mixed>|null  $body
-     */
-    private static function outputText(?array $body): string
-    {
-        foreach ($body['output'] ?? [] as $item) {
-            if (($item['type'] ?? '') !== 'message') {
-                continue;
-            }
-
-            foreach ($item['content'] ?? [] as $content) {
-                if (($content['type'] ?? '') === 'output_text') {
-                    return (string) $content['text'];
-                }
-            }
-        }
-
-        return (string) ($body['output_text'] ?? '');
-    }
-
-    private static function count(mixed $value): ?int
-    {
-        return is_numeric($value) ? (int) $value : null;
     }
 }

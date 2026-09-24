@@ -58,6 +58,14 @@ The history under `docs/` (Phase 0) keeps the old name.
   `OPENAI_MODEL` in `.env`). Deterministic steps (feed discovery, list
   reading) never call a model; an agent proposal is verified on the page
   before it is saved.
+- **Every agent on the Responses API goes through `App\OpenAi\Responses`**
+  (2026-09-25, the first refactoring): `Responses::policy` is the cached
+  policy message, `Responses::request` the envelope around an agent's
+  input and schema, `Responses::send` the call, its JSON and its usage.
+  An agent keeps only its instruction, its input and its schema, and its
+  public `request()` so tests and screens can read what is sent.
+  `App\OpenAi\Usage` prices a call (`estimatedCost`, from
+  `services.openai.prices`) and adds several up (`sum`).
 - **From 文書 (Documents) onwards nothing is entered by hand** (decided
   2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
   更新リストを取得 on the source) and fetched by `App\Jobs\FetchDocument`

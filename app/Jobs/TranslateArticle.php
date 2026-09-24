@@ -7,6 +7,7 @@ use App\Actions\ScheduleArticles;
 use App\Models\Article;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
+use App\OpenAi\Usage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -92,7 +93,7 @@ class TranslateArticle implements ShouldQueue
                 'status' => 'draft',
                 'status_message' => __('Translated by :model.', ['model' => $model]),
                 ...$result['usage'],
-                'estimated_total_cost' => ScreenDocument::estimatedCost($model, $result['usage'])['estimated_total_cost'],
+                'estimated_total_cost' => Usage::estimatedCost($model, $result['usage'])['estimated_total_cost'],
             ]);
         } catch (Throwable $exception) {
             $translation->update(['status' => 'failed', 'status_message' => mb_substr($exception->getMessage(), 0, 1000)]);

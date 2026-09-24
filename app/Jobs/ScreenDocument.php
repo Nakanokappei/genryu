@@ -8,6 +8,7 @@ use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\Prompt;
 use App\Models\Screening;
+use App\OpenAi\Usage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use RuntimeException;
@@ -95,7 +96,7 @@ class ScreenDocument implements ShouldQueue
 
             $screening->update([
                 ...$result,
-                ...self::estimatedCost($screening->model, $result),
+                ...Usage::estimatedCost($screening->model, $result),
                 'status' => 'screened',
                 'status_message' => null,
             ]);
@@ -143,31 +144,5 @@ class ScreenDocument implements ShouldQueue
         $this->screening->update(['status_message' => __('Short body; the document settings were revised (content: :content) and :grown documents screened again.', ['content' => $result['settings']['content'], 'grown' => count($result['grown'])])]);
 
         Document::query()->whereIn('id', $result['grown'])->get()->each(fn (Document $grown) => self::queueFor($grown));
-    }
-
-    /**
-     * What the call cost, from the prices per million tokens configured
-     * for the model: cached input tokens at the cached price, the rest of
-     * the input at the input price, the output at the output price. Null
-     * when the model's prices are not known.
-     *
-     * @param  array{input_tokens: ?int, cached_tokens: ?int, output_tokens: ?int}  $usage
-     * @return array{estimated_input_cost: ?float, estimated_output_cost: ?float, estimated_total_cost: ?float}
-     */
-    public static function estimatedCost(string $model, array $usage): array
-    {
-        // Looked up by key, not by dot path: the model ids have dots in them (gpt-5.6-luna).
-        $prices = ((array) config('services.openai.prices'))[$model] ?? null;
-
-        if (! is_array($prices) || ! is_numeric($prices['input'] ?? null) || ! is_numeric($prices['output'] ?? null) || $usage['input_tokens'] === null || $usage['output_tokens'] === null) {
-            return ['estimated_input_cost' => null, 'estimated_output_cost' => null, 'estimated_total_cost' => null];
-        }
-
-        $cached = $usage['cached_tokens'] ?? 0;
-        $cachedPrice = is_numeric($prices['cached'] ?? null) ? (float) $prices['cached'] : (float) $prices['input'];
-        $input = (($usage['input_tokens'] - $cached) * (float) $prices['input'] + $cached * $cachedPrice) / 1_000_000;
-        $output = $usage['output_tokens'] * (float) $prices['output'] / 1_000_000;
-
-        return ['estimated_input_cost' => $input, 'estimated_output_cost' => $output, 'estimated_total_cost' => $input + $output];
     }
 }

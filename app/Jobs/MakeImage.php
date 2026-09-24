@@ -9,6 +9,7 @@ use App\Models\ArticleImage;
 use App\Models\EditorialPolicy;
 use App\Models\ImageStyle;
 use App\Models\Prompt;
+use App\OpenAi\Usage;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
@@ -118,7 +119,7 @@ class MakeImage implements ShouldQueue
      */
     private static function cost(ArticleImage $image, array $scene, array $drawn): ?float
     {
-        $writing = ScreenDocument::estimatedCost((string) $image->model, ['input_tokens' => $scene['input_tokens'], 'cached_tokens' => 0, 'output_tokens' => $scene['output_tokens']])['estimated_total_cost'];
+        $writing = Usage::estimatedCost((string) $image->model, ['input_tokens' => $scene['input_tokens'], 'cached_tokens' => 0, 'output_tokens' => $scene['output_tokens']])['estimated_total_cost'];
         // Looked up by key, not by dot path: the model ids have dots in them.
         $prices = ((array) config('services.openai.image_prices'))[$image->image_model] ?? null;
 

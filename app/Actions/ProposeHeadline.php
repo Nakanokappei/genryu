@@ -3,8 +3,7 @@
 namespace App\Actions;
 
 use App\Models\LanguageSetting;
-use Illuminate\Support\Facades\Http;
-use RuntimeException;
+use App\OpenAi\Responses;
 
 /**
  * The writer of 見出し (the headline), the first step of an article:
@@ -20,8 +19,6 @@ use RuntimeException;
  */
 class ProposeHeadline
 {
-    private const ENDPOINT = 'https://api.openai.com/v1/responses';
-
     /** What the model is told after the cached policy. Shown on the screen under the prompt. */
     public const INSTRUCTIONS = 'The material below was drawn from one primary-source document, and no article has been written from it yet. Write the headline of that article, following the policy above, in the language the material is written in; the article will be written under it. Use only what the material says. When headlines were already tried, the review of the last one says what to change: change that, do not tune the wording of a headline that failed on what it says, and never reuse a headline already tried.';
 
@@ -33,36 +30,7 @@ class ProposeHeadline
      */
     public function __invoke(string $policy, string $model, array $material, ?array $review = null, array $tried = [], ?string $language = null): array
     {
-        $key = (string) config('services.openai.key');
-
-        if ($key === '') {
-            throw new RuntimeException(__('OPENAI_API_KEY is not set.'));
-        }
-
-        $started = hrtime(true);
-
-        $response = Http::withToken($key)
-            ->timeout(300)
-            ->post(self::ENDPOINT, self::request($policy, $model, $material, $review, $tried, $language))
-            ->throw();
-
-        $latency = (int) round((hrtime(true) - $started) / 1_000_000);
-        $json = json_decode(self::outputText($response->json()), true);
-
-        if (! is_array($json)) {
-            throw new RuntimeException(__('The agent did not return valid JSON.'));
-        }
-
-        return [
-            'json' => $json,
-            'usage' => [
-                'input_tokens' => self::count($response->json('usage.input_tokens')),
-                'cached_tokens' => self::count($response->json('usage.input_tokens_details.cached_tokens')),
-                'cache_write_tokens' => self::count($response->json('usage.input_tokens_details.cache_write_tokens')),
-                'output_tokens' => self::count($response->json('usage.output_tokens')),
-                'latency_ms' => $latency,
-            ],
-        ];
+        return Responses::send(self::request($policy, $model, $material, $review, $tried, $language));
     }
 
     /**
@@ -98,67 +66,22 @@ class ProposeHeadline
 
         $input .= "Material (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-        return [
-            'model' => $model,
-            'prompt_cache_options' => ['mode' => 'explicit'],
-            'input' => [
-                [
-                    'role' => 'developer',
-                    'content' => [
-                        ['type' => 'input_text', 'text' => $policy, 'prompt_cache_breakpoint' => ['mode' => 'explicit']],
-                    ],
-                ],
-                // What belongs to the language the headline is written in (言語別の追加プロンプト), then the fixed instruction.
-                ...LanguageSetting::messages($language),
-                ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".ScoreHeadline::rubric()],
-                ['role' => 'user', 'content' => $input],
+        return Responses::request($model, [
+            Responses::policy($policy),
+            // What belongs to the language the headline is written in (言語別の追加プロンプト), then the fixed instruction.
+            ...LanguageSetting::messages($language),
+            ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".ScoreHeadline::rubric()],
+            ['role' => 'user', 'content' => $input],
+        ], 'headline', [
+            'type' => 'object',
+            'properties' => [
+                'topic_word' => ['type' => 'string'],
+                'title_draft' => ['type' => 'string'],
+                'assumption' => ['type' => 'string'],
+                'headline' => ['type' => 'string'],
             ],
-            'text' => [
-                'format' => [
-                    'type' => 'json_schema',
-                    'name' => 'headline',
-                    'strict' => true,
-                    'schema' => [
-                        'type' => 'object',
-                        'properties' => [
-                            'topic_word' => ['type' => 'string'],
-                            'title_draft' => ['type' => 'string'],
-                            'assumption' => ['type' => 'string'],
-                            'headline' => ['type' => 'string'],
-                        ],
-                        'required' => ['topic_word', 'title_draft', 'assumption', 'headline'],
-                        'additionalProperties' => false,
-                    ],
-                ],
-            ],
-        ];
-    }
-
-    /**
-     * The text of the answer: the output_text of the first message in
-     * the output (reasoning items and the like are passed over).
-     *
-     * @param  array<string, mixed>|null  $body
-     */
-    private static function outputText(?array $body): string
-    {
-        foreach ($body['output'] ?? [] as $item) {
-            if (($item['type'] ?? '') !== 'message') {
-                continue;
-            }
-
-            foreach ($item['content'] ?? [] as $content) {
-                if (($content['type'] ?? '') === 'output_text') {
-                    return (string) $content['text'];
-                }
-            }
-        }
-
-        return (string) ($body['output_text'] ?? '');
-    }
-
-    private static function count(mixed $value): ?int
-    {
-        return is_numeric($value) ? (int) $value : null;
+            'required' => ['topic_word', 'title_draft', 'assumption', 'headline'],
+            'additionalProperties' => false,
+        ]);
     }
 }
