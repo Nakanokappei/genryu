@@ -46,6 +46,22 @@ it('shows an article with its top image and without its headline twice', functio
     $this->get(route('media.article', ['ja', $translation]))->assertNotFound();
 });
 
+// A top image is served only for an article the site shows: not for one without a body, not published in its language, or older than the window.
+it('does not serve the top image of an article the site does not show', function () {
+    $this->travelTo('2026-09-25 03:00:00');
+    Storage::disk('local')->put('images/1/1.jpg', 'jpeg bytes');
+    $shown = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg']);
+    $unwritten = Article::factory()->create(['language' => 'ja', 'body' => null, 'image_path' => 'images/1/1.jpg']);
+    $tooOld = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg', 'created_at' => '2026-08-01 03:00:00']);
+    // German takes only German sources until 言語設定 says otherwise, so a German translation of a Japanese article is not published.
+    $unpublished = Article::factory()->create(['language' => 'de', 'translated_from_id' => $shown->id, 'material_id' => $shown->material_id, 'body' => 'Der Vorspann.']);
+
+    $this->get(route('media.image', $shown))->assertOk();
+    $this->get(route('media.image', $unwritten))->assertNotFound();
+    $this->get(route('media.image', $tooOld))->assertNotFound();
+    $this->get(route('media.image', $unpublished))->assertNotFound();
+});
+
 // The top images are ours and take room: the ones drawn more than 30 days ago are deleted, and the articles no longer point at them.
 it('deletes the top images drawn more than 30 days ago', function () {
     $this->travelTo('2026-09-25 03:00:00');

@@ -50,11 +50,11 @@ class MediaController extends Controller
         return view('media.show', ['language' => $language, 'article' => $article, 'languages' => self::languages()]);
     }
 
-    /** Serves an article's top image (the original's). */
+    /** Serves the top image (the original's) of an article the site shows. */
     public function image(Article $article): StreamedResponse
     {
         $path = self::imagePathOf($article);
-        abort_if($path === null || ! Storage::disk('local')->exists($path), 404);
+        abort_if(! self::isShown($article) || $path === null || ! Storage::disk('local')->exists($path), 404);
 
         return Storage::disk('local')->response($path, null, ['Cache-Control' => 'public, max-age=86400']);
     }
