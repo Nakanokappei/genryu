@@ -17,10 +17,12 @@ class DrawImage
     /** What is never drawn, whatever the scene or style. Shown on the screen. */
     public const NEVER = 'No text, letters or numbers anywhere in the image. No logos, brand names or real people. Not a photograph. A wide composition to head an article.';
 
-    /** The image prompt: scene, style, then NEVER. */
-    public static function prompt(string $scene, string $style): string
+    /** The image prompt: scene, style, the palette chosen for this picture, then NEVER. */
+    public static function prompt(string $scene, string $style, ?string $palette = null): string
     {
-        return trim($scene)."\n\nStyle: ".trim($style)."\n\n".self::NEVER;
+        $palette = trim((string) $palette);
+
+        return trim($scene)."\n\nStyle: ".trim($style).($palette !== '' ? "\n\nPalette of this picture: ".rtrim($palette, '.').'.' : '')."\n\n".self::NEVER;
     }
 
     /**

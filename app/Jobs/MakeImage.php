@@ -25,6 +25,9 @@ class MakeImage implements ShouldQueue
 {
     use Queueable;
 
+    /** How many of the latest palettes at the same hour the scene writer must differ from. */
+    private const RECENT_PALETTES = 3;
+
     public int $tries = 1;
 
     public int $timeout = 600;
@@ -63,6 +66,17 @@ class MakeImage implements ShouldQueue
         return $articles->count();
     }
 
+    /**
+     * The palettes of the latest pictures drawn at the same hour, newest first.
+     *
+     * @return list<string>
+     */
+    private static function recentPalettes(ArticleImage $image): array
+    {
+        return array_values(ArticleImage::query()->where('band', $image->band)->where('status', 'made')->whereNotNull('palette')->whereKeyNot($image->id)
+            ->latest('id')->limit(self::RECENT_PALETTES)->pluck('palette')->map(fn ($palette): string => (string) $palette)->all());
+    }
+
     public function handle(ProposeScene $propose, DrawImage $draw): void
     {
         $image = $this->image;
@@ -77,7 +91,7 @@ class MakeImage implements ShouldQueue
             $policy = Prompt::textOf($image->prompt, 'image');
 
             $style = ImageStyle::bands()[$image->band]['style'] ?? '';
-            $scene = $propose($policy, (string) $image->scene_model, $article, (array) $article->material?->parts, $style);
+            $scene = $propose($policy, (string) $image->scene_model, $article, (array) $article->material?->parts, $style, self::recentPalettes($image));
             $sceneText = trim((string) ($scene['json']['scene'] ?? ''));
 
             // No scene, no drawing.
@@ -85,7 +99,8 @@ class MakeImage implements ShouldQueue
                 throw new RuntimeException(__('The agent did not return a scene.'));
             }
 
-            $prompt = DrawImage::prompt($sceneText, $style);
+            $palette = trim((string) ($scene['json']['palette'] ?? ''));
+            $prompt = DrawImage::prompt($sceneText, $style, $palette);
             $drawn = $draw((string) $image->image_model, $prompt);
             $path = "images/{$article->id}/{$image->id}.jpg";
             Storage::disk('local')->put($path, $drawn['bytes']);
@@ -94,6 +109,7 @@ class MakeImage implements ShouldQueue
                 'status' => 'made',
                 'status_message' => __('Drawn by :model.', ['model' => $image->image_model]),
                 'scene' => $sceneText,
+                'palette' => $palette !== '' ? $palette : null,
                 'image_prompt' => $prompt,
                 'path' => $path,
                 'input_tokens' => $scene['usage']['input_tokens'],

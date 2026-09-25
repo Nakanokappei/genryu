@@ -7,6 +7,7 @@ use App\Models\Article;
 use App\Models\ArticleImage;
 use App\Models\EditorialPolicy;
 use App\Models\ImageStyle;
+use App\Models\Prompt;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -122,4 +123,28 @@ it('keeps the image settings on the images screen and queues the drawings', func
     Livewire::test('pages::production.images.index')->set('bands.late_night.starts_at', '12:00')->call('savePolicy')->assertHasErrors(['bands.late_night.starts_at']);
 
     $this->get(route('production.images.index'))->assertSee('時間帯ごとの絵柄')->assertSee('お昼休み中')->assertSee('作成中');
+});
+
+// The palette changes from picture to picture: the writer sees the palettes last drawn at this hour, picks another, and the image model is told it.
+it('picks a palette other than the ones last drawn at the same hour', function () {
+    Http::fake([
+        'api.openai.com/v1/responses' => Http::response([
+            'output' => [['type' => 'message', 'content' => [['type' => 'output_text', 'text' => json_encode(['scene' => 'A quiet control room.', 'palette' => 'plum, sage, sand and charcoal'])]]]],
+            'usage' => ['input_tokens' => 2000, 'output_tokens' => 100],
+        ]),
+        'api.openai.com/v1/images/generations' => Http::response(['data' => [['b64_json' => base64_encode('JPEG')]], 'usage' => ['input_tokens' => 300, 'output_tokens' => 1500]]),
+    ]);
+    $earlier = scheduledArticle();
+    $drawing = ['prompt_id' => Prompt::current('image', IMAGE_POLICY)->id, 'scene_model' => 'gpt-5.6-luna', 'image_model' => 'gpt-image-2.5-flare', 'time' => '12:00', 'status' => 'made'];
+    $earlier->images()->create([...$drawing, 'band' => 'lunch_break', 'palette' => 'navy, teal, mustard and warm grey']);
+    $earlier->images()->create([...$drawing, 'band' => 'before_work', 'palette' => 'cobalt, chartreuse, coral and pink']);
+
+    $image = makeImage(scheduledArticle());
+
+    expect($image->palette)->toBe('plum, sage, sand and charcoal')
+        ->and($image->image_prompt)->toContain('Palette of this picture: plum, sage, sand and charcoal.');
+    Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
+        && str_contains($request['input'][2]['content'], 'navy, teal, mustard and warm grey')
+        && ! str_contains($request['input'][2]['content'], 'cobalt, chartreuse')
+        && $request['text']['format']['schema']['required'] === ['scene', 'palette']);
 });
