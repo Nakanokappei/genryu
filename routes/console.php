@@ -57,6 +57,15 @@ Artisan::command('articles:schedule', function (ScheduleArticles $schedule) {
     $this->info($schedule(CarbonImmutable::now()).' articles scheduled, '.MakeImage::queueWaiting().' images queued.');
 })->purpose('Give the articles at or above the pass mark their slots, then queue their images');
 
+// Every language version with a body is published at its own scheduled time.
+Artisan::command('articles:publish', function () {
+    $published = Article::query()->whereNotNull('body')->whereNull('published_at')->where('scheduled_at', '<=', now())
+        ->update(['published_at' => DB::raw('scheduled_at')]);
+
+    $this->info("{$published} articles published.");
+})->purpose('Mark the articles whose scheduled time has come as published');
+
+Schedule::command('articles:publish')->everyMinute();
 Schedule::command('updates:fetch')->dailyAt('01:00')->timezone((string) config('app.display_timezone'));
 Schedule::command('articles:generate')->dailyAt('03:00')->timezone((string) config('app.display_timezone'));
 Schedule::command('articles:schedule')->dailyAt('05:00')->timezone((string) config('app.display_timezone'));

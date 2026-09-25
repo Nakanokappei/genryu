@@ -631,7 +631,10 @@ The history under `docs/` (Phase 0) keeps the old name.
   `articles:schedule` gives slots to articles scoring at least the 合格点
   (`schedule_settings.pass_mark`, 80, set on スケジュール) and queues their
   top images (`MakeImage::queueWaiting`). The media site shows what is
-  scheduled; nothing else is needed to publish the demo.
+  scheduled once its time has come. Every minute `articles:publish` sets
+  `published_at` to the scheduled time of each language version whose
+  time has come (公開済み on 編成 › 記事; a published article is no longer
+  taken off by スケジュールを組み直す).
 
 ## Production (since 2026-09-25)
 

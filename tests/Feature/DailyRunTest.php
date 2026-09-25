@@ -69,3 +69,24 @@ it('schedules the articles that pass and queues their images', function () {
         ->and($failing->refresh()->scheduled_at)->toBeNull();
     Queue::assertPushed(MakeImage::class, fn (MakeImage $job): bool => $job->image->article->is($passing));
 });
+
+// Each language version is marked published once its time has come; one still ahead, or without a body, waits.
+it('marks the articles whose time has come as published', function () {
+    $due = Article::factory()->create(['language' => 'ja', 'status' => 'written', 'scheduled_at' => now()->subMinute()]);
+    $translation = Article::factory()->create(['language' => 'en', 'translated_from_id' => $due->id, 'material_id' => $due->material_id, 'status' => 'written', 'scheduled_at' => now()->addHours(13)]);
+    $unwritten = Article::factory()->create(['language' => 'ja', 'status' => 'generating', 'body' => null, 'scheduled_at' => now()->subHour()]);
+    $done = Article::factory()->create(['language' => 'ja', 'status' => 'written', 'scheduled_at' => now()->subDay(), 'published_at' => now()->subDay()->addMinute()]);
+
+    $this->artisan('articles:publish')->expectsOutputToContain('1 articles published')->assertSuccessful();
+
+    expect($due->refresh()->published_at?->equalTo($due->scheduled_at))->toBeTrue()
+        ->and($due->publicationStatus())->toBe('published')
+        ->and($translation->refresh()->published_at)->toBeNull()
+        ->and($unwritten->refresh()->published_at)->toBeNull()
+        ->and($done->refresh()->published_at?->equalTo(now()->subDay()->addMinute()))->toBeTrue();
+
+    // Its own time comes later in New York.
+    $this->travel(14)->hours();
+    $this->artisan('articles:publish')->expectsOutputToContain('1 articles published')->assertSuccessful();
+    expect($translation->refresh()->published_at)->not->toBeNull();
+});
