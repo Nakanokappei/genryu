@@ -146,3 +146,10 @@ it('lets the user edit and delete a source from its detail screen', function () 
     expect(Source::query()->count())->toBe(0)
         ->and(Document::query()->whereKey($update->id)->exists())->toBeFalse();
 });
+
+// A source without a favicon has none to serve: not found, not an error.
+it('answers not found for the favicon of a source without one', function () {
+    $source = Source::factory()->create(['favicon_path' => null]);
+
+    $this->get(route('editorial.sources.favicon', $source))->assertNotFound();
+});

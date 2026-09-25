@@ -28,8 +28,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('editorial')->name('editorial.')->group(function () {
         Route::livewire('sources', 'pages::editorial.sources.index')->name('sources.index');
         Route::livewire('sources/{source}', 'pages::editorial.sources.show')->name('sources.show');
-        // The source's favicon from the local disk.
-        Route::get('sources/{source}/favicon', fn (Source $source) => Storage::disk('local')->response((string) $source->favicon_path))->name('sources.favicon');
+        // The source's favicon from the local disk; not found when it has none.
+        Route::get('sources/{source}/favicon', function (Source $source) {
+            abort_if($source->favicon_path === null || ! Storage::disk('local')->exists($source->favicon_path), 404);
+
+            return Storage::disk('local')->response($source->favicon_path);
+        })->name('sources.favicon');
         Route::livewire('documents', 'pages::editorial.documents.index')->name('documents.index');
         Route::livewire('documents/{document}', 'pages::editorial.documents.show')->name('documents.show');
         // A document's original file (UI "Original") from the local disk.
