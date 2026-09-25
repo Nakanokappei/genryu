@@ -624,6 +624,29 @@ The history under `docs/` (Phase 0) keeps the old name.
   top images (`MakeImage::queueWaiting`). The media site shows what is
   scheduled; nothing else is needed to publish the demo.
 
+## Production (since 2026-09-25)
+
+https://technologywatch.tokyo, one Lightsail instance `genryu` (Tokyo,
+$12 plan: 2 GB, Ubuntu 24.04, static IP 13.159.65.97; DNS zone in
+Lightsail, the domain registered at お名前.com). SSH `ubuntu@13.159.65.97`
+with `~/.ssh/lightsail-ap-northeast-1.pem`. The app is in
+`/var/www/genryu` (code owned by ubuntu, `storage` and `bootstrap/cache`
+group www-data), nginx with the dotfile rule and a Let's Encrypt
+certificate (certbot renews it), PHP 8.5-FPM, PostgreSQL 17 (database and
+role `genryu`, password only in the server's `.env`). Three queue
+workers run as systemd units `genryu-worker@1..3`; `schedule:run` runs
+from www-data's crontab, so the day runs there. Sign-up is off
+(`REGISTRATION_ENABLED` unset). The local machine is development only:
+do not run its workers or scheduler against real sources as well, or
+the day runs twice.
+
+Deploying: `npm run build`, then `git archive HEAD` plus `public/build`
+as a tarball, unpacked over `/var/www/genryu`; `composer install --no-dev
+--optimize-autoloader`, `php artisan migrate --force`, `sudo -u www-data
+php artisan optimize`, `sudo systemctl restart 'genryu-worker@*'`. Files
+coming from the Mac arrive with directories mode 700: run
+`find storage -type d -exec chmod 2775 {} +` after copying any.
+
 ## TODO
 
 `docs/TODO.md` lists what was decided but waits for something (the
