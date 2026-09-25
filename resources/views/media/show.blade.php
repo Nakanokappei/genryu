@@ -1,4 +1,4 @@
-{{-- One article: headline, byline, top image and body. --}}
+{{-- One article: source, headline, date, top image and body. --}}
 @extends('media.layout')
 
 @php($text = \App\Http\Controllers\MediaController::TEXT[$language])
@@ -8,8 +8,9 @@
 @section('content')
     <article class="mx-auto max-w-3xl">
         <a href="{{ route('media.language', $language) }}" class="text-xs text-[#6b665e] hover:underline">← {{ $text['back'] }}</a>
-        <div class="mt-6">@include('media.byline', ['article' => $article])</div>
+        <div class="mt-6">@include('media.source', ['article' => $article])</div>
         <h1 class="media-serif mt-3 text-3xl leading-tight font-extrabold sm:text-5xl">{{ $article->headline }}</h1>
+        <div class="mt-4">@include('media.date', ['article' => $article])</div>
 
         @if (\App\Http\Controllers\MediaController::imagePathOf($article))
             <figure class="mt-8">

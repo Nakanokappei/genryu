@@ -15,8 +15,9 @@
                 @include('media.picture', ['article' => $top, 'class' => 'aspect-video w-full rounded-sm object-cover'])
             </a>
             <div class="flex flex-col justify-center md:col-span-2">
-                @include('media.byline', ['article' => $top])
+                @include('media.source', ['article' => $top])
                 <h2 class="media-serif mt-2 text-3xl leading-tight font-extrabold sm:text-4xl"><a href="{{ route('media.article', [$language, $top]) }}" class="hover:underline">{{ $top->headline }}</a></h2>
+                <div class="mt-3">@include('media.date', ['article' => $top])</div>
                 <p class="mt-4 leading-relaxed text-[#3d3a35]">{{ Str::limit($media::lead($top), 220) }}</p>
             </div>
         </article>
@@ -29,8 +30,9 @@
                         <a href="{{ route('media.article', [$language, $article]) }}">
                             @include('media.picture', ['article' => $article, 'class' => 'aspect-video w-full rounded-sm object-cover'])
                         </a>
-                        <div class="mt-3">@include('media.byline', ['article' => $article])</div>
+                        <div class="mt-3">@include('media.source', ['article' => $article])</div>
                         <h3 class="media-serif mt-1 text-xl leading-snug font-bold"><a href="{{ route('media.article', [$language, $article]) }}" class="hover:underline">{{ $article->headline }}</a></h3>
+                        <div class="mt-2">@include('media.date', ['article' => $article])</div>
                         <p class="mt-2 text-sm leading-relaxed text-[#3d3a35]">{{ Str::limit($media::lead($article), 120) }}</p>
                     </article>
                 @endforeach
