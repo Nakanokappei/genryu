@@ -635,7 +635,9 @@ group www-data), nginx with the dotfile rule and a Let's Encrypt
 certificate (certbot renews it), PHP 8.5-FPM, PostgreSQL 17 (database and
 role `genryu`, password only in the server's `.env`). Three queue
 workers run as systemd units `genryu-worker@1..3`; `schedule:run` runs
-from www-data's crontab, so the day runs there. Sign-up is off
+from www-data's crontab, so the day runs there. Lightsail takes an automatic
+snapshot daily at 06:00 Japan time (21:00 UTC, after the day's run) and
+keeps the last seven. Sign-up is off
 (`REGISTRATION_ENABLED` unset). The local machine is development only:
 do not run its workers or scheduler against real sources as well, or
 the day runs twice.
