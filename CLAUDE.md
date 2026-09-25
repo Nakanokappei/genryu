@@ -351,7 +351,14 @@ The history under `docs/` (Phase 0) keeps the old name.
   which articles we rated lower): seven bands (`ImageStyle`: 始業前 06:00
   graphic, お昼休み前 machines with no people, お昼休み中 pop (moved from
   お昼休み前 on 2026-09-25, the picture book dropped), 午後 realist painting,
-  終業前 abstract, 終業後 retro, 深夜帯 anime), edited on the screen. One
+  終業前 abstract, 終業後 retro, 深夜帯 anime), edited on the screen. **The
+  palette changes from picture to picture** (2026-09-25: the slots fall in
+  the same bands every day, and one fixed palette per band made them all
+  alike): a band's style gives the palette's character and a few
+  candidates, the scene writer picks four colours unlike the band's last
+  three pictures (`article_images.palette`), and `DrawImage::prompt`
+  states them. The image URL carries the drawing (`?v=`) so a redrawn
+  image is not taken from a browser's cache. One
   image serves every language, which go out at the same local time; the
   article keeps the time it was made for (`image_time`), so a slot moved
   to another hour is 画像作成中 again. The source's figures are not given
