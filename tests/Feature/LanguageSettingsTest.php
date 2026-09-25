@@ -13,6 +13,7 @@ use App\Models\Material;
 use App\Models\Prompt;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -119,4 +120,23 @@ it('schedules only the language versions that are published', function () {
         // German takes only German sources.
         ->and($german->refresh()->scheduled_at)->toBeNull()
         ->and($german->isPublishable())->toBeFalse();
+});
+
+// prompts:import adds the additional prompt of a language with both timestamps, keeping the coverage of one already set.
+it('imports the additional prompts of the languages with their timestamps', function () {
+    $this->travelTo('2026-09-25 03:00:00');
+    $root = 'storage/framework/testing/prompts-import';
+    File::ensureDirectoryExists(base_path("{$root}/languages"));
+    File::put(base_path("{$root}/languages/ja.md"), '日本語の追加ルール（テスト用）。');
+    File::put(base_path("{$root}/languages/de.md"), 'Deutsche Regel (Test).');
+    LanguageSetting::query()->create(['language' => 'de', 'coverage' => 'all']);
+
+    $this->artisan('prompts:import', ['--path' => $root])->assertSuccessful();
+    File::deleteDirectory(base_path($root));
+
+    $japanese = LanguageSetting::query()->where('language', 'ja')->sole();
+    expect($japanese->additional_prompt)->toBe('日本語の追加ルール（テスト用）。')
+        ->and($japanese->created_at?->toDateTimeString())->toBe('2026-09-25 03:00:00')
+        ->and($japanese->updated_at?->toDateTimeString())->toBe('2026-09-25 03:00:00')
+        ->and(LanguageSetting::query()->where('language', 'de')->value('coverage'))->toBe('all');
 });

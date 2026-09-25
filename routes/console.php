@@ -85,7 +85,7 @@ Artisan::command('prompts:import {--path=prompts}', function () {
     // Additional prompts per language, keeping the coverage.
     foreach (File::glob("{$root}/languages/*.md") as $file) {
         $language = basename($file, '.md');
-        DB::table('language_settings')->updateOrInsert(['language' => $language], ['additional_prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language), 'updated_at' => now()]);
+        LanguageSetting::query()->updateOrCreate(['language' => $language], ['additional_prompt' => rtrim(File::get($file)), 'coverage' => LanguageSetting::coverage($language)]);
         $read++;
     }
 
