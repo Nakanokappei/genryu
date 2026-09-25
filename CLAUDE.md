@@ -508,11 +508,13 @@ The history under `docs/` (Phase 0) keeps the old name.
   `/media/{language}/articles/{id}`, open without signing in; `/`
   redirects there. It doubles as the demo of what Genryu makes.
   `App\Http\Controllers\MediaController` with plain Blade views under
-  `resources/views/media` (not Livewire: nothing on it changes). Nothing
-  is published yet, so it shows every language version with a body that
-  言語設定 publishes, dated at its scheduled local time or, unscheduled,
-  when written, back `WINDOW_DAYS` (30) days; a future time is marked
-  公開予定. The top image is ours and is served by the site
+  `resources/views/media` (not Livewire: nothing on it changes). It shows
+  every language version with a body that 言語設定 publishes, dated at its
+  publication time (`published_at`), else its scheduled time, else when
+  it was written, in its own zone, back `WINDOW_DAYS` (30) days. **An
+  article whose time has not come is not on the site** (decided
+  2026-09-25; not listed, no page, no image): scheduled articles are
+  checked on the admin screens. The top image is ours and is served by the site
   (`media.image`, the original's for every language); the source's
   figures are quoted by URL as on 記事. What readers are told (AI wrote
   and translated the article, AI drew the image, figures are quotations)

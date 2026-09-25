@@ -23,6 +23,7 @@ use Illuminate\Support\Str;
  * @property string|null $language
  * @property array<string, mixed>|null $headline_review the headline's scores, with every attempt
  * @property CarbonImmutable|null $scheduled_at 公開予定日時, in UTC
+ * @property CarbonImmutable|null $published_at 公開日時, in UTC
  * @property string|null $image_path トップ画像 on the local disk
  * @property string|null $image_time the local time of day the top image was drawn for
  */

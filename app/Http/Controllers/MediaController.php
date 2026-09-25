@@ -25,13 +25,13 @@ class MediaController extends Controller
 
     /** The site's own text, per language. */
     public const TEXT = [
-        'ja' => ['tagline' => '研究室から産業へ。新しい技術の道筋を追う', 'latest' => '最新の記事', 'scheduled' => '公開予定', 'image' => 'AI が描いたイメージ', 'disclosure' => '記事は一次情報をもとに AI が執筆・翻訳し、トップ画像は AI が描いたイメージです。記事中の図版は一次情報からの引用です。', 'demo' => 'このサイトは Genryu で作ったメディアのデモです（直近30日分）。', 'empty' => 'まだ記事がありません。', 'back' => 'トップへ'],
-        'en' => ['tagline' => 'From the laboratory to industry: following new technology on its way', 'latest' => 'Latest', 'scheduled' => 'Scheduled', 'image' => 'Image drawn by AI', 'disclosure' => 'Articles are written and translated by AI from primary sources; top images are drawn by AI. Figures in articles are quoted from the primary sources.', 'demo' => 'This site is a demo of a media made with Genryu (the last 30 days).', 'empty' => 'No articles yet.', 'back' => 'Front page'],
-        'zh-Hant' => ['tagline' => '從實驗室到產業，追蹤新技術的路徑', 'latest' => '最新文章', 'scheduled' => '預定發布', 'image' => 'AI 繪製的示意圖', 'disclosure' => '文章由 AI 根據第一手資料撰寫與翻譯，首圖為 AI 繪製的示意圖。文中圖表引用自第一手資料。', 'demo' => '本站為以 Genryu 製作的媒體示範（最近 30 天）。', 'empty' => '尚無文章。', 'back' => '回首頁'],
-        'zh-Hans' => ['tagline' => '从实验室到产业，追踪新技术的路径', 'latest' => '最新文章', 'scheduled' => '预定发布', 'image' => 'AI 绘制的示意图', 'disclosure' => '文章由 AI 根据第一手资料撰写和翻译，首图为 AI 绘制的示意图。文中图表引用自第一手资料。', 'demo' => '本站为用 Genryu 制作的媒体演示（最近 30 天）。', 'empty' => '暂无文章。', 'back' => '返回首页'],
-        'de' => ['tagline' => 'Vom Labor in die Industrie: neue Technologien auf ihrem Weg', 'latest' => 'Neueste Artikel', 'scheduled' => 'Geplant', 'image' => 'Von KI gezeichnetes Bild', 'disclosure' => 'Die Artikel werden von KI aus Primärquellen geschrieben und übersetzt; die Titelbilder zeichnet eine KI. Abbildungen in den Artikeln sind Zitate aus den Primärquellen.', 'demo' => 'Diese Seite ist eine Demo eines mit Genryu erstellten Mediums (die letzten 30 Tage).', 'empty' => 'Noch keine Artikel.', 'back' => 'Startseite'],
-        'ko' => ['tagline' => '연구실에서 산업으로, 새로운 기술의 길을 따라가다', 'latest' => '최신 기사', 'scheduled' => '공개 예정', 'image' => 'AI가 그린 이미지', 'disclosure' => '기사는 1차 자료를 바탕으로 AI가 작성·번역하며, 대표 이미지는 AI가 그린 이미지입니다. 기사 속 도판은 1차 자료에서 인용한 것입니다.', 'demo' => '이 사이트는 Genryu로 만든 미디어의 데모입니다(최근 30일).', 'empty' => '아직 기사가 없습니다.', 'back' => '첫 페이지'],
-        'fr' => ['tagline' => 'Du laboratoire à l’industrie : suivre les nouvelles technologies', 'latest' => 'Derniers articles', 'scheduled' => 'Programmé', 'image' => 'Image dessinée par une IA', 'disclosure' => 'Les articles sont rédigés et traduits par une IA à partir de sources primaires ; les images d’en-tête sont dessinées par une IA. Les figures des articles sont citées des sources primaires.', 'demo' => 'Ce site est une démo d’un média réalisé avec Genryu (les 30 derniers jours).', 'empty' => 'Pas encore d’articles.', 'back' => 'Accueil'],
+        'ja' => ['tagline' => '研究室から産業へ。新しい技術の道筋を追う', 'latest' => '最新の記事', 'image' => 'AI が描いたイメージ', 'disclosure' => '記事は一次情報をもとに AI が執筆・翻訳し、トップ画像は AI が描いたイメージです。記事中の図版は一次情報からの引用です。', 'demo' => 'このサイトは Genryu で作ったメディアのデモです（直近30日分）。', 'empty' => 'まだ記事がありません。', 'back' => 'トップへ'],
+        'en' => ['tagline' => 'From the laboratory to industry: following new technology on its way', 'latest' => 'Latest', 'image' => 'Image drawn by AI', 'disclosure' => 'Articles are written and translated by AI from primary sources; top images are drawn by AI. Figures in articles are quoted from the primary sources.', 'demo' => 'This site is a demo of a media made with Genryu (the last 30 days).', 'empty' => 'No articles yet.', 'back' => 'Front page'],
+        'zh-Hant' => ['tagline' => '從實驗室到產業，追蹤新技術的路徑', 'latest' => '最新文章', 'image' => 'AI 繪製的示意圖', 'disclosure' => '文章由 AI 根據第一手資料撰寫與翻譯，首圖為 AI 繪製的示意圖。文中圖表引用自第一手資料。', 'demo' => '本站為以 Genryu 製作的媒體示範（最近 30 天）。', 'empty' => '尚無文章。', 'back' => '回首頁'],
+        'zh-Hans' => ['tagline' => '从实验室到产业，追踪新技术的路径', 'latest' => '最新文章', 'image' => 'AI 绘制的示意图', 'disclosure' => '文章由 AI 根据第一手资料撰写和翻译，首图为 AI 绘制的示意图。文中图表引用自第一手资料。', 'demo' => '本站为用 Genryu 制作的媒体演示（最近 30 天）。', 'empty' => '暂无文章。', 'back' => '返回首页'],
+        'de' => ['tagline' => 'Vom Labor in die Industrie: neue Technologien auf ihrem Weg', 'latest' => 'Neueste Artikel', 'image' => 'Von KI gezeichnetes Bild', 'disclosure' => 'Die Artikel werden von KI aus Primärquellen geschrieben und übersetzt; die Titelbilder zeichnet eine KI. Abbildungen in den Artikeln sind Zitate aus den Primärquellen.', 'demo' => 'Diese Seite ist eine Demo eines mit Genryu erstellten Mediums (die letzten 30 Tage).', 'empty' => 'Noch keine Artikel.', 'back' => 'Startseite'],
+        'ko' => ['tagline' => '연구실에서 산업으로, 새로운 기술의 길을 따라가다', 'latest' => '최신 기사', 'image' => 'AI가 그린 이미지', 'disclosure' => '기사는 1차 자료를 바탕으로 AI가 작성·번역하며, 대표 이미지는 AI가 그린 이미지입니다. 기사 속 도판은 1차 자료에서 인용한 것입니다.', 'demo' => '이 사이트는 Genryu로 만든 미디어의 데모입니다(최근 30일).', 'empty' => '아직 기사가 없습니다.', 'back' => '첫 페이지'],
+        'fr' => ['tagline' => 'Du laboratoire à l’industrie : suivre les nouvelles technologies', 'latest' => 'Derniers articles', 'image' => 'Image dessinée par une IA', 'disclosure' => 'Les articles sont rédigés et traduits par une IA à partir de sources primaires ; les images d’en-tête sont dessinées par une IA. Les figures des articles sont citées des sources primaires.', 'demo' => 'Ce site est une démo d’un média réalisé avec Genryu (les 30 derniers jours).', 'empty' => 'Pas encore d’articles.', 'back' => 'Accueil'],
     ];
 
     /** A language's front page. */
@@ -75,13 +75,15 @@ class MediaController extends Controller
     /** Whether the site shows an article: written, publishable (言語設定), within the window. */
     public static function isShown(Article $article): bool
     {
-        return $article->body !== null && $article->isPublishable() && self::dateOf($article)->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));
+        $date = self::dateOf($article);
+
+        return $article->body !== null && $article->isPublishable() && ! $date->isFuture() && $date->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));
     }
 
-    /** The article's date: its scheduled local time, else when it was written, in its timezone. */
+    /** The article's date in its timezone: when it was published, else its scheduled time, else when it was written. */
     public static function dateOf(Article $article): CarbonImmutable
     {
-        return $article->scheduledLocal() ?? CarbonImmutable::parse($article->created_at)->setTimezone($article->timezone());
+        return $article->published_at?->setTimezone($article->timezone()) ?? $article->scheduledLocal() ?? CarbonImmutable::parse($article->created_at)->setTimezone($article->timezone());
     }
 
     /** The lead as plain text, else the body's first non-heading paragraph. */

@@ -83,3 +83,16 @@ it('deletes the top images drawn more than 30 days ago', function () {
     Storage::disk('local')->assertExists('images/1/new.jpg');
     expect($old->refresh()->path)->toBeNull()->and($article->refresh()->image_path)->toBeNull();
 });
+
+// An article scheduled for later is not on the site yet — not listed, no page, no image; it is checked on the admin screens.
+it('does not show an article scheduled for later', function () {
+    $this->travelTo('2026-09-25 03:00:00');
+    Storage::disk('local')->put('images/1/1.jpg', 'jpeg bytes');
+    $published = Article::factory()->create(['language' => 'ja', 'headline' => '公開済みの記事', 'body' => 'リード。', 'scheduled_at' => '2026-09-24 23:30:00', 'published_at' => '2026-09-24 23:30:00']);
+    $upcoming = Article::factory()->create(['language' => 'ja', 'headline' => '公開予定の記事', 'body' => 'リード。', 'scheduled_at' => '2026-09-28 00:30:00', 'image_path' => 'images/1/1.jpg']);
+
+    $this->get('/media')->assertOk()->assertSee('公開済みの記事')->assertDontSee('公開予定の記事')->assertDontSee('公開予定');
+    $this->get(route('media.article', ['ja', $upcoming]))->assertNotFound();
+    $this->get(route('media.image', $upcoming))->assertNotFound();
+    $this->get(route('media.article', ['ja', $published]))->assertOk()->assertSee('2026年9月25日');
+});
