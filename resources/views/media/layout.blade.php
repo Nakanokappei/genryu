@@ -22,7 +22,7 @@
 <body class="media-sans min-h-screen bg-[#faf8f4] text-[#1c1b19] antialiased">
     <header class="border-b-4 border-double border-[#1c1b19] bg-[#faf8f4]">
         <div class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 px-4 pt-3 text-xs text-[#6b665e]">
-            <span>{{ now(\App\Enums\Language::tryFrom($language)?->timezone() ?? 'UTC')->isoFormat('LL') }}</span>
+            <span>{{ now(\App\Enums\Language::tryFrom($language)?->timezone() ?? 'UTC')->locale($language)->isoFormat('LL') }}</span>
             <nav class="flex flex-wrap gap-x-3 gap-y-1" aria-label="Languages">
                 @foreach ($languages as $code)
                     <a href="{{ route('media.language', $code) }}" class="{{ $code === $language ? 'font-semibold text-[#1c1b19] underline underline-offset-4' : 'hover:text-[#1c1b19]' }}">{{ \App\Enums\Language::nameOf($code) }}</a>

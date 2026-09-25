@@ -27,7 +27,9 @@ it('shows the articles of the last 30 days on the front page of a language', fun
         ->assertSee('Technology Watch')
         ->assertSeeInOrder(['新しい記事', '新しい記事のリード。', '少し前の記事'])
         ->assertDontSee('古すぎる記事')->assertDontSee('本文のない記事')->assertDontSee('An English article');
-    $this->get('/media/en')->assertOk()->assertSee('An English article')->assertSee('From the laboratory to industry');
+    $this->get('/media/en')->assertOk()->assertSee('An English article')->assertSee('From the laboratory to industry')
+        // Today's date in the masthead, written the English way in New York.
+        ->assertSee('September 24, 2026')->assertDontSee('2026年9月');
     $this->get('/media/xx')->assertNotFound();
 });
 
