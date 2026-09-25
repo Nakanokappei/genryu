@@ -5,6 +5,7 @@ use App\Actions\ReadDocument;
 use App\Actions\RebuildMarkdown;
 use App\Actions\ReviseDocumentSettings;
 use App\Crawl\JsonList;
+use App\Enums\Language;
 use App\Jobs\ConfigureSource;
 use App\Jobs\FetchDocument;
 use App\Jobs\ScreenDocument;
@@ -29,6 +30,9 @@ new #[Title('情報源')] class extends Component {
 
     public string $notes = '';
 
+    /** @var array<string, string> 名称 (UI "Names"): the name in each language but the UI language's */
+    public array $names = [];
+
     /** @var array<string, string> HTML list settings, all CSS selectors except max_pages */
     public array $list = [];
 
@@ -50,6 +54,7 @@ new #[Title('情報源')] class extends Component {
         $this->name = $this->source->name;
         $this->url = $this->source->url;
         $this->notes = $this->source->notes ?? '';
+        $this->names = self::filled(array_fill_keys(array_diff(Language::codes(), [app()->getLocale()]), ''), $this->source->names);
         $this->fullTextLink = $this->source->full_text_link ?? '';
         $this->method = match (true) {
             ($this->source->json_list_settings['url'] ?? '') !== '' => 'json',
@@ -217,6 +222,15 @@ new #[Title('情報源')] class extends Component {
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
 
+    // Save the names in the other languages; an empty one is not kept.
+    public function saveNames(): void
+    {
+        $this->validate(['names.*' => ['nullable', 'string', 'max:255']]);
+        $this->source->update(['names' => array_filter(array_map(trim(...), $this->names), fn (string $name): bool => $name !== '')]);
+
+        Flux::toast(variant: 'success', text: __('Saved.'));
+    }
+
     // Delete the source and, by cascade, everything under it.
     public function delete(): void
     {
@@ -290,6 +304,22 @@ new #[Title('情報源')] class extends Component {
             <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-sm underline">{{ __('Open') }} ↗</a>
             <flux:text class="ms-auto">{{ __('Created') }}: {{ $source->created_at->display() }}</flux:text>
         </div>
+    </form>
+
+    {{-- 名称: the name in each language, given to the translator as a glossary. --}}
+    <form wire:submit="saveNames" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
+        <flux:heading size="lg">{{ __('Names') }}</flux:heading>
+        <flux:text>{{ __('What this source is called in each language. The media shows the name in the language of the article (English when one is missing), and the translator is given these names as a glossary, so a rendering chosen here carries into every language.') }}</flux:text>
+        <div class="grid gap-3 md:grid-cols-2">
+            @foreach (\App\Enums\Language::names() as $code => $language)
+                @if ($code === app()->getLocale())
+                    <flux:input :value="$source->name" :label="$language" :description="__('The name above')" readonly />
+                @else
+                    <flux:input wire:model="names.{{ $code }}" :label="$language" />
+                @endif
+            @endforeach
+        </div>
+        <flux:button type="submit" variant="primary">{{ __('Save') }}</flux:button>
     </form>
 
     <div class="flex flex-wrap items-center gap-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700" @if ($source->status === 'configuring') wire:poll.5s="refreshStatus" @endif>

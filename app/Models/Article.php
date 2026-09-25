@@ -143,7 +143,7 @@ class Article extends Model
         $label = (Language::tryFrom((string) $this->language) ?? Language::English)->sourceLabel();
         $caption = trim((string) ($figure['caption'] ?? ''));
         $source = $document !== null
-            ? e($label).': <a href="'.e($document->url).'" target="_blank" rel="noopener noreferrer">'.e($document->title).'</a>（'.e($document->source->name).'）'
+            ? e($label).': <a href="'.e($document->url).'" target="_blank" rel="noopener noreferrer">'.e($document->title).'</a>（'.e($document->source->nameIn($this->language)).'）'
             : '';
 
         return '<figure data-quotation style="margin:1.5rem 0;padding:0.75rem;border:1px solid rgba(128,128,128,0.35);border-radius:0.5rem">'

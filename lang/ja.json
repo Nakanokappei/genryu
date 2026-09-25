@@ -436,5 +436,8 @@
     "Updates fetched at": "更新リストの取得日時",
     "Reason class": "理由の分類",
     "Log out": "ログアウト",
-    "JSON": "JSON"
+    "JSON": "JSON",
+    "Names": "名称",
+    "The name above": "上の名称",
+    "What this source is called in each language. The media shows the name in the language of the article (English when one is missing), and the translator is given these names as a glossary, so a rendering chosen here carries into every language.": "この情報源を各言語で何と呼ぶか。メディアでは記事の言語の名称を表示し（ない言語では英語）、翻訳のときは対訳としてプロンプトに加えるので、ここで決めた訳語が各言語版に引き継がれます。"
 }

@@ -573,6 +573,17 @@ The history under `docs/` (Phase 0) keeps the old name.
 - **List screens page by rows per page** (`App\Livewire\PagedList`, the
   base class of 情報源 / 文書 / 素材情報; `?rowsPerPage=` in the URL,
   ordered by created_at then id so pages never overlap).
+- **名称 (Names): a source is named in every language** (2026-09-25,
+  `sources.names`, set on the source's detail). The UI language's name
+  is the source's `name`; the others are proposed when the source is
+  added (`App\Jobs\TranslateSourceNames`, cheapest model, from the UI
+  language's name; a name a person set is never replaced) and corrected
+  by hand. They carry the media's own renderings — DARPA is
+  国防先端研究計画局, not 国防高等研究計画局, since no research is
+  lower than another, and 先進 / 첨단 in Chinese and Korean for the same
+  reason. The media shows `Source::nameIn` the article's language
+  (English when missing), and the translator is given the target
+  language's name as a glossary (`ProposeTranslation::glossary`).
 - **Favicons** are fetched by `App\Actions\FetchFavicon` when a page of
   the site is in hand (configuring it, reading its update list, fetching
   a document); every update list checks the icon again at the URL it came

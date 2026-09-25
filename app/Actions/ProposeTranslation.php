@@ -32,6 +32,26 @@ class ProposeTranslation
     }
 
     /**
+     * The names of the article's source as a glossary (名称, set on 情報源), when one is set for the target language.
+     *
+     * @return list<array{role: string, content: string}>
+     */
+    public static function glossary(Article $article, string $language): array
+    {
+        $names = $article->material?->document?->source?->namesByLanguage() ?? [];
+        $target = $names[$language] ?? null;
+
+        // No rendering chosen for this language: nothing to add.
+        if ($target === null) {
+            return [];
+        }
+
+        $forms = implode(', ', array_map(fn (string $form): string => '"'.$form.'"', array_values(array_unique(array_diff($names, [$target])))));
+
+        return [['role' => 'developer', 'content' => 'Glossary: write the publisher of the primary source as "'.$target.'" in '.Language::nameOf($language).($forms === '' ? '.' : ', however the article writes it (it is also called '.$forms.').')]];
+    }
+
+    /**
      * The request: cached policy, language prompts, instruction, then the article and its context.
      *
      * @param  array<string, mixed>  $material
@@ -50,6 +70,7 @@ class ProposeTranslation
             // 言語別の追加プロンプト (UI "Additional prompt per language").
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => sprintf(self::INSTRUCTIONS, "{$name} ({$language})")],
+            ...self::glossary($article, $language),
             ['role' => 'user', 'content' => $input],
         ], 'translation', [
             'type' => 'object',

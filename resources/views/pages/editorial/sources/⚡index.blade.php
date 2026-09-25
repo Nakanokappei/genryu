@@ -2,6 +2,7 @@
 
 use App\Actions\ApplyTitleFilter;
 use App\Jobs\ConfigureSource;
+use App\Jobs\TranslateSourceNames;
 use App\Livewire\PagedList;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
@@ -52,12 +53,13 @@ new #[Title('情報源')] class extends PagedList {
             ->latest()->orderByDesc('id')->paginate($this->rowsPerPage());
     }
 
-    // Add a source and queue its configuration.
+    // Add a source and queue its configuration and its names in the other languages.
     public function add(): void
     {
         $validated = $this->validate();
         $source = Source::create([...$validated, 'notes' => $this->notes !== '' ? $this->notes : null]);
         ConfigureSource::dispatch($source);
+        TranslateSourceNames::dispatch($source);
         $this->reset('name', 'url', 'notes');
         unset($this->sources);
 
