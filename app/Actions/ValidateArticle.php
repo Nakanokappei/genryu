@@ -3,6 +3,7 @@
 namespace App\Actions;
 
 use App\Enums\Language;
+use App\Support\Hedges;
 
 /**
  * Checks an article body (without headline or lead) for shape and length;
@@ -17,6 +18,12 @@ class ValidateArticle
     /** ## sections before the sources: 承, 転, 結. */
     public const SECTIONS = 3;
 
+    /** How a lead must not begin: by reporting a study rather than stating the claim. */
+    private const REPORTING_OPENING = '/^\s*(?:A (?:new )?study|New research|Research(?:ers)? (?:shows?|finds?|found|have)|Scientists|According to|ある研究|研究によると|研究チームは|Eine (?:neue )?Studie|Laut |Forschende|Une (?:nouvelle )?étude|Selon |Des chercheurs|一项(?:新)?研究|研究显示|据)/iu';
+
+    /** How many hedges a lead may carry. */
+    public const LEAD_HEDGES = 1;
+
     /** The sources heading in any language, optionally followed by a translation after a slash. */
     private const SOURCES_HEADING = '/^(出典|出处|出處|출처|Sources?|Quellen)(\s*[\/／|]\s*\S.*)?$/iu';
 
@@ -28,6 +35,28 @@ class ValidateArticle
     public function __invoke(string $body, ?string $language, string $headline, string $url): array
     {
         return [...self::shapeProblems($body, $headline, $url), ...self::lengthProblems($body, $language)];
+    }
+
+    /**
+     * A lead's problems, one line each: it states the claim, not the report of a study, and hedges at most once.
+     *
+     * @return list<string>
+     */
+    public static function leadProblems(string $lead): array
+    {
+        $problems = [];
+
+        // Begins by reporting a study.
+        if (preg_match(self::REPORTING_OPENING, $lead, $opening) === 1) {
+            $problems[] = 'The lead begins by reporting a study ("'.trim($opening[0]).'"); begin with the claim itself, the angle of the material.';
+        }
+
+        // Hedges more than once.
+        if (($hedges = Hedges::count($lead)) > self::LEAD_HEDGES) {
+            $problems[] = "The lead hedges {$hedges} times (may, could, 可能性, かもしれない …); keep at most one and state the rest plainly.";
+        }
+
+        return $problems;
     }
 
     /**

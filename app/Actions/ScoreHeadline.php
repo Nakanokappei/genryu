@@ -4,6 +4,7 @@ namespace App\Actions;
 
 use App\Models\LanguageSetting;
 use App\OpenAi\Responses;
+use App\Support\Hedges;
 
 /**
  * The judge of 見出し (headline): a model scores a headline item by item on
@@ -103,6 +104,7 @@ class ScoreHeadline
         }
 
         $lines[] = '- short_enough (counted by code, not scored): at most '.self::MAX_CHARACTERS.' characters in Chinese, Japanese or Korean, at most '.self::MAX_WORDS.' words in any other language.';
+        $lines[] = '- unhedged (found by code, not scored): no hedge — may, might, could, possibly, perhaps, 可能性, かもしれない, ことがある and the like. State what the material vouches for; the caveats belong in the body.';
 
         $lines[] = '';
         $lines[] = 'Scored on every headline, 80 points between them:';
@@ -158,6 +160,11 @@ class ScoreHeadline
         // Length is counted in code; a model misjudges it.
         if (! self::isShortEnough($headline)) {
             $failed[] = 'short_enough';
+        }
+
+        // Hedges are found in code as well: the headline states what the material vouches for.
+        if (Hedges::count($headline) > 0) {
+            $failed[] = 'unhedged';
         }
 
         $common = [];

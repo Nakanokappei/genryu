@@ -84,7 +84,7 @@ class GenerateArticle implements ShouldQueue
                     'result' => $result,
                     'body' => $body,
                     'lead' => $lead,
-                    'problems' => [...$validate($body, $language, (string) $article->headline, $document->url), ...($lead === '' ? ['The lead is missing: after the body, sum it up in `lead`.'] : [])],
+                    'problems' => [...$validate($body, $language, (string) $article->headline, $document->url), ...($lead === '' ? ['The lead is missing: after the body, write it in `lead`.'] : ValidateArticle::leadProblems($lead))],
                     'off' => abs(ValidateArticle::lengthOf($body, $language)['off']),
                 ];
             };
