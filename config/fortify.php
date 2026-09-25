@@ -160,8 +160,9 @@ return [
     |
     */
 
-    'features' => [
-        Features::registration(),
+    'features' => array_values(array_filter([
+        // Sign-up is off unless REGISTRATION_ENABLED is set (the tests set it): the site is one person's.
+        env('REGISTRATION_ENABLED', false) ? Features::registration() : null,
         Features::resetPasswords(),
         Features::emailVerification(),
         Features::twoFactorAuthentication([
@@ -172,6 +173,6 @@ return [
         Features::passkeys([
             'confirmPassword' => true,
         ]),
-    ],
+    ])),
 
 ];
