@@ -188,7 +188,7 @@ new #[Title('文書')] class extends PagedList {
     #[Computed]
     public function sources()
     {
-        return Source::query()->orderBy('name')->get(['id', 'name']);
+        return Source::query()->orderBy('name')->orderBy('notes')->get(['id', 'name', 'notes']);
     }
 
     // The start of a day of the display timezone, in UTC.
@@ -321,7 +321,7 @@ new #[Title('文書')] class extends PagedList {
         <flux:select wire:model.live="source" :label="__('Source')" size="sm" class="w-64!">
             <flux:select.option value="">{{ __('All') }}</flux:select.option>
             @foreach ($this->sources as $option)
-                <flux:select.option value="{{ $option->id }}">{{ $option->name }}</flux:select.option>
+                <flux:select.option value="{{ $option->id }}">{{ $option->name }}{{ $option->notes ? ' — '.$option->notes : '' }}</flux:select.option>
             @endforeach
         </flux:select>
         <flux:input wire:model.live="publishedFrom" :label="__('Published on')" type="date" size="sm" />

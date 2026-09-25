@@ -587,6 +587,10 @@ The history under `docs/` (Phase 0) keeps the old name.
   reason. The media shows `Source::nameIn` the article's language
   (English when missing), and the translator is given the target
   language's name as a glossary (`ProposeTranslation::glossary`).
+  **A source's name is its publisher** (arXiv, 欧州医薬品庁（EMA）), since
+  the media credits it; which of its lists the row reads (cs.AI 人工知能,
+  新薬) goes in the notes, shown beside the name on 情報源 and in the
+  文書 source filter.
 - **Favicons** are fetched by `App\Actions\FetchFavicon` when a page of
   the site is in hand (configuring it, reading its update list, fetching
   a document); every update list checks the icon again at the URL it came

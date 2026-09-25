@@ -85,7 +85,7 @@ new #[Title('情報源')] class extends PagedList {
                 <td class="px-3 py-2">
                     <span class="inline-flex items-center gap-2">
                         <x-pages::favicon :source="$source" />
-                        <a href="{{ route('editorial.sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>
+                        <a href="{{ route('editorial.sources.show', $source) }}" class="underline" wire:navigate>{{ $source->name }}</a>@if ($source->notes) <span class="text-neutral-500">{{ $source->notes }}</span>@endif
                         {{-- Link to the site, the URL as tooltip. --}}
                         <flux:tooltip :content="$source->url">
                             <a href="{{ $source->url }}" target="_blank" rel="noopener noreferrer" class="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"><flux:icon.arrow-top-right-on-square variant="micro" /></a>
