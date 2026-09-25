@@ -5,6 +5,10 @@
 
     RewriteEngine On
 
+    # Dotfiles (.env, .git; .well-known aside) and secret-looking files are not found
+    RewriteRule (^|/)\.(?!well-known(/|$)) - [R=404,L]
+    RewriteRule \.(env|log|sql|bak|old|orig|swp|dist)$|~$ - [NC,R=404,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]

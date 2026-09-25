@@ -6,6 +6,13 @@ loop — nothing waits for a person, a person looks after the fact.
 
 ## After the production deployment
 
+- **Keep secrets out of reach at the web server** (2026-09-25). The
+  document root must be `public/` (then `.env` is outside it). Laravel
+  answers 404 for dotfiles and secret-looking files
+  (`App\Http\Middleware\BlockSensitivePaths`) and `public/.htaccess`
+  does the same on Apache; on nginx add the equivalent, e.g.
+  `location ~ /\.(?!well-known) { return 404; }`, and check with
+  `curl -I https://<host>/.env`.
 - **A daily mail that asks for a human look** (decided 2026-09-22). The
   screening runs without anyone reviewing (a 要確認 gets one second pass
   by the next model up and is decided); still, once a day, one mail
