@@ -1,0 +1,44 @@
+# Genryu — fail2ban jails
+# Place: /etc/fail2ban/jail.local (steps in deploy/fail2ban/README.md)
+#
+# The last address in ignoreip is a placeholder for the administrator's
+# own IP; replace <YOUR_ADMIN_IP> or you can ban yourself.
+
+[DEFAULT]
+bantime  = 1d
+findtime = 30m
+maxretry = 5
+# Never banned
+ignoreip = 127.0.0.1/8 ::1 10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 fc00::/7 <YOUR_ADMIN_IP>
+banaction = iptables-multiport
+backend = systemd
+
+# SSH brute force, read through journald (Ubuntu 24.04)
+[sshd]
+enabled = true
+mode = aggressive
+maxretry = 5
+
+# Attack paths (.env, .git, /etc/passwd, /wp-admin ...) in access.log.
+# nginx answers the dotfile rule with 404, which leaves nothing in
+# error.log, so this one jail reads access.log for dotfiles too.
+[nginx-badprobe]
+enabled  = true
+port     = http,https
+filter   = nginx-badprobe
+logpath  = /var/log/nginx/access.log
+backend  = polling
+maxretry = 2
+findtime = 30m
+bantime  = 1d
+
+# Repeat offenders: banned 3 times in a day by any jail, then a week on all ports
+[recidive]
+enabled   = true
+filter    = recidive
+logpath   = /var/log/fail2ban.log
+backend   = polling
+maxretry  = 3
+findtime  = 1d
+bantime   = 1w
+banaction = iptables-allports
