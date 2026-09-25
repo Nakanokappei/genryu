@@ -42,7 +42,8 @@ it('shows an article with its top image and without its headline twice', functio
     $original = Article::factory()->create(['language' => 'ja', 'headline' => '原文', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg']);
     $translation = Article::factory()->create(['language' => 'en', 'translated_from_id' => $original->id, 'material_id' => $original->material_id, 'headline' => 'The headline', 'body' => "# The headline\n\nThe lead."]);
 
-    $page = $this->get(route('media.article', ['en', $translation]))->assertOk()->assertSee('The lead.')->assertSee(route('media.image', $translation));
+    // The image URL carries the drawing, so a redrawn image is fetched again rather than taken from the browser's cache.
+    $page = $this->get(route('media.article', ['en', $translation]))->assertOk()->assertSee('The lead.')->assertSee(route('media.image', ['article' => $translation, 'v' => '1']), false);
     expect(substr_count($page->getContent(), 'The headline'))->toBe(2); // the page title and the heading, not the body
     // A translation shows its original's top image, which the site serves.
     $this->get(route('media.image', $translation))->assertOk()->assertHeader('Cache-Control', 'max-age=86400, public');

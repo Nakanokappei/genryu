@@ -96,6 +96,12 @@ class MediaController extends Controller
         return trim(strip_tags(Str::markdown($first)));
     }
 
+    /** The top image's URL, versioned by the drawing so a redrawn image is not served from a browser's cache. */
+    public static function imageUrl(Article $article): string
+    {
+        return route('media.image', ['article' => $article, 'v' => pathinfo((string) self::imagePathOf($article), PATHINFO_FILENAME)]);
+    }
+
     /** The original's top image path on the local disk. */
     public static function imagePathOf(Article $article): ?string
     {
