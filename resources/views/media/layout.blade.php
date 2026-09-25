@@ -42,7 +42,7 @@
     <footer class="mt-12 border-t border-[#d9d4ca] bg-[#f1ede4]">
         <div class="mx-auto max-w-6xl space-y-2 px-4 py-6 text-xs leading-relaxed text-[#6b665e]">
             <p>{{ $text['disclosure'] }}</p>
-            <p>{{ $text['demo'] }} <span class="media-serif font-semibold">Genryu</span></p>
+            <p>{{ $text['demo'] }} <a href="https://github.com/Nakanokappei/genryu" target="_blank" rel="noopener noreferrer" class="media-serif font-semibold underline underline-offset-2 hover:text-[#1c1b19]">Genryu</a></p>
         </div>
     </footer>
 </body>

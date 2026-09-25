@@ -29,7 +29,9 @@ it('shows the articles of the last 30 days on the front page of a language', fun
         ->assertDontSee('古すぎる記事')->assertDontSee('本文のない記事')->assertDontSee('An English article');
     $this->get('/media/en')->assertOk()->assertSee('An English article')->assertSee('From the laboratory to industry')
         // Today's date in the masthead, written the English way in New York.
-        ->assertSee('September 24, 2026')->assertDontSee('2026年9月');
+        ->assertSee('September 24, 2026')->assertDontSee('2026年9月')
+        // Genryu in the footer links to its repository.
+        ->assertSee('href="https://github.com/Nakanokappei/genryu"', false);
     $this->get('/media/xx')->assertNotFound();
 });
 
