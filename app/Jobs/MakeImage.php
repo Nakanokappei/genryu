@@ -51,6 +51,18 @@ class MakeImage implements ShouldQueue
     }
 
     /** Propose the scene, draw it, store it, and give it to the article; a failure lands on the drawing. */
+    /**
+     * Queue an image for every scheduled, unpublished original waiting for one (画像作成中); returns how many.
+     */
+    public static function queueWaiting(): int
+    {
+        $articles = Article::query()->originals()->whereNotNull('scheduled_at')->whereNull('published_at')->with('image')->get()
+            ->filter(fn (Article $article): bool => $article->publicationStatus() === 'imaging' && $article->image?->status !== 'making');
+        $articles->each(fn (Article $article) => self::queueFor($article));
+
+        return $articles->count();
+    }
+
     public function handle(ProposeScene $propose, DrawImage $draw): void
     {
         $image = $this->image;

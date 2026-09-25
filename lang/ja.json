@@ -441,5 +441,8 @@
     "The name above": "上の名称",
     "What this source is called in each language. The media shows the name in the language of the article (English when one is missing), and the translator is given these names as a glossary, so a rendering chosen here carries into every language.": "この情報源を各言語で何と呼ぶか。メディアでは記事の言語の名称を表示し（ない言語では英語）、翻訳のときは対訳としてプロンプトに加えるので、ここで決めた訳語が各言語版に引き継がれます。",
     "Not fetched: beyond the :max newest documents of one update list.": "未取得: 一度に読んだ更新リストのうち、新しい :max 件を超えたため取得していません。",
-    ":held beyond the limit of :max were listed but not fetched.": "上限 :max 件を超えた :held 件は一覧に載せましたが、取得していません。"
+    ":held beyond the limit of :max were listed but not fetched.": "上限 :max 件を超えた :held 件は一覧に載せましたが、取得していません。",
+    "Pass mark": "合格点",
+    "Quality score needed to be scheduled": "スケジュールに載せる品質チェックの点数",
+    "Also how many articles are written a day": "1日に記事化する本数も兼ねる"
 }

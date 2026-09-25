@@ -35,14 +35,14 @@ function slotOf(Article $article): ?string
     return $article->refresh()->scheduledLocal()?->format('D Y-m-d H:i');
 }
 
-// Best score first into the earliest slot still ahead everywhere: Wednesday's 07:00 and 09:00 have passed in Tokyo, so Wednesday takes three and Thursday the rest.
+// Best score first into the earliest slot still ahead everywhere: Wednesday's 07:00 and 09:00 have passed in Tokyo, so Wednesday takes three and Thursday the rest; below the pass mark (80) an article waits.
 it('gives the fresh checked articles the coming weekday slots, best score first', function () {
     $scores = [70, 95, 80, 60, 85, 75, 90];
     $articles = array_map(fn (int $score): Article => checkedArticle($score), $scores);
     $stale = checkedArticle(99, daysOld: 10);
     $unchecked = Article::factory()->create(['language' => 'ja']);
 
-    expect(schedule())->toBe(7);
+    expect(schedule())->toBe(4);
 
     $slots = collect($articles)->mapWithKeys(fn (Article $article, int $index): array => [$scores[$index] => slotOf($article)])->sortKeysDesc()->all();
     expect($slots)->toBe([
@@ -50,9 +50,9 @@ it('gives the fresh checked articles the coming weekday slots, best score first'
         90 => 'Wed 2026-09-23 15:00',
         85 => 'Wed 2026-09-23 18:00',
         80 => 'Thu 2026-09-24 07:00',
-        75 => 'Thu 2026-09-24 09:00',
-        70 => 'Thu 2026-09-24 12:00',
-        60 => 'Thu 2026-09-24 15:00',
+        75 => null,
+        70 => null,
+        60 => null,
     ])
         // Past the period, or never checked, an article waits.
         ->and($stale->refresh()->scheduled_at)->toBeNull()
@@ -82,7 +82,7 @@ it('sets each language version at the same local time in its own zone', function
 // Weekdays only: a Friday with its slots full goes on to Monday.
 it('skips the weekend', function () {
     ScheduleSetting::query()->create(['articles_per_weekday' => 1, 'period_days' => 7, 'publication_times' => ['12:00']]);
-    $articles = array_map(fn (int $score): Article => checkedArticle($score), [90, 80, 70, 60]);
+    $articles = array_map(fn (int $score): Article => checkedArticle($score), [95, 90, 85, 80]);
 
     schedule();
 

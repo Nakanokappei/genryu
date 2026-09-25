@@ -85,8 +85,10 @@ class FetchDocument implements ShouldQueue
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
 
-            // On to the semantic filter, unless excluded or already adopted on its summary.
-            if ($document->excluded_by === null && ! $adoptedOnSummary) {
+            // On to the semantic filter, or, adopted on its summary, to its material.
+            if ($adoptedOnSummary) {
+                ExtractMaterial::queueIfWanted($document);
+            } elseif ($document->excluded_by === null) {
                 ApplySemanticFilter::queueFor($document);
             }
         } catch (Throwable $exception) {

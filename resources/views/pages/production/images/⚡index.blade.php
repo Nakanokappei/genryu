@@ -67,11 +67,10 @@ new #[Title('画像')] class extends Component {
     // Queue an image for every article waiting for one (画像作成中).
     public function make(): void
     {
-        $articles = $this->articles->filter(fn (Article $article): bool => $article->publicationStatus() === 'imaging' && $article->image?->status !== 'making');
-        $articles->each(fn (Article $article) => MakeImage::queueFor($article));
+        $count = MakeImage::queueWaiting();
         unset($this->articles);
 
-        Flux::toast(variant: 'success', text: __(':count images queued.', ['count' => $articles->count()]));
+        Flux::toast(variant: 'success', text: __(':count images queued.', ['count' => $count]));
     }
 
     // Queue one article's image again.

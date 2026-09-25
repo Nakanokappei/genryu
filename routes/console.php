@@ -1,11 +1,17 @@
 <?php
 
+use App\Actions\GenerateDailyArticles;
+use App\Actions\ScheduleArticles;
 use App\Http\Controllers\MediaController;
+use App\Jobs\FetchSourceUpdates;
+use App\Jobs\MakeImage;
 use App\Models\Article;
 use App\Models\ArticleImage;
 use App\Models\EditorialPolicy;
 use App\Models\ImageStyle;
 use App\Models\LanguageSetting;
+use App\Models\Source;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -34,6 +40,26 @@ Artisan::command('media:prune-images', function () {
 })->purpose('Delete the top images drawn more than 30 days ago');
 
 Schedule::command('media:prune-images')->daily();
+
+// The day's run, on its own (Japan time): read the update lists (the rest follows from each document), write the day's articles, then schedule them and draw their images.
+Artisan::command('updates:fetch', function () {
+    $sources = Source::query()->where('status', 'configured')->get();
+    $sources->each(fn (Source $source) => FetchSourceUpdates::dispatch($source));
+
+    $this->info("{$sources->count()} update lists queued.");
+})->purpose('Queue 更新リストを取得 for every configured source');
+
+Artisan::command('articles:generate', function (GenerateDailyArticles $generate) {
+    $this->info($generate(CarbonImmutable::now()).' articles queued.');
+})->purpose('Queue the day\'s articles, up to 平日の公開本数');
+
+Artisan::command('articles:schedule', function (ScheduleArticles $schedule) {
+    $this->info($schedule(CarbonImmutable::now()).' articles scheduled, '.MakeImage::queueWaiting().' images queued.');
+})->purpose('Give the articles at or above the pass mark their slots, then queue their images');
+
+Schedule::command('updates:fetch')->dailyAt('01:00')->timezone((string) config('app.display_timezone'));
+Schedule::command('articles:generate')->dailyAt('03:00')->timezone((string) config('app.display_timezone'));
+Schedule::command('articles:schedule')->dailyAt('05:00')->timezone((string) config('app.display_timezone'));
 
 // Copies the prompts (policy layers, image styles, language prompts) between the database and prompts/, one Markdown file each.
 Artisan::command('prompts:export {--path=prompts}', function () {

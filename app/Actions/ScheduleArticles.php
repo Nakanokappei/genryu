@@ -10,7 +10,7 @@ use Illuminate\Support\Collection;
 
 /**
  * スケジュール (UI "Schedule"): gives checked, unpublished originals within
- * 対象期間 the weekday slots ahead, best score first. A slot is a local date
+ * 対象期間 that reach the 合格点 the weekday slots ahead, best score first. A slot is a local date
  * and time applied in each language's zone. No model.
  */
 class ScheduleArticles
@@ -27,7 +27,7 @@ class ScheduleArticles
         self::followOriginals();
 
         // Waiting articles, best first, and the index of the next.
-        $queue = self::candidates($now, $setting->period_days)->all();
+        $queue = self::candidates($now, $setting->period_days, $setting->pass_mark)->all();
         $next = 0;
 
         // Nothing to schedule or no slots.
@@ -72,16 +72,16 @@ class ScheduleArticles
     }
 
     /**
-     * Checked, written, unpublished, unscheduled originals within the period, best score first.
+     * Checked, written, unpublished, unscheduled originals within the period that reach the pass mark, best score first.
      *
      * @return Collection<int, Article> in queue order, keyed from 0
      */
-    private static function candidates(CarbonImmutable $now, int $days): Collection
+    private static function candidates(CarbonImmutable $now, int $days, int $passMark): Collection
     {
         $since = $now->subDays($days);
 
         return Article::query()->originals()->where('status', 'written')->whereNull('published_at')->whereNull('scheduled_at')
-            ->whereRelation('qualityCheck', 'status', 'checked')
+            ->whereRelation('qualityCheck', fn ($check) => $check->where('status', 'checked')->where('score', '>=', $passMark))
             ->with('qualityCheck', 'material.document')->get()
             ->filter(fn (Article $article): bool => ($article->material->document->published_at ?? $article->created_at)->greaterThanOrEqualTo($since))
             ->sortBy([fn (Article $a, Article $b): int => $b->qualityCheck->score <=> $a->qualityCheck->score, fn (Article $a, Article $b): int => $a->id <=> $b->id])

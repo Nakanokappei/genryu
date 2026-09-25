@@ -17,6 +17,9 @@ new #[Title('スケジュール')] class extends PagedList {
     /** UI: 対象期間（日） */
     public int $periodDays = 7;
 
+    /** UI 合格点: the quality score an article needs to be scheduled. */
+    public int $passMark = 80;
+
     /** UI: 公開時刻 — local times, comma-separated */
     public string $publicationTimes = '';
 
@@ -26,6 +29,7 @@ new #[Title('スケジュール')] class extends PagedList {
         $setting = ScheduleSetting::current();
         $this->articlesPerWeekday = $setting->articles_per_weekday;
         $this->periodDays = $setting->period_days;
+        $this->passMark = $setting->pass_mark;
         $this->publicationTimes = implode(', ', (array) $setting->publication_times);
     }
 
@@ -36,6 +40,7 @@ new #[Title('スケジュール')] class extends PagedList {
         $this->validate([
             'articlesPerWeekday' => ['required', 'integer', 'min:1', 'max:'.max(1, count($times))],
             'periodDays' => ['required', 'integer', 'min:1', 'max:365'],
+            'passMark' => ['required', 'integer', 'min:0', 'max:100'],
             'publicationTimes' => ['required', function (string $attribute, mixed $value, Closure $fail) use ($times): void {
                 if ($times === [] || count($times) !== count(array_filter($times, fn (string $time): bool => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $time) === 1))) {
                     $fail(__('Write the times as HH:MM, separated by commas.'));
@@ -43,7 +48,7 @@ new #[Title('スケジュール')] class extends PagedList {
             }],
         ]);
 
-        (ScheduleSetting::query()->first() ?? new ScheduleSetting)->fill(['articles_per_weekday' => $this->articlesPerWeekday, 'period_days' => $this->periodDays, 'publication_times' => $times])->save();
+        (ScheduleSetting::query()->first() ?? new ScheduleSetting)->fill(['articles_per_weekday' => $this->articlesPerWeekday, 'period_days' => $this->periodDays, 'publication_times' => $times, 'pass_mark' => $this->passMark])->save();
 
         Flux::toast(variant: 'success', text: __('Saved.'));
     }
@@ -80,11 +85,14 @@ new #[Title('スケジュール')] class extends PagedList {
         return Article::query()->originals()->whereNotNull('scheduled_at')->with('material.document.source', 'qualityCheck', 'translations')->orderBy('scheduled_at')->orderBy('id')->paginate($this->rowsPerPage());
     }
 
-    /** Checked, unpublished originals without a slot. */
+    /** Checked, unpublished originals at or above the pass mark without a slot. */
     #[Computed]
     public function waiting(): int
     {
-        return Article::query()->originals()->where('status', 'written')->whereNull('published_at')->whereNull('scheduled_at')->whereRelation('qualityCheck', 'status', 'checked')->count();
+        $passMark = ScheduleSetting::current()->pass_mark;
+
+        return Article::query()->originals()->where('status', 'written')->whereNull('published_at')->whereNull('scheduled_at')
+            ->whereRelation('qualityCheck', fn ($check) => $check->where('status', 'checked')->where('score', '>=', $passMark))->count();
     }
 }; ?>
 
@@ -94,9 +102,10 @@ new #[Title('スケジュール')] class extends PagedList {
     <form wire:submit="saveSettings" class="space-y-3 rounded-xl border border-neutral-200 p-4 dark:border-neutral-700">
         <flux:heading size="lg">{{ __('Settings') }}</flux:heading>
         <flux:text>{{ __('Checked, unpublished articles whose primary source was published within the period are given the slots of the coming weekdays, best quality first. Every language version goes out at the same local date and time, each in its own zone:') }} {{ implode(' / ', array_map(fn ($language) => $language->label().' '.$language->timezone(), \App\Enums\Language::cases())) }}</flux:text>
-        <div class="grid gap-3 sm:grid-cols-3">
-            <flux:input type="number" wire:model="articlesPerWeekday" :label="__('Articles per weekday')" min="1" />
+        <div class="grid gap-3 sm:grid-cols-4">
+            <flux:input type="number" wire:model="articlesPerWeekday" :label="__('Articles per weekday')" :description="__('Also how many articles are written a day')" min="1" />
             <flux:input type="number" wire:model="periodDays" :label="__('Period (days)')" min="1" />
+            <flux:input type="number" wire:model="passMark" :label="__('Pass mark')" :description="__('Quality score needed to be scheduled')" min="0" max="100" />
             <flux:input wire:model="publicationTimes" :label="__('Publication times')" placeholder="07:00, 09:00, 12:00, 15:00, 18:00" />
         </div>
 

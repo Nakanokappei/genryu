@@ -101,6 +101,13 @@ class ScreenDocument implements ShouldQueue
             return;
         }
 
+        // Adopted: on to its material.
+        if ($screening->decision === 'adopt') {
+            ExtractMaterial::queueIfWanted($document);
+
+            return;
+        }
+
         // Rejected with a short body: revise the document settings.
         if ($screening->decision === 'reject' && $document->refresh()->hasShortBody()) {
             $this->reviseSettings($document, $revise);

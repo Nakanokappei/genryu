@@ -609,6 +609,21 @@ The history under `docs/` (Phase 0) keeps the old name.
   as a client are listed in `config/crawler.php`. New crawler code never
   needs to check robots itself, and must not bypass `Http`.
 
+- **The day runs on its own** (decided 2026-09-25, `routes/console.php`,
+  Japan time; production needs `schedule:run` from cron and a queue
+  worker). 01:00 `updates:fetch` reads every configured source's update
+  list (`FetchSourceUpdates`, one job each); from there each document
+  goes on by itself — fetch, semantic filter, screening, and when adopted
+  its material (`ExtractMaterial::queueIfWanted`, from the screening, or
+  from the full-text fetch of a summary adopted on the feed). 03:00
+  `articles:generate` writes the day's articles (`GenerateDailyArticles`:
+  up to 平日の公開本数, fresh materials within 対象期間, the likeliest by
+  らしさ first; a person's 記事を生成 counts toward the day). 05:00
+  `articles:schedule` gives slots to articles scoring at least the 合格点
+  (`schedule_settings.pass_mark`, 80, set on スケジュール) and queues their
+  top images (`MakeImage::queueWaiting`). The media site shows what is
+  scheduled; nothing else is needed to publish the demo.
+
 ## TODO
 
 `docs/TODO.md` lists what was decided but waits for something (the

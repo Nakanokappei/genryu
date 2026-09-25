@@ -1,7 +1,10 @@
 <?php
 
+use App\Actions\FetchFavicon;
 use App\Actions\ProposeDecision;
+use App\Actions\ProposeDocumentSettings;
 use App\Actions\ProposeMaterial;
+use App\Actions\ReadDocument;
 use App\Actions\ReviseDocumentSettings;
 use App\Actions\ValidateMaterial;
 use App\Jobs\ExtractMaterial;
@@ -341,3 +344,39 @@ it('fetches the full text of a document adopted on its summary from the feed', f
     expect(Queue::pushed(FetchDocument::class)->count())->toBe($fetched ? 1 : 0)
         ->and($document->refresh()->status)->toBe($fetched ? 'fetching' : 'fetched');
 })->with([['ADOPT', true], ['REJECT', false]]);
+
+// An adopted document goes on to its material on its own; a rejected one does not.
+it('queues the material of an adopted document', function () {
+    Http::fake(['api.openai.com/v1/responses' => Http::sequence()
+        ->push(screeningAnswer(['decision' => 'ADOPT', 'primary_reason' => 'DEMONSTRATION', 'evidence' => '', 'reason' => '']))
+        ->push(screeningAnswer(['decision' => 'REJECT', 'primary_reason' => 'EVENT_PR', 'evidence' => '', 'reason' => '']))]);
+    $adopted = Document::factory()->fetched()->create(['language' => 'ja']);
+    $rejected = Document::factory()->fetched()->create(['language' => 'ja']);
+
+    screenDocument($adopted);
+    Queue::assertPushed(ExtractMaterial::class, fn (ExtractMaterial $job): bool => $job->material->document->is($adopted));
+
+    screenDocument($rejected);
+    Queue::assertNotPushed(ExtractMaterial::class);
+    expect($rejected->refresh()->material)->toBeNull();
+});
+
+// Adopted on its feed summary, a document waits for its full text; once fetched, it goes on to its material.
+it('queues the material of a summary adopted once its full text is fetched', function () {
+    Http::fake([
+        'api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => 'ADOPT', 'primary_reason' => 'DEMONSTRATION', 'evidence' => '', 'reason' => ''])),
+        '*/robots.txt' => Http::response('', 404),
+        '*/favicon.ico' => Http::response('', 404),
+        'arxiv.org/abs/1' => Http::response('<html><body><main><h1>A paper</h1><p>'.str_repeat('We show that a thing works. ', 60).'</p></main></body></html>', 200, ['Content-Type' => 'text/html']),
+    ]);
+    $document = Document::factory()->fetched()->create(['format' => 'feed', 'language' => 'en', 'url' => 'https://arxiv.org/abs/1', 'markdown' => "# A paper\n\nWe show that a thing works."]);
+    $document->source->update(['document_settings' => ['content' => 'main', 'date' => '', 'remove' => '', 'fixed_text' => '']]);
+
+    screenDocument($document);
+    Queue::assertNotPushed(ExtractMaterial::class);
+
+    (new FetchDocument($document->refresh()))->handle(app(ReadDocument::class), app(ProposeDocumentSettings::class), app(FetchFavicon::class));
+
+    expect($document->refresh()->format)->toBe('html');
+    Queue::assertPushed(ExtractMaterial::class, fn (ExtractMaterial $job): bool => $job->material->document->is($document));
+});

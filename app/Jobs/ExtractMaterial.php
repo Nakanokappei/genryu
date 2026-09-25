@@ -7,6 +7,7 @@ use App\Actions\ProposeMaterial;
 use App\Actions\ValidateMaterial;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
+use App\Models\LanguageSetting;
 use App\Models\Material;
 use App\Models\Prompt;
 use App\OpenAi\Usage;
@@ -47,6 +48,20 @@ class ExtractMaterial implements ShouldQueue
         self::dispatch($material);
 
         return $material;
+    }
+
+    /**
+     * Queue the material of an adopted document that has none, when some
+     * language wants an article from its source's language (言語設定).
+     */
+    public static function queueIfWanted(Document $document): ?Material
+    {
+        // Not adopted, already extracted, or no language wants it.
+        if ($document->decision() !== 'adopt' || $document->material()->exists() || ! LanguageSetting::wantsArticle($document->language)) {
+            return null;
+        }
+
+        return self::queueFor($document);
     }
 
     /** Extract, check, repair once, and record the parts or the failure on the material. */
