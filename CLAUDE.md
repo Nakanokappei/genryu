@@ -88,7 +88,10 @@ The history under `docs/` (Phase 0) keeps the old name.
   2026-09-21): a document is listed by `App\Actions\FetchUpdates` (UI
   更新リストを取得 on the source; how a feed, an HTML list and a JSON list
   are read, and the crawler's URL and date helpers, are in `App\Crawl`)
-  and fetched by `App\Jobs\FetchDocument`
+  and fetched by `App\Jobs\FetchDocument` — **at most 35 per read of an
+  update list** (`FetchUpdates::MAX_FETCHES`, 5 a day for 7 days, the
+  newest when the list is dated; decided 2026-09-25: the rest are listed
+  unfetched with a note, and only a person's 文書を取得 fetches them)
   (`status` null → fetching → fetched | failed), queued for every newly
   listed document and from the 文書を取得 buttons. The original is
   kept on the `local` disk under `documents/{source}/{entry}.{html|pdf}`;

@@ -194,7 +194,7 @@ it('falls back to generic title and date selectors when the proposed ones find n
 
     expect($source->status)->toBe('configured')
         ->and($source->html_list_settings)->toMatchArray(['item' => 'div.views-row', 'title' => 'h1, h2, h3, h4', 'date' => 'time.datetime'])
-        ->and(Document::query()->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
+        ->and(Document::query()->orderBy('url')->pluck('url')->all())->toBe(['https://www.example.org/fr/presse/item-1', 'https://www.example.org/fr/presse/item-2', 'https://www.example.org/fr/presse/item-3', 'https://www.example.org/fr/presse/item-4'])
         ->and(Document::query()->where('title', 'Item 2')->sole()->published_at?->toDateString())->toBe('2026-09-02');
 });
 

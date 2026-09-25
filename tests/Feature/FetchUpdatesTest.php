@@ -7,6 +7,7 @@ use App\Jobs\FetchDocument;
 use App\Models\Document;
 use App\Models\Source;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -314,4 +315,30 @@ it('does not list a document another source has listed already', function () {
 
     expect($result)->toMatchArray(['added' => 0, 'existing' => 2])
         ->and(Document::query()->where('url', 'https://arxiv.org/abs/2609.00001')->pluck('source_id')->all())->toBe([$first->id]);
+});
+
+// At most 35 documents of one read are sent to be fetched, the newest; the rest are listed, not fetched, and say why.
+it('fetches only the newest 35 documents of one update list', function () {
+    // 40 releases, listed oldest first, one a day from 1 August.
+    $items = implode('', array_map(fn (int $day): string => '<item><title>Release '.$day.'</title><link>https://www.example.org/news/'.$day.'</link><pubDate>'.CarbonImmutable::parse('2026-08-01')->addDays($day - 1)->format('D, d M Y').' 09:00:00 GMT</pubDate></item>', range(1, 40)));
+    Http::fake(['www.example.org/rss.xml' => Http::response('<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'.$items.'</channel></rss>', 200, ['Content-Type' => 'application/rss+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/rss.xml']);
+
+    $result = app(FetchUpdates::class)($source);
+
+    Queue::assertPushed(FetchDocument::class, FetchUpdates::MAX_FETCHES);
+    $held = Document::query()->whereNull('status')->orderBy('published_at')->get();
+    expect($result)->toMatchArray(['added' => 40, 'held' => 5])
+        ->and($held->pluck('title')->all())->toBe(['Release 1', 'Release 2', 'Release 3', 'Release 4', 'Release 5'])
+        ->and($held->first()->status_message)->toContain('35 件を超えた');
+});
+
+// A feed whose summaries are the documents (arXiv) fetches nothing, so the limit does not apply.
+it('does not limit the documents read from the summaries of a feed', function () {
+    $items = implode('', array_map(fn (int $n): string => '<item><title>Paper '.$n.'</title><link>https://arxiv.org/abs/2609.'.$n.'</link><description>Abstract '.$n.'.</description></item>', range(1, 40)));
+    Http::fake(['rss.arxiv.org/*' => Http::response('<?xml version="1.0"?><rss version="2.0"><channel><title>t</title>'.$items.'</channel></rss>', 200, ['Content-Type' => 'application/rss+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://rss.arxiv.org/rss/cs.AI', 'full_text_link' => '#latexml-download-link']);
+
+    expect(app(FetchUpdates::class)($source))->toMatchArray(['added' => 40, 'held' => 0]);
+    Queue::assertPushed(ApplySemanticFilter::class, 40);
 });

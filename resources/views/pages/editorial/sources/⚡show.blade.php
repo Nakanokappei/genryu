@@ -285,9 +285,16 @@ new #[Title('情報源')] class extends Component {
         }
 
         $this->source->refresh();
-        Flux::toast(variant: 'success', duration: 8000, text: $result['feed_url'] !== null
+        $message = $result['feed_url'] !== null
             ? __(':added added, :existing already listed (:feed)', ['added' => $result['added'], 'existing' => $result['existing'], 'feed' => $result['feed_url']])
-            : __(':added added, :existing already listed (:pages pages)', ['added' => $result['added'], 'existing' => $result['existing'], 'pages' => $result['pages']]));
+            : __(':added added, :existing already listed (:pages pages)', ['added' => $result['added'], 'existing' => $result['existing'], 'pages' => $result['pages']]);
+
+        // Say how many were held back by the fetch limit.
+        if ($result['held'] > 0) {
+            $message .= ' '.__(':held beyond the limit of :max were listed but not fetched.', ['held' => $result['held'], 'max' => FetchUpdates::MAX_FETCHES]);
+        }
+
+        Flux::toast(variant: 'success', duration: 8000, text: $message);
     }
 }; ?>
 

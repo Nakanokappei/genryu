@@ -20,19 +20,29 @@ use RuntimeException;
  */
 class FetchUpdates
 {
+    /** At most this many documents of one read are sent to be fetched, newest first: 5 a day for 7 days. */
+    public const MAX_FETCHES = 35;
+
     /** The last HTML page of the source read during a fetch, for its favicon. */
     private ?string $pageHtml = null;
+
+    /** Documents of this read sent to be fetched, and those listed beyond MAX_FETCHES. */
+    private int $fetches = 0;
+
+    private int $held = 0;
 
     public function __construct(private FetchFavicon $favicon) {}
 
     /**
      * Reads the source by its configured kind of list, then refreshes its favicon.
      *
-     * @return array{feed_url: ?string, pages: int, added: int, existing: int}
+     * @return array{feed_url: ?string, pages: int, added: int, existing: int, held: int}
      */
     public function __invoke(Source $source): array
     {
         $this->pageHtml = null;
+        $this->fetches = 0;
+        $this->held = 0;
         $json = $source->json_list_settings ?? [];
         $config = $source->html_list_settings ?? [];
 
@@ -45,7 +55,7 @@ class FetchUpdates
         // Fetch or recheck the favicon while at the site.
         ($this->favicon)($source, $this->pageHtml, checkAgain: true);
 
-        return $result;
+        return [...$result, 'held' => $this->held];
     }
 
     /**
@@ -139,6 +149,11 @@ class FetchUpdates
         $readsSummaries = trim((string) $source->full_text_link) !== '';
         $rules = EditorialPolicy::excludeKeywords();
 
+        // Newest first when every entry is dated, so the fetch limit keeps the newest; else the list's own order.
+        if (array_all($entries, fn (array $entry): bool => $entry['published_at'] !== null)) {
+            usort($entries, fn (array $a, array $b): int => strcmp((string) $b['published_at'], (string) $a['published_at']));
+        }
+
         foreach ($entries as $entry) {
             // Listed by another source already: counts as existing.
             if (Document::query()->where('url', $entry['url'])->where('source_id', '!=', $source->id)->exists()) {
@@ -166,7 +181,8 @@ class FetchUpdates
                 match (true) {
                     $created->excluded_by !== null => null,
                     $created->format === 'feed' => ApplySemanticFilter::queueFor($created),
-                    default => FetchDocument::queueFor($created),
+                    $this->fetches < self::MAX_FETCHES => $this->queueFetch($created),
+                    default => $this->hold($created),
                 };
             } else {
                 $existing++;
@@ -174,5 +190,19 @@ class FetchUpdates
         }
 
         return ['added' => $added, 'existing' => $existing];
+    }
+
+    /** Send a listed document to be fetched, counting it against the limit. */
+    private function queueFetch(Document $document): void
+    {
+        FetchDocument::queueFor($document);
+        $this->fetches++;
+    }
+
+    /** Leave a listed document beyond the limit unfetched, saying why. */
+    private function hold(Document $document): void
+    {
+        $document->update(['status_message' => __('Not fetched: beyond the :max newest documents of one update list.', ['max' => self::MAX_FETCHES])]);
+        $this->held++;
     }
 }
