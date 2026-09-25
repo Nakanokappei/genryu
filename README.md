@@ -1,47 +1,48 @@
-# Genryu（源流）
+# Genryu — Media Management System
 
-公的機関・研究機関・企業が公式サイトで出す一次情報から、記事を作る仕組みです。一次情報を集め、編集方針に沿って選び、記事の部品に整理し、記事を書いて多言語に訳し、公開の予定を組むまでを、AI が工程ごとに進めます。人は工程を止めて待たせず、あとから監督します。
+Genryu (源流, "headwaters") is a media management system that builds articles from primary sources: what public agencies, research institutes and companies publish on their official sites. AI carries each stage — collecting the primary sources, selecting them against the editorial policy, turning them into the parts of an article, writing the article and translating it into several languages, and scheduling its publication. No stage stops to wait for a person; people supervise after the fact.
 
-Genryu で作る最初の媒体が **Technology Watch** です。新しい技術が研究室から産業へ向かう道筋を追い、専門外の読者に届けます。媒体の性格は編集方針で決まり、仕組みそのものは媒体を問いません。
+The first media made with Genryu is **Technology Watch** ([technologywatch.tokyo](https://technologywatch.tokyo)). It follows emerging technology on its way from the laboratory to industry, for readers outside the field. The character of a media is set by its editorial policy; the system itself does not depend on the media.
 
-> 開発中です。記事の公開（配信）の工程はまだありません。
+> Under development.
 
-## 流れ
+## Pipeline
 
-| 段階 | 画面 | すること |
+| Stage | Screen | What it does |
 |---|---|---|
-| 一次情報を集める | 編集 › 情報源 | 公式サイトの更新リストを、RSS / Atom、HTML の一覧、JSON のいずれかで読む。arXiv は分野ごとの RSS で読み、要約で判定し、採用されたものだけ全文を取りに行く |
-| 取捨選択 | 編集 › 情報源 / 文書 | **タイトルフィルタ**（除外キーワード、取得前）→ **意味フィルタ**（埋め込みで「この媒体らしさ」を測る）→ **スクリーニング**（LLM が採用 / 不採用 / 要確認を判定し、要確認は上位のモデルで判定し直す） |
-| 構造化 | 編集 › 素材情報 | 一次情報を「記事の部品」にする。切り口、以前 / 変化 / 以後、事実、背景、図版、誰が得をし誰が損をするか、どんな未来が来るか |
-| 記事生成 | 編集 › 記事 | 見出しを採点しながら書き直し、その見出しのもとで本文を書き、構成と長さをコードで検査する。一次情報の言語で書き、その記事を各言語に訳す |
-| 編成 | 編成 › 品質チェック / スケジュール / 画像 / 記事 | 編集方針の採点基準で記事を採点し、各言語の現地時刻で公開枠を組み、公開の時間帯に合わせた絵柄でトップ画像を描く |
-| 監督 | 監督 › 抜き取り点検 | 意味フィルタにかかった文書から毎日10件を抜き取り、人が「らしい / らしくない」を判定する。フィルタの取りこぼしを見積もるためで、工程はこの点検を待たない |
+| Collect primary sources | Editorial › Sources | Reads each official site's update list as RSS / Atom, an HTML list or a JSON list. arXiv is read from its RSS per category: papers are judged on their summaries, and the full text is fetched only for those adopted |
+| Selection | Editorial › Sources / Documents | **Title filter** (exclude keywords, before fetching) → **Semantic filter** (embeddings measure how much a document is "like this media") → **Screening** (an LLM decides adopt / reject / review; a review is decided again by the next model up) |
+| Structuring | Editorial › Materials | Turns a primary source into the parts of an article: the angle, before / change / after, facts, background, figures, who gains and who loses, and what future may come |
+| Article generation | Editorial › Articles | Rewrites the headline while scoring it, writes the body under that headline, and checks the structure and length in code. The article is written in the language of the primary source, then translated into each language |
+| Production | Production › Quality check / Schedule / Images / Articles | Scores articles against the rubric of the editorial policy, assigns publication slots at local time in each language, draws a top image in a style that fits the hour of publication, and publishes when the time comes |
+| Supervision | Supervision › Spot check | Draws 10 documents a day from those the semantic filter measured, for a person to judge "like / unlike". This estimates what the filter misses; the pipeline never waits for it |
+| Preview | Preview › Media site | The media as a reader sees it |
 
-各段階の判断基準（編集方針）は、その段階の画面で編集します。編集方針のプロンプトは英語で書き、答えは読んだ一次情報の言語で返させます。
+Each stage's criteria (the editorial policy) are edited on that stage's screen. The editorial policy prompts are written in English, and the answers come back in the language of the primary source that was read.
 
-## 考え方
+## Principles
 
-- **人はループの上にいて、中にはいない。** どの工程も人を待たずに進み、人はあとから点検し、判定を記録し、その判定が次の判断を育てる。処理量が増えても、人が割く時間が増えないようにするため。
-- **決定論でできることにモデルを使わない。** フィードの発見、一覧の読み取り、字数や構成の検査、公開枠の割り当ては、コードで行う。見出しの採点では、モデルは項目ごとに点を付けるだけで、合否はコードが決める。
-- **推論こそが記事の価値。** 一次情報の言い換えではなく、その変化で誰が得をし、何が置き換わり、どんな社会が来るかまで書く。ただし、名前や日付の付いた具体的な予測を、一次情報や確かな一般知識なしに作らない。
-- **一次情報を尊重する。** すべての外向きの通信は robots.txt を守り、`Crawl-delay` を待つ（`User-Agent: Genryu`）。原本はそのまま保存し、Markdown の版を残して、判定や素材がどの版から作られたかを固定する。
+- **Human on the loop, not in the loop.** Every stage proceeds without waiting for a person; a person reviews afterwards and records verdicts, and those verdicts teach the next decisions. This keeps the time a person spends from growing with the volume processed.
+- **No model for what can be done deterministically.** Feed discovery, list reading, checks of length and structure, and slot assignment are done in code. When a headline is scored, the model only scores each item; the code decides pass or fail.
+- **Inference is what makes an article worth reading.** Not a paraphrase of the primary source, but who gains from the change, what gets replaced, and what society may follow. Yet no specific prediction with a name or a date is made without the primary source or solid general knowledge behind it.
+- **Respect the primary sources.** Every outgoing request obeys robots.txt and waits out its `Crawl-delay` (`User-Agent: Genryu`). Originals are stored as they are, Markdown revisions are kept, and every judgment and material is pinned to the revision it was made from.
 
-## 技術構成
+## Stack
 
-| 層 | 選択 |
+| Layer | Choice |
 |---|---|
-| フレームワーク | Laravel 13（PHP 8.5）、Livewire 4、Flux UI、Fortify |
-| データベース | PostgreSQL |
-| キュー | データベースのキュー（`QUEUE_CONNECTION=database`） |
-| モデル | OpenAI（Responses API、Embeddings API、Images API） |
-| テスト | Pest、Pint、PHPStan |
-| フロントエンド | Vite、Tailwind CSS |
+| Framework | Laravel 13 (PHP 8.5), Livewire 4, Flux UI, Fortify |
+| Database | PostgreSQL |
+| Queue | Database queue (`QUEUE_CONNECTION=database`) |
+| Models | OpenAI (Responses API, Embeddings API, Images API) |
+| Tests | Pest, Pint, PHPStan |
+| Frontend | Vite, Tailwind CSS |
 
-画面は日本語です（`APP_LOCALE=ja`、訳語は `lang/ja.json`）。
+The screens are in Japanese (`APP_LOCALE=ja`, translations in `lang/ja.json`, keyed by the English UI labels used above).
 
-## 動かし方
+## Getting started
 
-前提：PHP 8.5、Composer、Node.js 22、PostgreSQL。macOS では [Laravel Herd](https://herd.laravel.com) を使っています。
+Requirements: PHP 8.5, Composer, Node.js 22, PostgreSQL. On macOS we use [Laravel Herd](https://herd.laravel.com).
 
 ```bash
 createdb genryu
@@ -49,9 +50,9 @@ createdb genryu_test
 composer setup
 ```
 
-`.env` を開き、`OPENAI_API_KEY` を入れ、`DB_CONNECTION=pgsql` と `DB_DATABASE=genryu` を確かめます。料金の見積もりを出すなら、`OPENAI_PRICE_*` にモデルごとの単価（100万トークンあたりの米ドル）を入れます。
+Open `.env`, set `OPENAI_API_KEY`, and check `DB_CONNECTION=pgsql` and `DB_DATABASE=genryu`. For cost estimates, set `OPENAI_PRICE_*` to each model's price (US dollars per million tokens).
 
-開発サーバーとキューのワーカーを、それぞれ別のターミナルで起動します。ワーカーを動かさないと、取得・判定・執筆などのジョブが進みません。
+Start the development server and the queue worker in separate terminals. Without the worker, jobs such as fetching, screening and writing do not run.
 
 ```bash
 php artisan serve
@@ -61,19 +62,21 @@ php artisan serve
 php artisan queue:work
 ```
 
-コードや `lang/ja.json` を変えたら、ワーカーを起動し直してください（動いているワーカーは古いコードのままです）。
+Restart the worker after changing code or `lang/ja.json` (a running worker keeps the old code).
 
-## テスト
+Prompts are not in this repository. A fresh database has none until they are imported with `php artisan prompts:import` from `prompts/`.
+
+## Tests
 
 ```bash
 composer test
 ```
 
-Pint、PHPStan、Pest の順に動きます。テストはネットワークに出ない決まりで、外部と通信する処理のテストは、偽の応答に置き換えて動かします。
+Runs Pint, PHPStan and Pest in that order. Tests never touch the network: anything that talks to the outside is tested against fake responses.
 
-## 資料
+## Documents
 
-- `docs/HANDOVER.md` — 仕組みの目的と段階の定義
-- `CLAUDE.md` — 各工程の設計と、決めたことの経緯
-- `docs/TODO.md` — 決めたが、本番環境などを待っていること
-- `docs/` のその他（Phase 0） — 最初の取得基盤の計画と記録。歴史として残しており、今の設計の手引きではない
+- `docs/HANDOVER.md` — the purpose of the system and the definition of its stages
+- `CLAUDE.md` — the design of each stage and the history of what was decided
+- `docs/TODO.md` — what was decided but waits for something
+- The rest of `docs/` (Phase 0) — the plan and records of the first acquisition platform, kept as history, not as a guide to the current design
