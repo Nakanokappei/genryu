@@ -629,7 +629,11 @@ The history under `docs/` (Phase 0) keeps the old name.
 https://technologywatch.tokyo, one Lightsail instance `genryu` (Tokyo,
 $12 plan: 2 GB, Ubuntu 24.04, static IP 13.159.65.97; DNS zone in
 Lightsail, the domain registered at お名前.com). SSH `ubuntu@13.159.65.97`
-with `~/.ssh/lightsail-ap-northeast-1.pem`. The app is in
+with `~/.ssh/lightsail-ap-northeast-1.pem`; port 22 is open only to the home
+range (a /24, as the home address is dynamic; the value stays out of this
+public repository) and Lightsail's browser SSH — from elsewhere, connect
+in the Lightsail console and widen the rule. fail2ban runs with the same
+range excepted (`deploy/fail2ban`). The app is in
 `/var/www/genryu` (code owned by ubuntu, `storage` and `bootstrap/cache`
 group www-data), nginx with the dotfile rule and a Let's Encrypt
 certificate (certbot renews it), PHP 8.5-FPM, PostgreSQL 17 (database and
