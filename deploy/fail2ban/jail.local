@@ -2,7 +2,9 @@
 # Place: /etc/fail2ban/jail.local (steps in deploy/fail2ban/README.md)
 #
 # The last address in ignoreip is a placeholder for the administrator's
-# own IP; replace <YOUR_ADMIN_IP> or you can ban yourself.
+# home range, a /24 because the home IP is dynamic; replace
+# <YOUR_ADMIN_IP> on the server only (the repository is public), or you
+# can ban yourself.
 
 [DEFAULT]
 bantime  = 1d

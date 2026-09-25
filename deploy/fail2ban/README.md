@@ -17,8 +17,9 @@ sudo apt install -y fail2ban
 sudo install -m 644 /var/www/genryu/deploy/fail2ban/jail.local /etc/fail2ban/jail.local
 sudo install -m 644 /var/www/genryu/deploy/fail2ban/filter.d/nginx-badprobe.conf \
   /etc/fail2ban/filter.d/nginx-badprobe.conf
-# 自分を BAN しないよう、管理者の IP を入れる（手元の Mac で調べた IP）
-sudo sed -i "s|<YOUR_ADMIN_IP>|<手元のIP>|" /etc/fail2ban/jail.local
+# 自分を BAN しないよう、自宅の IP 帯を入れる。自宅の IP は動的に変わるので、
+# /24（256個）の幅で入れる。リポジトリは公開なので、実際の値はここに書かない
+sudo sed -i "s|<YOUR_ADMIN_IP>|<自宅のIP帯>/24|" /etc/fail2ban/jail.local
 sudo fail2ban-client -t && sudo systemctl enable --now fail2ban && sudo fail2ban-client reload
 ```
 
