@@ -342,3 +342,18 @@ it('does not limit the documents read from the summaries of a feed', function ()
     expect(app(FetchUpdates::class)($source))->toMatchArray(['added' => 40, 'held' => 0]);
     Queue::assertPushed(ApplySemanticFilter::class, 40);
 });
+
+// RSS 1.0 (RDF): the items sit beside the channel, dated by dc:date (JAXA, 総務省, PMDA).
+it('reads an RSS 1.0 feed', function () {
+    $rdf = '<?xml version="1.0" encoding="UTF-8"?><rdf:RDF xmlns="http://purl.org/rss/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+        .'<channel rdf:about="https://www.example.jp/"><title>プレスリリース</title><link>https://www.example.jp/</link><description>d</description></channel>'
+        .'<item rdf:about="https://www.example.jp/press/1"><title>探査機の打上げ</title><link>https://www.example.jp/press/1</link><dc:date>2026-09-25T13:00:00+09:00</dc:date></item>'
+        .'<item rdf:about="https://www.example.jp/press/2"><title>新しいセンサの利用開始</title><link>https://www.example.jp/press/2</link><description>要約。</description><dc:date>2026-09-14</dc:date></item>'
+        .'</rdf:RDF>';
+    Http::fake(['www.example.jp/rss/press.rdf' => Http::response($rdf, 200, ['Content-Type' => 'application/rdf+xml'])]);
+    $source = Source::factory()->create(['url' => 'https://www.example.jp/rss/press.rdf']);
+
+    expect(app(FetchUpdates::class)($source))->toMatchArray(['added' => 2])
+        ->and(Document::query()->where('url', 'https://www.example.jp/press/1')->sole())->toMatchArray(['title' => '探査機の打上げ', 'published_has_time' => true])
+        ->and(Document::query()->where('url', 'https://www.example.jp/press/2')->sole()->published_at?->toDateString())->toBe('2026-09-14');
+});

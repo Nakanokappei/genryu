@@ -17,6 +17,9 @@ class Feed
     /** The namespace of arXiv's own elements in its feeds (arxiv:announce_type). */
     private const ARXIV_NAMESPACE = 'http://arxiv.org/schemas/atom';
 
+    /** Dublin Core, whose dc:date dates the items of an RSS 1.0 feed. */
+    private const DUBLIN_CORE_NAMESPACE = 'http://purl.org/dc/elements/1.1/';
+
     /**
      * The feed for a fetched page: the page itself, the one it advertises, or a well-known path.
      *
@@ -68,6 +71,11 @@ class Feed
             }
 
             $entries[] = ['title' => trim((string) $item->title), 'url' => trim((string) $item->link), 'published_at' => PublishedDate::parse((string) $item->pubDate), 'summary' => self::summaryText((string) $item->description)];
+        }
+
+        // RSS 1.0 (RDF) items, beside the channel, dated by dc:date.
+        foreach ($document->item ?? [] as $item) {
+            $entries[] = ['title' => trim((string) $item->title), 'url' => trim((string) $item->link), 'published_at' => PublishedDate::parse((string) $item->children(self::DUBLIN_CORE_NAMESPACE)->date), 'summary' => self::summaryText((string) $item->description)];
         }
 
         // Atom entries.
