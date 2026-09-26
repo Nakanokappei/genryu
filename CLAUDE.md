@@ -636,6 +636,14 @@ a Media Management System; the name itself stays Genryu.
   `Crawl-delay` is waited out (`Sleep`) between requests to the host. API hosts we call
   as a client are listed in `config/crawler.php`. New crawler code never
   needs to check robots itself, and must not bypass `Http`.
+- **Outgoing requests go to public web addresses only** (2026-09-26,
+  `App\Crawl\PublicAddressGuard`, a global Guzzle middleware that also
+  sees every redirect hop): http(s) only, a host resolving to a loopback,
+  private, link-local (the cloud's metadata at 169.254.169.254) or reserved
+  address is refused with `PrivateAddressForbidden`, the checked address is
+  pinned for the connection, and a response over 50 MB is cut off. A link
+  that is not http(s) never becomes a document or a figure (`Url::isWeb`,
+  checked where they are listed and again where they are rendered).
 
 - **The day runs on its own** (decided 2026-09-25, `routes/console.php`,
   Japan time; production needs `schedule:run` from cron and a queue
@@ -666,7 +674,8 @@ public repository) and Lightsail's browser SSH — from elsewhere, connect
 in the Lightsail console and widen the rule. fail2ban runs with the same
 range excepted (`deploy/fail2ban`). The app is in
 `/var/www/genryu` (code owned by ubuntu, `storage` and `bootstrap/cache`
-group www-data), nginx with the dotfile rule and a Let's Encrypt
+group www-data), nginx (`deploy/nginx/genryu.conf`: the dotfile rule, `server_tokens off`, and a
+catch-all that answers no other Host) with a Let's Encrypt
 certificate (certbot renews it), PHP 8.5-FPM, PostgreSQL 17 (database and
 role `genryu`, password only in the server's `.env`). Three queue
 workers run as systemd units `genryu-worker@1..3`; `schedule:run` runs

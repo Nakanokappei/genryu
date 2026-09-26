@@ -2,6 +2,7 @@
 
 namespace App\Actions;
 
+use App\Crawl\Url;
 use App\Enums\Language;
 use App\Models\Article;
 use App\Models\LanguageSetting;
@@ -73,13 +74,13 @@ class ProposeArticle
     }
 
     /**
-     * The material's figures numbered from 1, or '' when there are none.
+     * The material's http(s) figures (as Material::figures) numbered from 1, or '' when there are none.
      *
      * @param  array<string, mixed>  $material
      */
     private static function figureList(array $material): string
     {
-        $figures = array_values((array) ($material['figures'] ?? []));
+        $figures = array_values(array_filter((array) ($material['figures'] ?? []), fn (array $figure): bool => Url::isWeb((string) ($figure['url'] ?? ''))));
 
         if ($figures === []) {
             return '';

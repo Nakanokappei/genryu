@@ -444,5 +444,9 @@
     ":held beyond the limit of :max were listed but not fetched.": "上限 :max 件を超えた :held 件は一覧に載せましたが、取得していません。",
     "Pass mark": "合格点",
     "Quality score needed to be scheduled": "スケジュールに載せる品質チェックの点数",
-    "Also how many articles are written a day": "1日に記事化する本数も兼ねる"
+    "Also how many articles are written a day": "1日に記事化する本数も兼ねる",
+    "Only http and https URLs are fetched: :url": "取得できるのは http と https の URL だけです: :url",
+    "Not a public address: :url": "公開アドレスではありません: :url",
+    "The host could not be resolved: :host": "ホスト名を解決できません: :host",
+    "The response is larger than :size MB: :url": "応答が :size MB を超えています: :url"
 }

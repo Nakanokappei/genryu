@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\BlockSensitivePaths;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -15,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         // Dotfiles and secret-looking files are not found, before anything else runs.
         $middleware->prepend(BlockSensitivePaths::class);
+
+        // Answer only to APP_URL's host and its subdomains (links in mail are built from the Host header).
+        $middleware->trustHosts();
+
+        // Hardening headers on every response.
+        $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(

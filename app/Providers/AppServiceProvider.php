@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Actions\RobotsPolicy;
+use App\Crawl\PublicAddressGuard;
 use App\Exceptions\RobotsForbidden;
 use Carbon\CarbonImmutable;
 use Composer\CaBundle\CaBundle;
@@ -46,6 +47,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Verify TLS against composer/ca-bundle (the local PHP has no CA store).
         Http::globalOptions(['verify' => CaBundle::getBundledCaBundlePath()]);
+
+        // Every outgoing request and redirect: http(s) to public addresses only, the size capped.
+        Http::globalMiddleware(new PublicAddressGuard);
 
         // Enforce robots.txt and its Crawl-delay on every outgoing request.
         Http::globalRequestMiddleware(function (RequestInterface $request): RequestInterface {

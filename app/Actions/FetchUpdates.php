@@ -7,6 +7,7 @@ use App\Crawl\Feed;
 use App\Crawl\HtmlList;
 use App\Crawl\JsonList;
 use App\Crawl\PublishedDate;
+use App\Crawl\Url;
 use App\Jobs\ApplySemanticFilter;
 use App\Jobs\FetchDocument;
 use App\Models\Document;
@@ -155,6 +156,11 @@ class FetchUpdates
         }
 
         foreach ($entries as $entry) {
+            // Only http(s) links are documents (a javascript: or file: link is not).
+            if (! Url::isWeb($entry['url'])) {
+                continue;
+            }
+
             // Listed by another source already: counts as existing.
             if (Document::query()->where('url', $entry['url'])->where('source_id', '!=', $source->id)->exists()) {
                 $existing++;

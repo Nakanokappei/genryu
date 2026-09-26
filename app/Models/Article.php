@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Crawl\Url;
 use App\Enums\Language;
 use Carbon\CarbonImmutable;
 use Database\Factories\ArticleFactory;
@@ -100,7 +101,8 @@ class Article extends Model
                 $at = array_search($figure['section'], self::FIGURE_SECTIONS, true);
                 $at = is_int($at) && $at < count($sections) ? $at : 0;
 
-                if ($at === $index) {
+                // Only an http(s) image is put into the page.
+                if ($at === $index && Url::isWeb($figure['url'])) {
                     $html .= $this->figureHtml($figure);
                 }
             }
@@ -143,7 +145,7 @@ class Article extends Model
         $document = $this->material?->document;
         $label = (Language::tryFrom((string) $this->language) ?? Language::English)->sourceLabel();
         $caption = trim((string) ($figure['caption'] ?? ''));
-        $source = $document !== null
+        $source = $document !== null && Url::isWeb($document->url)
             ? e($label).': <a href="'.e($document->url).'" target="_blank" rel="noopener noreferrer">'.e($document->title).'</a>（'.e($document->source->nameIn($this->language)).'）'
             : '';
 

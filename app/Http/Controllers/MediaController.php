@@ -66,7 +66,11 @@ class MediaController extends Controller
      */
     public static function articles(string $language): Collection
     {
-        return Article::query()->where('language', $language)->whereNotNull('body')->with('material.document.source', 'translatedFrom')->get()
+        // Narrowed in SQL to the window (a day's margin for the zones), then decided by isShown.
+        return Article::query()->where('language', $language)->whereNotNull('body')
+            ->whereRaw('coalesce(published_at, scheduled_at, created_at) >= ?', [now()->subDays(self::WINDOW_DAYS + 1)])
+            ->whereRaw('coalesce(published_at, scheduled_at, created_at) <= ?', [now()->addDay()])
+            ->with('material.document.source', 'translatedFrom')->get()
             ->filter(fn (Article $article): bool => self::isShown($article))
             ->sortByDesc(fn (Article $article): int => self::dateOf($article)->getTimestamp())
             ->values();

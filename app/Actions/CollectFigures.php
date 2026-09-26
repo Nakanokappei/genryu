@@ -2,6 +2,8 @@
 
 namespace App\Actions;
 
+use App\Crawl\Url;
+
 /**
  * 図版 (UI "Figures"): the images of a document's Markdown, with alt text
  * and caption, for its material. No model; icons and logos are left out
@@ -36,8 +38,8 @@ class CollectFigures
                 $url = (string) preg_replace('/#.*\z/u', '', $image[2][0]);
                 $alt = trim($image[1][0]);
 
-                // Icons, logos and the like are not figures.
-                if (preg_match(self::NOT_A_FIGURE, basename((string) parse_url($url, PHP_URL_PATH)).' '.$alt) === 1) {
+                // Only http(s) images, and not icons, logos and the like.
+                if (! Url::isWeb($url) || preg_match(self::NOT_A_FIGURE, basename((string) parse_url($url, PHP_URL_PATH)).' '.$alt) === 1) {
                     continue;
                 }
 

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Actions\ProposeMaterial;
+use App\Crawl\Url;
 use Database\Factories\MaterialFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -70,13 +71,13 @@ class Material extends Model
     }
 
     /**
-     * The source's figures (図版), in source order.
+     * The source's http(s) figures (図版), in source order.
      *
      * @return list<array{url: string, alt: string, caption: ?string}>
      */
     public function figures(): array
     {
-        return array_values((array) ($this->parts['figures'] ?? []));
+        return array_values(array_filter((array) ($this->parts['figures'] ?? []), fn (array $figure): bool => Url::isWeb((string) ($figure['url'] ?? ''))));
     }
 
     /** @return BelongsTo<DocumentRevision, $this> the Markdown the material was made from */

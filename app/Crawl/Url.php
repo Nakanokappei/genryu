@@ -7,6 +7,12 @@ namespace App\Crawl;
  */
 class Url
 {
+    /** Whether a URL is an http(s) one, the only kind put into a page as a link or an image. */
+    public static function isWeb(string $url): bool
+    {
+        return preg_match('#^https?://[^/\s]#i', $url) === 1;
+    }
+
     /** The URL without its fragment. */
     public static function withoutFragment(string $url): string
     {
