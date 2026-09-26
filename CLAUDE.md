@@ -38,6 +38,20 @@ a Media Management System; the name itself stays Genryu.
   a verdict recorded on a document (人の判定) that overrides and later
   teaches. Otherwise the hours a person puts in would have to grow with
   what the AI processes. Never add a step that blocks on human input.
+- **What makes a media itself is narrowed at three points** (written down
+  2026-09-26; README "What makes a media itself"). (1) Which sources to
+  follow: a person registers them on 情報源; AI proposes how to read an
+  update list but never registers a source. (2) Which documents to take
+  in: every source's documents go through the title filter, the semantic
+  filter (らしさ against the threshold) and the screening; arXiv differs
+  only in order (filtered on its RSS summary, full text fetched once
+  adopted), others are fetched first. (3) Which articles to publish: the
+  adopted materials with the highest らしさ are written, up to 平日の公開本数
+  a day (`GenerateDailyArticles`), and only articles reaching the 合格点 of
+  the quality check are scheduled, best score first (`ScheduleArticles`).
+  A media's character is thus the sources a person chose, the editorial
+  policy (semantic filter definitions, screening prompt, quality rubric)
+  and what a person teaches afterwards (人の判定, like / unlike examples).
 - The stages are screens in the sidebar, in two groups (decided
   2026-09-23): **編集 (Editorial)** — 情報源 (Sources), 文書 (Documents),
   素材情報 (Materials), 記事 (Articles) — makes an article; **編成
