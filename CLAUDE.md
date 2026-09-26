@@ -734,6 +734,12 @@ came with the scaffold; leave them as they are.
 - Do not log response bodies, secrets, or personal data.
 - Commit `CLAUDE.md` and `.claude/launch.json`; `.claude/settings.local.json`
   is per-user and ignored.
+- **Commit messages are in English** (decided 2026-09-26; the repository
+  is public): "Area: what changed" (Articles:, Documents:, CLAUDE.md:,
+  Security: …), a body wrapped at 72 columns. Japanese UI labels
+  (人の判定, 合格点) may stand inside an English sentence. The Japanese
+  messages after `phase0-milestone7` were translated and the history
+  rewritten that day.
 
 ## Why the code is as it is
 
