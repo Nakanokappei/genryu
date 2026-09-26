@@ -1,6 +1,6 @@
 # Genryu — Media Management System
 
-Genryu (源流, "headwaters") is a media management system that builds articles from primary sources: what public agencies, research institutes and companies publish on their official sites. AI carries each stage — collecting the primary sources, selecting them against the editorial policy, turning them into the parts of an article, writing the article and translating it into several languages, and scheduling its publication. No stage stops to wait for a person; people supervise after the fact.
+Genryu (源流, "headwaters") is a Media Management System that builds articles from primary sources: what public agencies, research institutes and companies publish on their official sites. AI carries each stage — collecting the primary sources, selecting them against the editorial policy, turning them into the parts of an article, writing the article and translating it into several languages, and scheduling its publication. No stage stops to wait for a person; people supervise after the fact.
 
 The first media made with Genryu is **Technology Watch** ([technologywatch.tokyo](https://technologywatch.tokyo)). It follows emerging technology on its way from the laboratory to industry, for readers outside the field. The character of a media is set by its editorial policy; the system itself does not depend on the media.
 

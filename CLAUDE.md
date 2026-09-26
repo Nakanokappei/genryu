@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 # Genryu
 
-Builds articles from primary sources: fetch update lists from official
+Genryu is a Media Management System that builds articles from primary sources: fetch update lists from official
 sites, store each document as original + Markdown, extract structured
 material (JSON) per the editorial policy, generate articles per the
 editorial policy, publish. `docs/HANDOVER.md` is the one-page definition of
@@ -16,6 +16,11 @@ editorial policy — emerging technology on its way from the laboratory to
 industry, a senior editor of MIT Technology Review as the model — is
 Technology Watch's, the sources, filters, screens and jobs are Genryu's.
 The history under `docs/` (Phase 0) keeps the old name.
+
+**Genryu is the proper noun; Media Management System is its category**
+(decided 2026-09-26). "Genryu" alone says nothing to a newcomer, so where
+it first appears (the README, the GitHub description) it is introduced as
+a Media Management System; the name itself stays Genryu.
 
 > The parent directory's CLAUDE.md (`../CLAUDE.md`) also applies here:
 > behavioral guidelines, external-SSD cautions (`._` files, `dot_clean`),
