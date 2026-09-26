@@ -20,6 +20,21 @@ The first media made with Genryu is **Technology Watch** ([technologywatch.tokyo
 
 Each stage's criteria (the editorial policy) are edited on that stage's screen. The editorial policy prompts are written in English, and the answers come back in the language of the primary source that was read.
 
+## What makes a media itself
+
+What a media publishes is narrowed at three points, and only the first is a person's decision.
+
+1. **Which sources to follow — a person.** Sources are registered by a person on Editorial › Sources. AI proposes how to read a source's update list (verified on the page before it is saved), but never registers a source.
+2. **Which documents to take in — three filters, for every source.**
+   - **Title filter:** a title matching an exclude keyword is left out before it is fetched.
+   - **Semantic filter:** the document's "likeness" is measured against definitions of what is like and unlike this media and against examples a person marked; below the threshold it goes no further.
+   - **Screening:** an LLM decides adopt / reject / review against the editorial policy; a review is decided again by the next model up.
+
+   arXiv differs only in order: its papers go through the filters on their RSS summaries, and the full text is fetched once adopted. Other sources are fetched first, then filtered.
+3. **Which articles to publish — likeness, then quality.** Each day the adopted materials most like the media (by likeness) are written up to the number of weekday slots. An LLM scores each article against the quality rubric of the editorial policy; only those reaching the pass mark are scheduled, the best score taking the earliest slot.
+
+So a media's character comes from the sources a person chooses, the editorial policy (the semantic filter's definitions, the screening prompt, the quality rubric) and what a person teaches afterwards: a verdict recorded on a document (adopt / reject), which outranks the screening, and like / unlike examples for the semantic filter.
+
 ## Principles
 
 - **Human on the loop, not in the loop.** Every stage proceeds without waiting for a person; a person reviews afterwards and records verdicts, and those verdicts teach the next decisions. This keeps the time a person spends from growing with the volume processed.
