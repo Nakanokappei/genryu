@@ -47,7 +47,8 @@ a Media Management System; the name itself stays Genryu.
   only in order (filtered on its RSS summary, full text fetched once
   adopted), others are fetched first. (3) Which articles to publish: the
   adopted materials with the highest らしさ are written, up to 平日の公開本数
-  a day (`GenerateDailyArticles`), and only articles reaching the 合格点 of
+  a day, at most two from one publisher (`GenerateDailyArticles`; decided
+  2026-09-28, when arXiv took every slot), and only articles reaching the 合格点 of
   the quality check are scheduled, best score first (`ScheduleArticles`).
   A media's character is thus the sources a person chose, the editorial
   policy (semantic filter definitions, screening prompt, quality rubric)
@@ -654,7 +655,10 @@ a Media Management System; the name itself stays Genryu.
   from the full-text fetch of a summary adopted on the feed). 03:00
   `articles:generate` writes the day's articles (`GenerateDailyArticles`:
   up to 平日の公開本数, fresh materials within 対象期間, the likeliest by
-  らしさ first; a person's 記事を生成 counts toward the day). 05:00
+  らしさ first, at most `MAX_PER_PUBLISHER` (2) from one publisher — a
+  source's name, so arXiv's categories are one: the semantic filter was
+  tuned on arXiv and press releases come out below its papers; a
+  person's 記事を生成 counts toward the day). 05:00
   `articles:schedule` gives slots to articles scoring at least the 合格点
   (`schedule_settings.pass_mark`, 80, set on スケジュール) and queues their
   top images (`MakeImage::queueWaiting`). The media site shows what is

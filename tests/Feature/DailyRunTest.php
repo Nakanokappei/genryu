@@ -43,6 +43,23 @@ it('writes the day\'s articles from the likeliest fresh materials', function () 
     expect($materials)->toHaveCount(7);
 });
 
+// One publisher has at most two of the day's articles (arXiv's categories are one publisher); the rest go to the next likeliest.
+it('takes at most two of the day\'s articles from one publisher', function () {
+    $arxiv = collect([0.50, 0.45, 0.40, 0.35])->map(function (float $likeness): Material {
+        $material = extractedMaterial($likeness);
+        $material->document->source->update(['name' => 'arXiv']);
+
+        return $material;
+    });
+    $others = collect([0.10, 0.05, 0.02, 0.01])->map(fn (float $likeness): Material => extractedMaterial($likeness));
+
+    $this->artisan('articles:generate')->expectsOutputToContain('5 articles queued')->assertSuccessful();
+
+    $queued = Article::query()->originals()->with('material.document')->get()->map(fn (Article $article): float => $article->material->document->likeness)->sort()->values()->all();
+    expect($queued)->toBe([0.02, 0.05, 0.10, 0.45, 0.50])
+        ->and($arxiv)->toHaveCount(4)->and($others)->toHaveCount(4);
+});
+
 // 更新リストを取得 for every configured source; one still configuring or failed waits.
 it('queues the update lists of the configured sources', function () {
     $configured = Source::factory()->count(2)->create(['status' => 'configured']);
