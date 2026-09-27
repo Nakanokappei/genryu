@@ -15,7 +15,7 @@ use Illuminate\Support\Facades\DB;
  */
 class MeasureLikeness
 {
-    /** Characters of title and text that are embedded. */
+    /** Characters of title and text that are embedded, a Chinese, Japanese or Korean one counting as two (the model takes 8,192 tokens). */
     public const MAX_CHARS = 8000;
 
     public function __construct(private Embed $embed) {}
@@ -62,7 +62,27 @@ class MeasureLikeness
     {
         $body = (string) preg_replace(['/^#\s.*$/m', '/^\d{4}-\d{2}-\d{2}(T\S*)?$/m'], '', (string) $document->markdown);
 
-        return mb_substr(trim($document->title."\n\n".trim($body)), 0, self::MAX_CHARS);
+        return self::cut(trim($document->title."\n\n".trim($body)));
+    }
+
+    /** The text up to MAX_CHARS, a Chinese, Japanese or Korean character counting as two. */
+    public static function cut(string $text): string
+    {
+        $count = 0;
+        $length = 0;
+
+        // Count each character until the limit.
+        foreach (mb_str_split($text) as $character) {
+            $count += preg_match('/[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}]/u', $character) === 1 ? 2 : 1;
+
+            if ($count > self::MAX_CHARS) {
+                break;
+            }
+
+            $length++;
+        }
+
+        return mb_substr($text, 0, $length);
     }
 
     /**

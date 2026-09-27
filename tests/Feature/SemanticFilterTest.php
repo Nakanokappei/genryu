@@ -84,6 +84,10 @@ it('sends the document on to the screening when the embedding fails', function (
 
     expect($document->refresh()->likeness)->toBeNull()->and($document->likeness_detail)->toHaveKey('error');
     Queue::assertPushed(ScreenDocument::class, 1);
+
+    // A document already screened is not screened again.
+    (new ApplySemanticFilter($document->refresh()))->handle(app(MeasureLikeness::class));
+    Queue::assertPushed(ScreenDocument::class, 1);
 });
 
 // A document a person marked is an example: every other document is measured against it too, and it is never its own example.
@@ -153,4 +157,11 @@ it('keeps what the semantic filter left out away from the screening and the full
     (new FetchDocument($summary))->handle(app(ReadDocument::class), app(ProposeDocumentSettings::class), app(FetchFavicon::class));
     expect($summary->refresh()->status)->toBe('fetched')->and($summary->format)->toBe('feed');
     Http::assertNothingSent();
+});
+
+// A Chinese, Japanese or Korean character counts as two, so a long Japanese text stays under the model's 8,192 tokens.
+it('cuts the embedded text at half the characters in Chinese, Japanese or Korean', function () {
+    expect(mb_strlen(MeasureLikeness::cut(str_repeat('a', 9000))))->toBe(MeasureLikeness::MAX_CHARS)
+        ->and(mb_strlen(MeasureLikeness::cut(str_repeat('技術', 5000))))->toBe(MeasureLikeness::MAX_CHARS / 2)
+        ->and(MeasureLikeness::cut('short テキスト'))->toBe('short テキスト');
 });

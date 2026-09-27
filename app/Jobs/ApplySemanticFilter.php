@@ -39,7 +39,9 @@ class ApplySemanticFilter implements ShouldQueue
             $likeness = $measure($document);
         } catch (Throwable $exception) {
             $document->update(['likeness' => null, 'likeness_detail' => ['error' => ErrorMessage::of($exception, 500)]]);
-            ScreenDocument::queueFor($document);
+            if ($document->excluded_by === null && $document->latest_screening_id === null) {
+                ScreenDocument::queueFor($document);
+            }
 
             return;
         }
