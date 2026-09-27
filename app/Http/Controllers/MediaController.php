@@ -68,17 +68,20 @@ class MediaController extends Controller
     {
         // Narrowed in SQL to the window (a day's margin for the zones), then decided by isShown.
         return Article::query()->where('language', $language)->whereNotNull('body')
-            ->whereRaw('coalesce(published_at, scheduled_at, created_at) >= ?', [now()->subDays(self::WINDOW_DAYS + 1)])
-            ->whereRaw('coalesce(published_at, scheduled_at, created_at) <= ?', [now()->addDay()])
+            ->whereRaw('coalesce(published_at, scheduled_at) >= ?', [now()->subDays(self::WINDOW_DAYS + 1)])
+            ->whereRaw('coalesce(published_at, scheduled_at) <= ?', [now()->addDay()])
             ->with('material.document.source', 'translatedFrom')->get()
             ->filter(fn (Article $article): bool => self::isShown($article))
             ->sortByDesc(fn (Article $article): int => self::dateOf($article)->getTimestamp())
             ->values();
     }
 
-    /** Whether the site shows an article: written, publishable (言語設定), within the window. */
+    /** Whether the site shows an article: written, publishable (言語設定), published or scheduled, its time come, within the window. */
     public static function isShown(Article $article): bool
     {
+        if ($article->published_at === null && $article->scheduled_at === null) {
+            return false;
+        }
         $date = self::dateOf($article);
 
         return $article->body !== null && $article->isPublishable() && ! $date->isFuture() && $date->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));

@@ -50,8 +50,8 @@ it('shows the source by its name in the language of the article', function () {
     $this->travelTo('2026-09-25 03:00:00');
     $material = Material::factory()->create();
     $material->document->source->update(['name' => '国防先端研究計画局（DARPA）', 'names' => ['en' => 'Defense Advanced Research Projects Agency (DARPA)']]);
-    $original = Article::factory()->for($material)->create(['language' => 'ja', 'headline' => '原文', 'body' => 'リード。']);
-    Article::factory()->for($material)->create(['language' => 'en', 'translated_from_id' => $original->id, 'headline' => 'English', 'body' => 'Lead.']);
+    $original = Article::factory()->for($material)->create(['language' => 'ja', 'headline' => '原文', 'body' => 'リード。', 'published_at' => '2026-09-24 03:00:00']);
+    Article::factory()->for($material)->create(['language' => 'en', 'translated_from_id' => $original->id, 'headline' => 'English', 'body' => 'Lead.', 'published_at' => '2026-09-24 03:00:00']);
 
     $this->get('/media/ja')->assertSee('国防先端研究計画局（DARPA）');
     $this->get('/media/en')->assertSee('Defense Advanced Research Projects Agency (DARPA)')->assertDontSee('国防先端研究計画局');

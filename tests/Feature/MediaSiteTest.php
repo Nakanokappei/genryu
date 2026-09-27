@@ -14,19 +14,20 @@ it('sends the root of the site to the media site', function () {
     $this->get('/')->assertRedirect('/media');
 });
 
-// The front page: the language versions to be published, written within the last 30 days, newest first; nothing older.
+// The front page: the language versions to be published, out within the last 30 days, newest first; nothing older, nothing unscheduled.
 it('shows the articles of the last 30 days on the front page of a language', function () {
     $this->travelTo('2026-09-25 03:00:00');
     $newest = Article::factory()->create(['language' => 'ja', 'headline' => '新しい記事', 'body' => "新しい記事のリード。\n\n## 承\n\n本文。", 'scheduled_at' => '2026-09-24 03:00:00']);
-    Article::factory()->create(['language' => 'ja', 'headline' => '少し前の記事', 'body' => 'リード。', 'created_at' => '2026-09-10 03:00:00']);
-    Article::factory()->create(['language' => 'ja', 'headline' => '古すぎる記事', 'body' => 'リード。', 'created_at' => '2026-08-01 03:00:00']);
+    Article::factory()->create(['language' => 'ja', 'headline' => '少し前の記事', 'body' => 'リード。', 'published_at' => '2026-09-10 03:00:00']);
+    Article::factory()->create(['language' => 'ja', 'headline' => '日時未定の記事', 'body' => 'リード。', 'created_at' => '2026-09-24 03:00:00']);
+    Article::factory()->create(['language' => 'ja', 'headline' => '古すぎる記事', 'body' => 'リード。', 'published_at' => '2026-08-01 03:00:00']);
     Article::factory()->create(['language' => 'ja', 'headline' => '本文のない記事', 'body' => null]);
     Article::factory()->create(['language' => 'en', 'translated_from_id' => $newest->id, 'material_id' => $newest->material_id, 'headline' => 'An English article', 'body' => 'Lead.', 'scheduled_at' => '2026-09-24 16:00:00']);
 
     $this->get('/media')->assertOk()
         ->assertSee('Technology Watch')
         ->assertSeeInOrder(['新しい記事', '新しい記事のリード。', '少し前の記事'])
-        ->assertDontSee('古すぎる記事')->assertDontSee('本文のない記事')->assertDontSee('An English article');
+        ->assertDontSee('古すぎる記事')->assertDontSee('本文のない記事')->assertDontSee('日時未定の記事')->assertDontSee('An English article');
     $this->get('/media/en')->assertOk()->assertSee('An English article')->assertSee('From the laboratory to industry')
         // Today's date in the masthead, written the English way in New York.
         ->assertSee('September 24, 2026')->assertDontSee('2026年9月')
@@ -39,8 +40,8 @@ it('shows the articles of the last 30 days on the front page of a language', fun
 it('shows an article with its top image and without its headline twice', function () {
     $this->travelTo('2026-09-25 03:00:00');
     Storage::disk('local')->put('images/1/1.jpg', 'jpeg bytes');
-    $original = Article::factory()->create(['language' => 'ja', 'headline' => '原文', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg']);
-    $translation = Article::factory()->create(['language' => 'en', 'translated_from_id' => $original->id, 'material_id' => $original->material_id, 'headline' => 'The headline', 'body' => "# The headline\n\nThe lead."]);
+    $original = Article::factory()->create(['language' => 'ja', 'headline' => '原文', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg', 'published_at' => '2026-09-24 03:00:00']);
+    $translation = Article::factory()->create(['language' => 'en', 'translated_from_id' => $original->id, 'material_id' => $original->material_id, 'headline' => 'The headline', 'body' => "# The headline\n\nThe lead.", 'published_at' => '2026-09-24 03:00:00']);
 
     // The image URL carries the drawing, so a redrawn image is fetched again rather than taken from the browser's cache.
     $page = $this->get(route('media.article', ['en', $translation]))->assertOk()->assertSee('The lead.')->assertSee(route('media.image', ['article' => $translation, 'v' => '1']), false);
@@ -51,18 +52,20 @@ it('shows an article with its top image and without its headline twice', functio
     $this->get(route('media.article', ['ja', $translation]))->assertNotFound();
 });
 
-// A top image is served only for an article the site shows: not for one without a body, not published in its language, or older than the window.
+// A top image is served only for an article the site shows: not for one without a body, not published in its language, unscheduled, or older than the window.
 it('does not serve the top image of an article the site does not show', function () {
     $this->travelTo('2026-09-25 03:00:00');
     Storage::disk('local')->put('images/1/1.jpg', 'jpeg bytes');
-    $shown = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg']);
-    $unwritten = Article::factory()->create(['language' => 'ja', 'body' => null, 'image_path' => 'images/1/1.jpg']);
-    $tooOld = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg', 'created_at' => '2026-08-01 03:00:00']);
+    $shown = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg', 'published_at' => '2026-09-24 03:00:00']);
+    $unwritten = Article::factory()->create(['language' => 'ja', 'body' => null, 'image_path' => 'images/1/1.jpg', 'published_at' => '2026-09-24 03:00:00']);
+    $unscheduled = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg']);
+    $tooOld = Article::factory()->create(['language' => 'ja', 'body' => 'リード。', 'image_path' => 'images/1/1.jpg', 'published_at' => '2026-08-01 03:00:00']);
     // German takes only German sources until 言語設定 says otherwise, so a German translation of a Japanese article is not published.
-    $unpublished = Article::factory()->create(['language' => 'de', 'translated_from_id' => $shown->id, 'material_id' => $shown->material_id, 'body' => 'Der Vorspann.']);
+    $unpublished = Article::factory()->create(['language' => 'de', 'translated_from_id' => $shown->id, 'material_id' => $shown->material_id, 'body' => 'Der Vorspann.', 'published_at' => '2026-09-24 03:00:00']);
 
     $this->get(route('media.image', $shown))->assertOk();
     $this->get(route('media.image', $unwritten))->assertNotFound();
+    $this->get(route('media.image', $unscheduled))->assertNotFound();
     $this->get(route('media.image', $tooOld))->assertNotFound();
     $this->get(route('media.image', $unpublished))->assertNotFound();
 });
