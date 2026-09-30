@@ -18,17 +18,21 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string|null $full_text_link 全文へのリンク: CSS selectors, one per line, tried in order
  * @property CarbonImmutable|null $favicon_modified_at the favicon's Last-Modified
  * @property array<string, string>|null $names 名称: the name in each language but the UI language's, which is $name
+ * @property bool $is_benchmark ベンチマーク: read like a source, but only its documents' embeddings are kept
  */
 class Source extends Model
 {
+    /** A benchmark's documents published within this many days are compared with. */
+    public const BENCHMARK_WINDOW_DAYS = 90;
+
     /** @use HasFactory<SourceFactory> */
     use HasFactory;
 
-    protected $fillable = ['name', 'url', 'favicon_path', 'favicon_url', 'favicon_modified_at', 'feed_url', 'html_list_settings', 'json_list_settings', 'document_settings', 'full_text_link', 'list_method', 'status', 'status_message', 'notes', 'updates_fetched_at', 'names'];
+    protected $fillable = ['name', 'url', 'favicon_path', 'favicon_url', 'favicon_modified_at', 'feed_url', 'html_list_settings', 'json_list_settings', 'document_settings', 'full_text_link', 'list_method', 'status', 'status_message', 'notes', 'is_benchmark', 'updates_fetched_at', 'names'];
 
     protected function casts(): array
     {
-        return ['updates_fetched_at' => 'datetime', 'favicon_modified_at' => 'datetime', 'html_list_settings' => 'array', 'json_list_settings' => 'array', 'document_settings' => 'array', 'names' => 'array'];
+        return ['updates_fetched_at' => 'datetime', 'favicon_modified_at' => 'datetime', 'html_list_settings' => 'array', 'json_list_settings' => 'array', 'document_settings' => 'array', 'names' => 'array', 'is_benchmark' => 'boolean'];
     }
 
     /**

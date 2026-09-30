@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Actions\EmbedBenchmarkDocument;
 use App\Actions\FetchFavicon;
 use App\Actions\ProposeDocumentSettings;
 use App\Actions\ReadDocument;
@@ -20,7 +21,8 @@ use Throwable;
 
 /**
  * 文書を取得 (UI: "Fetch document"): fetch a document's page (or the full
- * text it links to), keep the original and read it into Markdown.
+ * text it links to), keep the original and read it into Markdown; of a
+ * ベンチマーク's document only the embedding is kept.
  */
 class FetchDocument implements ShouldQueue
 {
@@ -75,13 +77,21 @@ class FetchDocument implements ShouldQueue
                 [$body, $format] = self::get($url);
             }
 
-            // The original, as served.
-            $path = "documents/{$source->id}/{$document->id}.{$format}";
-            Storage::disk('local')->put($path, $body);
-
             [$markdown, $message] = $format === 'pdf'
                 ? [$read->pdf($body, $document->title), null]
                 : $this->markdown($body, $url ?? $document->url, $source, $document, $read, $propose);
+
+            // A benchmark's document: the embedding is kept, the original and the body are not.
+            if ($source->is_benchmark) {
+                $characters = app(EmbedBenchmarkDocument::class)($document, $markdown);
+                $document->update(['format' => $format, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => trim(__('Embedded :count characters; the body is not kept.', ['count' => $characters]).' '.$message)]);
+
+                return;
+            }
+
+            // The original, as served.
+            $path = "documents/{$source->id}/{$document->id}.{$format}";
+            Storage::disk('local')->put($path, $body);
 
             $document->update(['format' => $format, 'original_path' => $path, 'markdown' => $markdown, 'fetched_at' => now(), 'status' => 'fetched', 'status_message' => $message]);
 

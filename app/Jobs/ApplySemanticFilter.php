@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Actions\CompareWithBenchmarks;
 use App\Actions\MeasureLikeness;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
@@ -34,6 +35,11 @@ class ApplySemanticFilter implements ShouldQueue
     {
         $document = $this->document;
 
+        // A benchmark's document is only compared with, never filtered.
+        if ($document->source->is_benchmark) {
+            return;
+        }
+
         // A filter that cannot measure lets the document through.
         try {
             $likeness = $measure($document);
@@ -44,6 +50,13 @@ class ApplySemanticFilter implements ShouldQueue
             }
 
             return;
+        }
+
+        // ベンチマーク類似度, recorded only: a failure is noted and decides nothing.
+        try {
+            app(CompareWithBenchmarks::class)($document);
+        } catch (Throwable $exception) {
+            $document->update(['benchmark_similarity' => null, 'benchmark_detail' => ['error' => ErrorMessage::of($exception, 500)]]);
         }
 
         // At or above the threshold, not excluded and not yet screened: screen it.

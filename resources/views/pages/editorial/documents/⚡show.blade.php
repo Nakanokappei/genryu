@@ -195,6 +195,17 @@ new #[Title('文書')] class extends Component {
                 </flux:text>
             @endif
         @endforeach
+        {{-- ベンチマーク類似度: the nearest article of each benchmark, recorded only. --}}
+        @if (isset($document->benchmark_detail['error']))
+            <flux:text size="sm" class="text-neutral-500">{{ __('Could not compare with the benchmarks: :reason', ['reason' => $document->benchmark_detail['error']]) }}</flux:text>
+        @elseif ($document->benchmark_similarity !== null)
+            <div class="space-y-1">
+                <flux:text size="sm">{{ __('Benchmark similarity') }} <span class="font-medium">{{ sprintf('%.3f', $document->benchmark_similarity) }}</span> <span class="text-neutral-500">（{{ __('recorded only; it decides nothing yet') }}）</span></flux:text>
+                @foreach ($document->benchmark_detail['benchmarks'] ?? [] as $nearest)
+                    <flux:text size="sm"><span class="text-neutral-500">{{ $nearest['benchmark'] }}（{{ number_format($nearest['similarity'], 3) }}）:</span> <a href="{{ $nearest['url'] }}" target="_blank" rel="noopener noreferrer" class="underline">{{ $nearest['title'] }}</a></flux:text>
+                @endforeach
+            </div>
+        @endif
         <div class="flex flex-wrap items-center gap-3">
             <flux:text size="sm">{{ __('As an example of the semantic filter:') }}</flux:text>
             @foreach ([...\App\Models\SemanticFilterExample::SIDES, 'none' => 'Not an example'] as $side => $label)

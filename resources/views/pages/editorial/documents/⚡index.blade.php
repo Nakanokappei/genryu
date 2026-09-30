@@ -67,7 +67,7 @@ new #[Title('文書')] class extends PagedList {
     // Queue the semantic filter for the fetched documents not measured yet.
     public function applySemanticFilter(): void
     {
-        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('likeness')->get();
+        $documents = Document::query()->fromSources()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('likeness')->get();
         $documents->each(fn (Document $document) => ApplySemanticFilter::queueFor($document));
 
         Flux::toast(variant: 'success', text: __(':count documents queued for the semantic filter.', ['count' => $documents->count()]));
@@ -95,7 +95,7 @@ new #[Title('文書')] class extends PagedList {
     // Queue the screening of the fetched documents not screened yet.
     public function screenDocuments(): void
     {
-        $documents = Document::query()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('latest_screening_id')
+        $documents = Document::query()->fromSources()->where('status', 'fetched')->whereNull('excluded_by')->whereNull('latest_screening_id')
             ->notLeftOut()->get();
         $documents->each(fn (Document $document) => ScreenDocument::queueFor($document));
         unset($this->documents);
@@ -166,7 +166,8 @@ new #[Title('文書')] class extends PagedList {
         $direction = $this->direction === 'asc' ? 'asc' : 'desc';
 
         // Every document, whatever its state; id breaks ties.
-        return Document::query()->with('source', 'material', 'latestScreening')
+        // The sources' documents only: a benchmark's are on the Benchmarks screen.
+        return Document::query()->fromSources()->with('source', 'material', 'latestScreening')
             ->when($sort === 'source', fn ($query) => $query->join('sources', 'sources.id', '=', 'documents.source_id')->select('documents.*'))
             ->when($this->source !== '', fn ($query) => $query->where('documents.source_id', $this->source))
             ->when($this->format !== '', fn ($query) => $query->where('format', $this->format))
@@ -188,7 +189,7 @@ new #[Title('文書')] class extends PagedList {
     #[Computed]
     public function sources()
     {
-        return Source::query()->orderBy('name')->orderBy('notes')->get(['id', 'name', 'notes']);
+        return Source::query()->where('is_benchmark', false)->orderBy('name')->orderBy('notes')->get(['id', 'name', 'notes']);
     }
 
     // The start of a day of the display timezone, in UTC.
@@ -231,13 +232,18 @@ new #[Title('文書')] class extends PagedList {
         <flux:heading size="lg">{{ __('Editorial policy') }} — {{ __('Semantic filter') }}</flux:heading>
         <flux:text>{{ __('Before the screening, for every source: a document\'s title and text are embedded and compared with the definitions and the examples of each side. Likeness is how much nearer the nearest "like" is than the nearest "unlike"; below the threshold a document goes no further. Much cheaper than the screening, and coarse: it cuts what is clearly unlike this media, and the screening judges the rest.') }}</flux:text>
         {{-- Links to the らしい / らしくない screens. --}}
-        <div class="grid gap-3 sm:grid-cols-2">
+        <div class="grid gap-3 sm:grid-cols-3">
             @foreach (\App\Models\SemanticFilterExample::SIDES as $side => $label)
                 <a href="{{ route('editorial.semantic-filter.show', $side) }}" class="rounded-lg border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800" wire:navigate>
                     <div class="font-medium">{{ __($label) }} →</div>
                     <div class="text-sm text-neutral-500">{{ __(':definitions definitions, :examples examples', ['definitions' => $this->semanticFilterFigures[$side.'_definitions'], 'examples' => $this->semanticFilterFigures[$side]]) }}</div>
                 </a>
             @endforeach
+            {{-- ベンチマーク: recorded beside the likeness, deciding nothing yet. --}}
+            <a href="{{ route('editorial.benchmarks.index') }}" class="rounded-lg border border-neutral-200 p-3 hover:bg-neutral-50 dark:border-neutral-700 dark:hover:bg-neutral-800" wire:navigate>
+                <div class="font-medium">{{ __('Benchmarks') }} →</div>
+                <div class="text-sm text-neutral-500">{{ __(':count benchmarks, recorded only', ['count' => \App\Models\Source::query()->where('is_benchmark', true)->count()]) }}</div>
+            </a>
         </div>
         <div class="grid gap-3 md:grid-cols-[1fr_12rem]">
             <x-pages::model-select wire:model="semanticFilterModel" :label="__('Embedding model')" :models="\App\Models\EditorialPolicy::EMBEDDING_MODELS" detail="described" />
@@ -370,7 +376,7 @@ new #[Title('文書')] class extends PagedList {
                         —
                     @endif
                 </td>
-                <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" />@if ($document->likeness !== null) <span class="whitespace-nowrap text-xs text-neutral-500">{{ __('Likeness') }} {{ sprintf('%+.2f', $document->likeness) }}</span>@endif</td>
+                <td class="px-3 pt-1 pb-2"><x-pages::decision :document="$document" />@if ($document->likeness !== null) <span class="whitespace-nowrap text-xs text-neutral-500">{{ __('Likeness') }} {{ sprintf('%+.2f', $document->likeness) }}</span>@endif @if ($document->benchmark_similarity !== null)<span class="whitespace-nowrap text-xs text-neutral-500">{{ __('Benchmark') }} {{ sprintf('%.2f', $document->benchmark_similarity) }}</span>@endif</td>
                 <td class="px-3 pt-1 pb-2">
                     <select wire:change="setLanguage({{ $document->id }}, $event.target.value)" aria-label="{{ __('Language') }}" class="rounded-md border border-neutral-200 bg-transparent px-1 py-0.5 text-sm dark:border-neutral-700">
                         @if ($document->language === null)

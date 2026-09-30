@@ -54,7 +54,7 @@ a Media Management System; the name itself stays Genryu.
   policy (semantic filter definitions, screening prompt, quality rubric)
   and what a person teaches afterwards (人の判定, like / unlike examples).
 - The stages are screens in the sidebar, in two groups (decided
-  2026-09-23): **編集 (Editorial)** — 情報源 (Sources), 文書 (Documents),
+  2026-09-23): **編集 (Editorial)** — 情報源 (Sources), ベンチマーク (Benchmarks), 文書 (Documents),
   素材情報 (Materials), 記事 (Articles) — makes an article; **編成
   (Production)** takes the articles on to publication (quality check and
   score against the media's policy, publishing, top image, publication
@@ -504,6 +504,31 @@ a Media Management System; the name itself stays Genryu.
   (`editorial/semantic-filter/{like|unlike}`, layers `semantic_like` /
   `semantic_unlike`, one per line, with that side's examples); the
   model and the threshold stay on 文書.
+- **ベンチマーク (Benchmarks) show the trend the definitions cannot**
+  (2026-09-26, `editorial/benchmarks`, in the sidebar under 情報源,
+  recorded only so far). A benchmark is a secondary-source site kept in
+  `sources` with `is_benchmark` set: added on its own screen, configured
+  and read like any source (feed, JSON list or HTML list, the title
+  filter, `updates:fetch` at 01:00) and its documents fetched, but
+  `FetchDocument` keeps only the embedding of the body it read
+  (`App\Actions\EmbedBenchmarkDocument`): no original, no Markdown, no
+  revision, and the document goes no further. Its documents stay off
+  情報源 and 文書 (`Document::fromSources` / `fromBenchmarks`), and
+  `ApplySemanticFilter` and `ScreenDocument` refuse them. After the
+  likeness, `ApplySemanticFilter` has `App\Actions\CompareWithBenchmarks`
+  record the nearest document of each benchmark within
+  `Source::BENCHMARK_WINDOW_DAYS` (90), the highest as ベンチマーク類似度
+  (`documents.benchmark_similarity`); it decides nothing yet. A changed
+  embedding model cannot re-embed them (the body is gone): they are
+  compared again only as new ones are fetched. Planned (decided
+  2026-09-26): set it against the spot check's verdicts, then pass a
+  document when **either** the likeness or the benchmark similarity
+  reaches its threshold — never both, since the benchmarks write about a
+  field weeks after its primary sources and an AND would drop what
+  nobody has written about yet. The raw similarity has no contrast of
+  its own (unrelated texts score 0.1–0.3); whether to subtract the
+  nearest unlike (in `likeness_detail`) or rank by percentile is for the
+  comparison to settle.
 - **監督 (Supervision) is the third sidebar group: a person looking over
   what the stages did, after the fact** (2026-09-24). Its first screen is
   **抜き取り点検 (Spot check)**, Stet's idea from the NYT comparison

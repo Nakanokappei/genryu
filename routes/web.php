@@ -28,6 +28,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::prefix('editorial')->name('editorial.')->group(function () {
         Route::livewire('sources', 'pages::editorial.sources.index')->name('sources.index');
         Route::livewire('sources/{source}', 'pages::editorial.sources.show')->name('sources.show');
+        // ベンチマーク: the secondary-source sites the documents are compared with.
+        Route::livewire('benchmarks', 'pages::editorial.benchmarks.index')->name('benchmarks.index');
         // The source's favicon from the local disk; not found when it has none.
         Route::get('sources/{source}/favicon', function (Source $source) {
             abort_if($source->favicon_path === null || ! Storage::disk('local')->exists($source->favicon_path), 404);

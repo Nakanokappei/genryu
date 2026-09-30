@@ -448,5 +448,20 @@
     "Only http and https URLs are fetched: :url": "取得できるのは http と https の URL だけです: :url",
     "Not a public address: :url": "公開アドレスではありません: :url",
     "The host could not be resolved: :host": "ホスト名を解決できません: :host",
-    "The response is larger than :size MB: :url": "応答が :size MB を超えています: :url"
+    "The response is larger than :size MB: :url": "応答が :size MB を超えています: :url",
+    "Benchmark": "ベンチマーク",
+    "Benchmarks": "ベンチマーク",
+    "Benchmark similarity": "ベンチマーク類似度",
+    "Comparison queued.": "比較をキューに入れました。",
+    ":count documents compared.": ":count 件の文書を比較済み。",
+    "Compare every embedded document again": "埋め込み済みの文書をすべて比べ直す",
+    ":count benchmarks, recorded only": "ベンチマーク :count 件（記録のみ）",
+    "Could not compare with the benchmarks: :reason": "ベンチマークと比較できませんでした: :reason",
+    "recorded only; it decides nothing yet": "記録のみ。まだ判定には使いません",
+    "For now the benchmark similarity is only recorded: it decides nothing. Once enough is recorded it is set against the verdicts of the spot check before a threshold is chosen.": "いまはベンチマーク類似度を記録するだけで、判定には使いません。十分にたまったら抜き取り点検の判定と照らし合わせ、そのうえで閾値を決めます。",
+    "Latest benchmark documents": "最近のベンチマークの文書",
+    "Documents compared with": "比較対象の文書",
+    "Embedded :count characters; the body is not kept.": ":count 字を埋め込みました。本文は保存しません。",
+    "A benchmark's document is only compared with, never screened.": "ベンチマークの文書は比較に使うだけで、スクリーニングしません。",
+    "Secondary-source sites that show what is being written about now. A benchmark is read like a source (feed, JSON list or HTML list; the title filter leaves ads and notices out) and its documents are fetched, but only their embeddings are kept: neither the original nor the body is recorded. Every document of the sources the semantic filter measures is compared with the benchmarks' documents of the last :days days, and its similarity to the nearest document of each benchmark is recorded (benchmark similarity).": "いま何が書かれているかを示す二次情報サイトです。情報源と同じように読み（フィード、JSON の一覧、HTML の一覧。広告や告知はタイトルフィルタで除く）、文書も取得しますが、保存するのは埋め込みだけで、原本も本文も記録しません。意味フィルタが測る情報源の文書はすべて、直近 :days 日のベンチマークの文書と比べ、ベンチマークごとに最も近い文書との類似度（ベンチマーク類似度）を記録します。"
 }

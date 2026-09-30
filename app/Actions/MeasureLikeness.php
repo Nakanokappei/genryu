@@ -36,7 +36,7 @@ class MeasureLikeness
     }
 
     /**
-     * Re-measures every document embedded with the filter's model, without re-embedding.
+     * Re-measures every document of the sources embedded with the filter's model, without re-embedding.
      *
      * @return array{measured: int, below: int}
      */
@@ -46,7 +46,7 @@ class MeasureLikeness
         $measured = 0;
         $below = 0;
 
-        DocumentEmbedding::query()->where('model', $filter['model'])->with('document')->chunkById(100, function ($embeddings) use ($filter, &$measured, &$below): void {
+        DocumentEmbedding::query()->where('model', $filter['model'])->whereHas('document', fn ($document) => $document->fromSources())->with('document')->chunkById(100, function ($embeddings) use ($filter, &$measured, &$below): void {
             foreach ($embeddings as $embedding) {
                 $likeness = $this->keep($embedding->document, $embedding->vector, $filter);
                 $measured++;
@@ -57,12 +57,18 @@ class MeasureLikeness
         return ['measured' => $measured, 'below' => $below];
     }
 
-    /** The text embedded: title and body without the Markdown's title and date lines, cut at MAX_CHARS. */
+    /** The text embedded for a document. */
     public static function text(Document $document): string
     {
-        $body = (string) preg_replace(['/^#\s.*$/m', '/^\d{4}-\d{2}-\d{2}(T\S*)?$/m'], '', (string) $document->markdown);
+        return self::textOf($document->title, (string) $document->markdown);
+    }
 
-        return self::cut(trim($document->title."\n\n".trim($body)));
+    /** Title and body without the Markdown's title and date lines, cut at MAX_CHARS. */
+    public static function textOf(string $title, string $markdown): string
+    {
+        $body = (string) preg_replace(['/^#\s.*$/m', '/^\d{4}-\d{2}-\d{2}(T\S*)?$/m'], '', $markdown);
+
+        return self::cut(trim($title."\n\n".trim($body)));
     }
 
     /** The text up to MAX_CHARS, a Chinese, Japanese or Korean character counting as two. */
@@ -175,7 +181,7 @@ class MeasureLikeness
      * @param  list<float>  $a
      * @param  list<float>  $b
      */
-    private static function dot(array $a, array $b): float
+    public static function dot(array $a, array $b): float
     {
         $sum = 0.0;
 

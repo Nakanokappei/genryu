@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
  *
  * @property float|null $likeness らしさ: nearest like minus nearest unlike
  * @property array<string, mixed>|null $likeness_detail the nearest like and unlike, their similarities, the model
+ * @property float|null $benchmark_similarity ベンチマーク類似度: to the nearest benchmark document, recorded only
+ * @property array<string, mixed>|null $benchmark_detail the nearest document of each benchmark, highest first
  * @property CarbonImmutable|null $published_at
  * @property bool $published_has_time
  * @property string|null $language 言語, one of App\Enums\Language
@@ -37,11 +39,11 @@ class Document extends Model
     /** Below this many characters a body is 本文が短い. */
     public const SHORT_BODY_CHARS = 1000;
 
-    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'latest_screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
+    protected $fillable = ['source_id', 'title', 'url', 'published_at', 'published_has_time', 'excluded_by', 'likeness', 'likeness_detail', 'benchmark_similarity', 'benchmark_detail', 'format', 'language', 'original_path', 'markdown', 'fetched_at', 'status', 'status_message', 'latest_screening_id', 'human_decision', 'human_reason', 'human_decided_at', 'human_decided_by'];
 
     protected function casts(): array
     {
-        return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'likeness' => 'float', 'likeness_detail' => 'array', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
+        return ['published_at' => 'datetime', 'published_has_time' => 'boolean', 'likeness' => 'float', 'likeness_detail' => 'array', 'benchmark_similarity' => 'float', 'benchmark_detail' => 'array', 'fetched_at' => 'datetime', 'human_decided_at' => 'datetime'];
     }
 
     /** 公開日時 in the display timezone, or 公開日 as written (a day is midnight UTC, never shifted). */
@@ -78,10 +80,10 @@ class Document extends Model
         return $this->hasMany(Screening::class)->latest('id');
     }
 
-    /** 本文が短い: a fetched, non-excluded, non-feed body under SHORT_BODY_CHARS. */
+    /** 本文が短い: a fetched, non-excluded, non-feed body under SHORT_BODY_CHARS (a benchmark's, not kept, is not). */
     public function hasShortBody(): bool
     {
-        return $this->status === 'fetched' && $this->excluded_by === null && $this->format !== 'feed' && mb_strlen((string) $this->markdown) < self::SHORT_BODY_CHARS;
+        return $this->status === 'fetched' && $this->excluded_by === null && $this->format !== 'feed' && $this->markdown !== null && mb_strlen($this->markdown) < self::SHORT_BODY_CHARS;
     }
 
     /** Whether an adopted feed summary is due its full-text fetch. */
@@ -222,6 +224,28 @@ class Document extends Model
     }
 
     /**
+     * Documents of the 情報源, not of a ベンチマーク.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function fromSources(Builder $query): void
+    {
+        $query->whereIn('documents.source_id', Source::query()->where('is_benchmark', false)->select('id'));
+    }
+
+    /**
+     * Documents of a ベンチマーク, kept as their embeddings only.
+     *
+     * @param  Builder<self>  $query
+     */
+    #[Scope]
+    protected function fromBenchmarks(Builder $query): void
+    {
+        $query->whereIn('documents.source_id', Source::query()->where('is_benchmark', true)->select('id'));
+    }
+
+    /**
      * Documents with a short body (see hasShortBody()).
      *
      * @param  Builder<self>  $query
@@ -229,7 +253,7 @@ class Document extends Model
     #[Scope]
     protected function withShortBody(Builder $query): void
     {
-        $query->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')
-            ->whereRaw('coalesce(length(markdown), 0) < ?', [self::SHORT_BODY_CHARS]);
+        $query->where('status', 'fetched')->whereNull('excluded_by')->where('format', '!=', 'feed')->whereNotNull('markdown')
+            ->whereRaw('length(markdown) < ?', [self::SHORT_BODY_CHARS]);
     }
 }

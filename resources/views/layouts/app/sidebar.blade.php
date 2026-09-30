@@ -20,6 +20,9 @@
                     <flux:sidebar.item icon="globe-alt" :href="route('editorial.sources.index')" :current="request()->routeIs('editorial.sources.*')" wire:navigate>
                         {{ __('Sources') }}
                     </flux:sidebar.item>
+                    <flux:sidebar.item icon="chart-bar" :href="route('editorial.benchmarks.index')" :current="request()->routeIs('editorial.benchmarks.*')" wire:navigate>
+                        {{ __('Benchmarks') }}
+                    </flux:sidebar.item>
                     <flux:sidebar.item icon="document-text" :href="route('editorial.documents.index')" :current="request()->routeIs('editorial.documents.*')" wire:navigate>
                         {{ __('Documents') }}
                     </flux:sidebar.item>

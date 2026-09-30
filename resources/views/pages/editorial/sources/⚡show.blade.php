@@ -299,7 +299,7 @@ new #[Title('情報源')] class extends Component {
 }; ?>
 
 <section class="w-full space-y-6">
-    <x-pages::detail-header :back="route('editorial.sources.index')" :back-label="__('Sources')" :title="$source->name" />
+    <x-pages::detail-header :back="$source->is_benchmark ? route('editorial.benchmarks.index') : route('editorial.sources.index')" :back-label="$source->is_benchmark ? __('Benchmarks') : __('Sources')" :title="$source->name" />
 
     <form wire:submit="save" class="grid gap-3 rounded-xl border border-neutral-200 p-4 md:grid-cols-3 dark:border-neutral-700">
         <flux:input wire:model="name" :label="__('Name')" />

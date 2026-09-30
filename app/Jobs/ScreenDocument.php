@@ -54,7 +54,11 @@ class ScreenDocument implements ShouldQueue
         $document = $screening->document;
 
         try {
-            // Excluded or left out: not screened.
+            // A benchmark's document, excluded or left out: not screened.
+            if ($document->source->is_benchmark) {
+                throw new RuntimeException(__('A benchmark\'s document is only compared with, never screened.'));
+            }
+
             if ($document->excluded_by !== null) {
                 throw new RuntimeException(__('The document is excluded by the title filter.'));
             }

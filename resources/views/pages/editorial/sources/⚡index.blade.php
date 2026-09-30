@@ -12,7 +12,7 @@ use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Validate;
 
-// 情報源 (Sources): the sources, adding one, and the title filter.
+// 情報源 (Sources): the sources (benchmarks aside), adding one, and the title filter.
 new #[Title('情報源')] class extends PagedList {
     #[Validate('required|string|max:255')]
     public string $name = '';
@@ -44,7 +44,7 @@ new #[Title('情報源')] class extends PagedList {
     #[Computed]
     public function sources()
     {
-        return Source::query()
+        return Source::query()->where('is_benchmark', false)
             ->withCount([
                 'documents',
                 'documents as failed_documents_count' => fn ($query) => $query->where('status', 'failed'),
