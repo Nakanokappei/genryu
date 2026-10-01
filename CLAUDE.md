@@ -720,7 +720,10 @@ as a tarball, unpacked over `/var/www/genryu`; `composer install --no-dev
 --optimize-autoloader`, `php artisan migrate --force`, `sudo -u www-data
 php artisan optimize`, `sudo systemctl restart 'genryu-worker@*'`. Files
 coming from the Mac arrive with directories mode 700: run
-`find storage -type d -exec chmod 2775 {} +` after copying any.
+`find storage -type d -exec chmod 2775 {} +` after copying any. The
+tarball also resets `bootstrap/cache` to 755, so www-data cannot write
+the caches and `optimize` fails (2026-10-01): run `chmod 2775
+bootstrap/cache` after unpacking, before `optimize`.
 
 ## TODO
 
