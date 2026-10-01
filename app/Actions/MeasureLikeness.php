@@ -11,12 +11,21 @@ use Illuminate\Support\Facades\DB;
 /**
  * らしさ (UI "Likeness") for the 意味フィルタ (UI "Semantic filter"): the
  * similarity to the nearest "like" definition or example minus that to
- * the nearest "unlike".
+ * the nearest "unlike", less the 件数補正 (UI "Volume penalty") of its publisher.
  */
 class MeasureLikeness
 {
     /** Characters of title and text that are embedded, a Chinese, Japanese or Korean one counting as two (the model takes 8,192 tokens). */
     public const MAX_CHARS = 8000;
+
+    /** 件数補正: this times log10(1 + the publisher's documents a day) is taken off the likeness. */
+    public const VOLUME_PENALTY = 0.07;
+
+    /** Days over which a publisher's documents a day are counted. */
+    public const VOLUME_WINDOW_DAYS = 14;
+
+    /** @var array<string, float> Documents a day per publisher, counted once per run. */
+    private array $perDay = [];
 
     public function __construct(private Embed $embed) {}
 
@@ -110,10 +119,25 @@ class MeasureLikeness
             }
         }
 
-        $likeness = round(($nearest['like']['similarity'] ?? 0.0) - ($nearest['unlike']['similarity'] ?? 0.0), 4);
-        $document->update(['likeness' => $likeness, 'likeness_detail' => ['like' => $nearest['like'], 'unlike' => $nearest['unlike'], 'model' => $filter['model']]]);
+        $unadjusted = round(($nearest['like']['similarity'] ?? 0.0) - ($nearest['unlike']['similarity'] ?? 0.0), 4);
+        $perDay = $this->perDayOf($document->source->name);
+        $penalty = round(self::VOLUME_PENALTY * log10(1 + $perDay), 4);
+        $likeness = round($unadjusted - $penalty, 4);
+        $document->update(['likeness' => $likeness, 'likeness_detail' => [
+            'like' => $nearest['like'], 'unlike' => $nearest['unlike'], 'model' => $filter['model'],
+            'unadjusted' => $unadjusted, 'volume_penalty' => $penalty, 'per_day' => round($perDay, 1),
+        ]]);
 
         return $likeness;
+    }
+
+    /** A publisher's (a source's name) documents a day over the last VOLUME_WINDOW_DAYS. */
+    private function perDayOf(string $publisher): float
+    {
+        return $this->perDay[$publisher] ??= Document::query()->fromSources()
+            ->whereHas('source', fn ($source) => $source->where('name', $publisher))
+            ->where('created_at', '>=', now()->subDays(self::VOLUME_WINDOW_DAYS))
+            ->count() / self::VOLUME_WINDOW_DAYS;
     }
 
     /**

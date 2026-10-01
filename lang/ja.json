@@ -360,6 +360,7 @@
     "Apply the semantic filter to the documents not measured yet": "らしさ未計算の文書に意味フィルタをかける",
     "Left out by the semantic filter: likeness :likeness": "意味フィルタで対象外：らしさ :likeness",
     "Likeness": "らしさ",
+    ":unadjusted against the definitions, less a volume penalty of :penalty (:perDay documents a day from this publisher)": "定義との差 :unadjusted から件数補正 :penalty を引いた値（この発行元の文書は1日 :perDay 件）",
     "Queued for the semantic filter.": "意味フィルタに回しました。",
     "The semantic filter could not measure this document: :reason": "意味フィルタでらしさを計算できませんでした：:reason",
     "Not measured yet.": "まだらしさを計算していません。",

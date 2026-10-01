@@ -43,12 +43,11 @@ a Media Management System; the name itself stays Genryu.
   follow: a person registers them on 情報源; AI proposes how to read an
   update list but never registers a source. (2) Which documents to take
   in: every source's documents go through the title filter, the semantic
-  filter (らしさ against the threshold) and the screening; arXiv differs
+  filter (らしさ, less its publisher's 件数補正, against the threshold) and the screening; arXiv differs
   only in order (filtered on its RSS summary, full text fetched once
   adopted), others are fetched first. (3) Which articles to publish: the
   adopted materials with the highest らしさ are written, up to 平日の公開本数
-  a day, at most two from one publisher (`GenerateDailyArticles`; decided
-  2026-09-28, when arXiv took every slot), and only articles reaching the 合格点 of
+  a day (`GenerateDailyArticles`), and only articles reaching the 合格点 of
   the quality check are scheduled, best score first (`ScheduleArticles`).
   A media's character is thus the sources a person chose, the editorial
   policy (semantic filter definitions, screening prompt, quality rubric)
@@ -490,9 +489,20 @@ a Media Management System; the name itself stays Genryu.
   (`documents.likeness`) is the nearest like minus the nearest unlike;
   **absolute similarities mean nothing** (unrelated texts score 0.1 to
   0.3, and 94% of arXiv came out nearer "unlike"), so the two sides are
-  set against each other. Below the threshold (0.10, chosen on the 600
-  arXiv papers of 2026-09-24: under +0.10 few were worth reading, 37
-  pass) a document goes no further: the screening refuses it, the bulk
+  set against each other. **件数補正 (Volume penalty)** (decided
+  2026-10-01): `MeasureLikeness::VOLUME_PENALTY` (0.07) × log10(1 + the
+  publisher's documents a day over `VOLUME_WINDOW_DAYS`, 14; a publisher
+  is a source's name, so arXiv's categories count together) is taken off,
+  and `likeness` is what is left (`likeness_detail` keeps `unadjusted`,
+  `volume_penalty`, `per_day`). One rule for every source, in place of a
+  cap per publisher (two a day, tried 2026-09-28 and withdrawn): arXiv
+  lists ~280 a day and loses 0.17, a press office lists a few and loses
+  0.02–0.05, and a paper far enough ahead still passes. Without it the
+  filter, tuned on arXiv, let through ~53 papers a day and almost no
+  press release (none of 40 in three days reached 0.10). The threshold
+  came down with it to 0.00 (set on 文書; 0.10 had been chosen on the
+  600 arXiv papers of 2026-09-24): on the week before, 14 papers and 7–8
+  other documents a day pass. Below the threshold a document goes no further: the screening refuses it, the bulk
   screening skips it, a queued full-text fetch does nothing. A filter
   that cannot measure lets the document through. It is a coarse sieve —
   the top is not reliably good (half of the first run's top 20 were
@@ -680,10 +690,8 @@ a Media Management System; the name itself stays Genryu.
   from the full-text fetch of a summary adopted on the feed). 03:00
   `articles:generate` writes the day's articles (`GenerateDailyArticles`:
   up to 平日の公開本数, fresh materials within 対象期間, the likeliest by
-  らしさ first, at most `MAX_PER_PUBLISHER` (2) from one publisher — a
-  source's name, so arXiv's categories are one: the semantic filter was
-  tuned on arXiv and press releases come out below its papers; a
-  person's 記事を生成 counts toward the day). 05:00
+  らしさ first, the 件数補正 already taken off; a person's 記事を生成
+  counts toward the day). 05:00
   `articles:schedule` gives slots to articles scoring at least the 合格点
   (`schedule_settings.pass_mark`, 80, set on スケジュール) and queues their
   top images (`MakeImage::queueWaiting`). The media site shows what is

@@ -12,6 +12,7 @@ use App\Jobs\ScreenDocument;
 use App\Models\Document;
 use App\Models\EditorialPolicy;
 use App\Models\SemanticFilterExample;
+use App\Models\Source;
 use App\Models\User;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -164,4 +165,29 @@ it('cuts the embedded text at half the characters in Chinese, Japanese or Korean
     expect(mb_strlen(MeasureLikeness::cut(str_repeat('a', 9000))))->toBe(MeasureLikeness::MAX_CHARS)
         ->and(mb_strlen(MeasureLikeness::cut(str_repeat('技術', 5000))))->toBe(MeasureLikeness::MAX_CHARS / 2)
         ->and(MeasureLikeness::cut('short テキスト'))->toBe('short テキスト');
+});
+
+// 件数補正: a publisher with many documents a day has log10(1 + documents a day) × VOLUME_PENALTY taken off; one with few loses little.
+it('takes a volume penalty off the likeness of a publisher with many documents a day', function () {
+    fakeEmbeddings();
+    $busy = Source::factory()->create(['name' => 'Busy']);
+    $busyRow = Source::factory()->create(['name' => 'Busy']);
+    Document::factory()->count(69)->for($busy)->sequence(fn ($sequence) => ['url' => 'https://busy.example/a/'.$sequence->index])->create();
+    Document::factory()->count(70)->for($busyRow)->sequence(fn ($sequence) => ['url' => 'https://busy.example/b/'.$sequence->index])->create();
+    $quiet = Document::factory()->fetched()->create(['title' => 'Society', 'markdown' => 'society']);
+    $flooded = Document::factory()->fetched()->for($busy)->create(['title' => 'Society', 'markdown' => 'society']);
+    $measure = app(MeasureLikeness::class);
+
+    $measure($quiet);
+    $measure($flooded);
+
+    // 140 documents in 14 days from one publisher, its rows counted together: 10 a day.
+    expect($flooded->refresh()->likeness_detail['per_day'])->toEqual(10)
+        ->and($flooded->likeness_detail['volume_penalty'])->toBe(round(0.07 * log10(11), 4))
+        ->and($flooded->likeness)->toBe(round($flooded->likeness_detail['unadjusted'] - $flooded->likeness_detail['volume_penalty'], 4))
+        ->and($quiet->refresh()->likeness_detail['unadjusted'])->toBe($flooded->likeness_detail['unadjusted'])
+        ->and($quiet->likeness)->toBeGreaterThan($flooded->likeness);
+
+    // The document screen shows what the likeness is made of.
+    Livewire::test('pages::editorial.documents.show', ['document' => $flooded])->assertSee('件数補正')->assertSee('1日 10 件');
 });

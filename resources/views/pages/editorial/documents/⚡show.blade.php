@@ -179,7 +179,11 @@ new #[Title('文書')] class extends Component {
                 @if ($document->isLeftOut())
                     <x-pages::status status="left_out" />
                 @endif
-                <flux:text class="flex-1">{{ __('Likeness') }} <span class="font-medium">{{ sprintf('%+.3f', $document->likeness) }}</span>（{{ __('threshold') }} {{ sprintf('%+.2f', \App\Models\EditorialPolicy::likenessThreshold()) }}）</flux:text>
+                <flux:text class="flex-1">{{ __('Likeness') }} <span class="font-medium">{{ sprintf('%+.3f', $document->likeness) }}</span>（{{ __('threshold') }} {{ sprintf('%+.2f', \App\Models\EditorialPolicy::likenessThreshold()) }}）
+                    @if (isset($document->likeness_detail['volume_penalty']))
+                        <span class="text-sm text-neutral-500">{{ __(':unadjusted against the definitions, less a volume penalty of :penalty (:perDay documents a day from this publisher)', ['unadjusted' => sprintf('%+.3f', $document->likeness_detail['unadjusted']), 'penalty' => sprintf('%.3f', $document->likeness_detail['volume_penalty']), 'perDay' => $document->likeness_detail['per_day']]) }}</span>
+                    @endif
+                </flux:text>
             @endif
             <flux:button wire:click="applySemanticFilter" size="sm" icon="funnel">{{ $document->likeness === null ? __('Apply the semantic filter') : __('Apply again') }}</flux:button>
         </div>
