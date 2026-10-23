@@ -93,15 +93,15 @@ it('gives every writer the additional prompt of the language it writes in', func
         ->call('savePolicy')->assertHasNoErrors();
 
     $body = ProposeArticle::request('policy', 'gpt-5.6-luna', ['angle' => 'x'], '見出し', '文書', 'https://example.jp', null, 'ja');
-    expect(array_column($body['input'], 'role'))->toBe(['developer', 'developer', 'developer', 'user'])
-        ->and($body['input'][1]['content'])->toContain('日本語')->toContain('日本語の追加ルール（テスト用）。')
-        ->and($body['input'][2]['content'])->toBe(ProposeArticle::INSTRUCTIONS);
+    expect(array_column($body['input'], 'role'))->toBe(['developer', 'developer', 'developer', 'developer', 'user'])
+        ->and($body['input'][2]['content'])->toContain('日本語')->toContain('日本語の追加ルール（テスト用）。')
+        ->and($body['input'][3]['content'])->toBe(ProposeArticle::INSTRUCTIONS);
 
     // English has no additional prompt, so nothing is added.
-    expect(ProposeArticle::request('policy', 'gpt-5.6-luna', [], 'Headline', 'Doc', 'https://example.com', null, 'en')['input'])->toHaveCount(3);
+    expect(ProposeArticle::request('policy', 'gpt-5.6-luna', [], 'Headline', 'Doc', 'https://example.com', null, 'en')['input'])->toHaveCount(4);
 
     $article = Article::factory()->create(['language' => 'ja']);
-    expect(ProposeTranslation::request('policy', 'gpt-5.6-luna', $article, 'ko', [], 'Doc', 'https://example.com')['input'][1]['content'])->toContain('합니다체로 쓴다.');
+    expect(ProposeTranslation::request('policy', 'gpt-5.6-luna', $article, 'ko', [], 'Doc', 'https://example.com')['input'][2]['content'])->toContain('합니다체로 쓴다.');
 });
 
 // A translation whose language no longer publishes the source gets no time; the original holds the slot as the anchor.

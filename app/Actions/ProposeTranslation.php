@@ -61,12 +61,13 @@ class ProposeTranslation
     {
         $name = Language::nameOf($language);
         $input = 'Article to translate (written in '.Language::nameOf($article->language)."):\n\n"
-            ."# {$article->headline}\n\n".mb_substr((string) $article->body, 0, self::MAX_MARKDOWN_CHARS)
+            .Responses::tagged('article', "# {$article->headline}\n\n".mb_substr((string) $article->body, 0, self::MAX_MARKDOWN_CHARS))
             ."\n\n---\n\nContext, not to be translated in place of the article.\n\nPrimary source: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n"
-            .json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            .Responses::tagged('material', json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         return Responses::request($model, [
             Responses::policy($policy),
+            Responses::dataRule(),
             // 言語別の追加プロンプト (UI "Additional prompt per language").
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => sprintf(self::INSTRUCTIONS, "{$name} ({$language})")],

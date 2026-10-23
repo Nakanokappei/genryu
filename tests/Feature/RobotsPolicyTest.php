@@ -8,9 +8,11 @@ use App\Models\User;
 use Carbon\CarbonInterval;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
 
 beforeEach(function () {
+    Storage::fake('local');
     Http::preventStrayRequests();
     $this->actingAs(User::factory()->create());
 });

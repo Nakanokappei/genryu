@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Enums\Language;
 use App\Models\Article;
+use App\Models\LanguageSetting;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -66,6 +68,17 @@ class MediaController extends Controller
      */
     public static function articles(string $language): Collection
     {
+        // Read once per request: the front page and the language menu both need them.
+        return self::oncePerRequest('media.articles.'.$language, fn (): Collection => self::queryArticles($language));
+    }
+
+    /**
+     * A language's shown articles, read from the database.
+     *
+     * @return Collection<int, Article>
+     */
+    private static function queryArticles(string $language): Collection
+    {
         // Narrowed in SQL to the window (a day's margin for the zones), then decided by isShown.
         return Article::query()->where('language', $language)->whereNotNull('body')
             ->whereRaw('coalesce(published_at, scheduled_at) >= ?', [now()->subDays(self::WINDOW_DAYS + 1)])
@@ -84,7 +97,36 @@ class MediaController extends Controller
         }
         $date = self::dateOf($article);
 
-        return $article->body !== null && $article->isPublishable() && ! $date->isFuture() && $date->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));
+        return $article->body !== null && $article->isPublishable(self::coverages()) && ! $date->isFuture() && $date->greaterThanOrEqualTo(now()->subDays(self::WINDOW_DAYS));
+    }
+
+    /**
+     * Every language's coverage, read once per request.
+     *
+     * @return array<string, string>
+     */
+    private static function coverages(): array
+    {
+        return self::oncePerRequest('media.coverages', fn (): array => LanguageSetting::coverages());
+    }
+
+    /**
+     * A value read once and kept on the current request.
+     *
+     * @template TValue
+     *
+     * @param  Closure(): TValue  $read
+     * @return TValue
+     */
+    private static function oncePerRequest(string $key, Closure $read): mixed
+    {
+        $attributes = request()->attributes;
+        // First use in this request: read it.
+        if (! $attributes->has($key)) {
+            $attributes->set($key, $read());
+        }
+
+        return $attributes->get($key);
     }
 
     /** The article's date in its timezone: when it was published, else its scheduled time, else when it was written. */

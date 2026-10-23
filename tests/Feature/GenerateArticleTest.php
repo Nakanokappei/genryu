@@ -103,12 +103,12 @@ it('has the agent write the body under the settled headline from an extracted ma
         && $request['input'][0]['content'][0]['prompt_cache_breakpoint']['mode'] === 'explicit'
         && str_contains($request['input'][0]['content'][0]['text'], '- 形式: Markdown')
         && $request['text']['format']['schema']['required'] === ['body', 'lead', 'language', 'figures']
-        && str_contains($request['input'][2]['content'], 'Headline: '.ARTICLE_HEADLINE)
+        && str_contains($request['input'][3]['content'], 'Headline: '.ARTICLE_HEADLINE)
         // A source without figures offers none to quote.
-        && ! str_contains($request['input'][2]['content'], 'Figures of the source')
-        && str_contains($request['input'][2]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
-        && str_contains($request['input'][2]['content'], 'アンモニア燃焼器')
-        && str_contains($request['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
+        && ! str_contains($request['input'][3]['content'], 'Figures of the source')
+        && str_contains($request['input'][3]['content'], '"要約": "アンモニア燃焼器の開発事業を開始。"')
+        && str_contains($request['input'][3]['content'], 'アンモニア燃焼器')
+        && str_contains($request['input'][3]['content'], 'https://www.nedo.go.jp/news/press/1.html'));
 });
 
 // The other languages are translations of the article, not the same piece written again: the article goes in, the source and the material follow as context for the terms.
@@ -135,12 +135,12 @@ it('translates the article into the languages we publish in, with the source as 
         return str_contains($request->url(), '/responses')
             && $body['input'][0]['content'][0]['text'] === TRANSLATION_POLICY
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
-            && str_contains($body['input'][1]['content'], 'English (en)')
+            && str_contains($body['input'][2]['content'], 'English (en)')
             // The article is what is translated; the source and the material are context after it.
-            && str_contains($body['input'][2]['content'], 'NEDO、アンモニア燃焼器の開発事業を開始')
-            && str_contains($body['input'][2]['content'], 'Context, not to be translated in place of the article.')
-            && str_contains($body['input'][2]['content'], 'https://www.nedo.go.jp/news/press/1.html')
-            && str_contains($body['input'][2]['content'], 'アンモニアは使えない燃料ではなくなった');
+            && str_contains($body['input'][3]['content'], 'NEDO、アンモニア燃焼器の開発事業を開始')
+            && str_contains($body['input'][3]['content'], 'Context, not to be translated in place of the article.')
+            && str_contains($body['input'][3]['content'], 'https://www.nedo.go.jp/news/press/1.html')
+            && str_contains($body['input'][3]['content'], 'アンモニアは使えない燃料ではなくなった');
     });
 
     // The article and its translations are one page, read by language.
@@ -253,7 +253,7 @@ it('writes a body again when it is too long and keeps the nearer one', function 
         ->and($article->status_message)->not->toContain('検査を通りませんでした')
         // Both calls are paid for, so both are counted.
         ->and($article->input_tokens)->toBe(6000);
-    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), 'It is 1400 characters long'));
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][4]['content'] ?? ''), 'It is 1400 characters long'));
 });
 
 // A rewrite that is no nearer is dropped, and the count is shown rather than anything waiting on a person.
@@ -307,7 +307,7 @@ it('writes a body again when its shape comes apart', function () {
 
     expect($article->leadAndBody()[1])->toBe(ARTICLE_ANSWER['body'])
         ->and($article->status_message)->not->toContain('検査を通りませんでした');
-    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), '- The body starts with a heading'));
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][4]['content'] ?? ''), '- The body starts with a heading'));
 });
 
 // 図版: the writer quotes up to two figures of the source by number; the job keeps valid choices, with the URL from the material.
@@ -385,7 +385,7 @@ it('writes the article again when the writer leaves out the lead', function () {
     $article = generateArticle(Material::factory()->create());
 
     expect($article->leadAndBody()[0])->toBe('リード。');
-    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][3]['content'] ?? ''), 'The lead is missing'));
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request['input'][4]['content'] ?? ''), 'The lead is missing'));
 });
 
 it('takes a sources heading with its translation after a slash', function () {

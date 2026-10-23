@@ -6,10 +6,14 @@ use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Responses\SuccessfulPasswordResetLinkRequestResponse;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -18,7 +22,8 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // An unknown address gets the same answer as a known one, so the form does not tell which accounts exist.
+        $this->app->bind(FailedPasswordResetLinkRequestResponse::class, fn (): SuccessfulPasswordResetLinkRequestResponse => new SuccessfulPasswordResetLinkRequestResponse(Password::RESET_LINK_SENT));
     }
 
     /**
@@ -29,6 +34,22 @@ class FortifyServiceProvider extends ServiceProvider
         $this->configureActions();
         $this->configureViews();
         $this->configureRateLimiting();
+        $this->throttlePasswordReset();
+    }
+
+    /**
+     * Puts the password-reset limiter on Fortify's two password-reset posts, which it leaves unthrottled.
+     */
+    private function throttlePasswordReset(): void
+    {
+        $this->app->booted(function (): void {
+            // Fortify's routes exist once every provider has booted.
+            foreach (Route::getRoutes()->getRoutes() as $route) {
+                if (in_array($route->getName(), ['password.email', 'password.update'], true)) {
+                    $route->middleware('throttle:password-reset');
+                }
+            }
+        });
     }
 
     /**
@@ -67,6 +88,10 @@ class FortifyServiceProvider extends ServiceProvider
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
             return Limit::perMinute(5)->by($throttleKey);
+        });
+
+        RateLimiter::for('password-reset', function (Request $request) {
+            return Limit::perMinute(5)->by($request->ip());
         });
 
         RateLimiter::for('passkeys', function (Request $request) {

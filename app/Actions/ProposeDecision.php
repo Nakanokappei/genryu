@@ -52,10 +52,11 @@ class ProposeDecision
     {
         return Responses::request($model, [
             Responses::policy($prompt),
+            Responses::dataRule(),
             ...($pass >= 2 ? [['role' => 'developer', 'content' => self::SECOND_PASS]] : []),
             [
                 'role' => 'user',
-                'content' => mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS),
+                'content' => Responses::tagged('primary_source', mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS)),
             ],
         ], 'screening_decision', [
             'type' => 'object',

@@ -58,8 +58,8 @@ it('scores a written article against the quality layer of the editorial policy',
 
     Http::assertSent(fn (Request $request): bool => $request['input'][0]['content'][0]['text'] === QUALITY_POLICY
         && isset($request['input'][0]['content'][0]['prompt_cache_breakpoint'])
-        && str_contains($request['input'][2]['content'], '# 工業炉の炎はアンモニアでも燃える')
-        && str_contains($request['input'][2]['content'], '混焼率は 85％')
+        && str_contains($request['input'][3]['content'], '# 工業炉の炎はアンモニアでも燃える')
+        && str_contains($request['input'][3]['content'], '混焼率は 85％')
         && $request['text']['format']['schema']['required'] === ['score', 'reason']);
 
     // The list shows the state and the score, with the reason on hover.

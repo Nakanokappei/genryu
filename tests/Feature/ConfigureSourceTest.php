@@ -13,6 +13,10 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
+/** A 1×1 PNG and a minimal ICO, real image bytes for the favicon checks. */
+define('FAVICON_PNG', base64_decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='));
+define('FAVICON_ICO', "\x00\x00\x01\x00\x01\x00\x10\x10\x00\x00\x01\x00\x20\x00\x30\x00\x00\x00\x16\x00\x00\x00".str_repeat("\x00", 48));
+
 const CONFIGURE_RSS = '<?xml version="1.0"?><rss version="2.0"><channel><title>t</title><item><title>One</title><link>https://www.example.org/news/1</link></item></channel></rss>';
 
 const CONFIGURE_LIST = '<html><body><table class="table1"><tr><th>掲載日</th><th>件名</th></tr>'
@@ -50,15 +54,15 @@ it('keeps the favicon the page advertises, or /favicon.ico, and serves it next t
     Http::fake([
         'www.example.org/news' => Http::response('<html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"><link rel="shortcut icon" href="/img/icon.png"></head></html>', 200, ['Content-Type' => 'text/html']),
         'www.example.org/rss.xml' => Http::response(CONFIGURE_RSS, 200, ['Content-Type' => 'application/rss+xml']),
-        'www.example.org/img/icon.png' => Http::response('PNGBYTES', 200, ['Content-Type' => 'image/png']),
-        'www.example.org/favicon.ico' => Http::response('ICOBYTES', 200, ['Content-Type' => 'image/x-icon']),
+        'www.example.org/img/icon.png' => Http::response(FAVICON_PNG, 200, ['Content-Type' => 'image/png']),
+        'www.example.org/favicon.ico' => Http::response(FAVICON_ICO, 200, ['Content-Type' => 'image/x-icon']),
     ]);
     $source = configure(Source::factory()->create(['url' => 'https://www.example.org/news']));
 
     expect($source->favicon_path)->toBe("favicons/{$source->id}.png");
     Storage::disk('local')->assertExists("favicons/{$source->id}.png");
     Http::assertNotSent(fn (Request $request): bool => str_contains($request->url(), 'favicon.ico'));
-    $this->get(route('editorial.sources.favicon', $source))->assertOk()->assertHeader('Content-Type', 'image/png');
+    $this->get(route('editorial.sources.favicon', $source))->assertOk()->assertHeader('Content-Type', 'image/png')->assertHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     $this->get(route('editorial.sources.index'))->assertSee(route('editorial.sources.favicon', $source));
 
     // A page that advertises no icon falls back to /favicon.ico; a site without any leaves the source blank.
@@ -76,20 +80,20 @@ it('checks the favicon for a change on every update list', function () {
         'www.example.org/news' => Http::response('<html><head><link rel="alternate" type="application/rss+xml" href="/rss.xml"><link rel="icon" href="/img/icon.png"></head></html>', 200, ['Content-Type' => 'text/html']),
         'www.example.org/rss.xml' => Http::response(CONFIGURE_RSS, 200, ['Content-Type' => 'application/rss+xml']),
         'www.example.org/img/icon.png' => Http::sequence()
-            ->push('PNGBYTES', 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 01 Sep 2026 10:00:00 GMT'])
+            ->push(FAVICON_PNG, 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 01 Sep 2026 10:00:00 GMT'])
             ->push('', 304)
-            ->push('NEWPNG', 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 22 Sep 2026 09:00:00 GMT'])
+            ->push(FAVICON_PNG.'new', 200, ['Content-Type' => 'image/png', 'Last-Modified' => 'Tue, 22 Sep 2026 09:00:00 GMT'])
             ->push('gone', 404),
     ]);
     // Configuring takes the icon, then reads the list, which checks it again: 304, nothing changes.
     $source = configure(Source::factory()->create(['url' => 'https://www.example.org/news']));
     expect($source->favicon_url)->toBe('https://www.example.org/img/icon.png')->and($source->favicon_modified_at?->toIso8601String())->toBe('2026-09-01T10:00:00+00:00')
-        ->and(Storage::disk('local')->get($source->favicon_path))->toBe('PNGBYTES');
+        ->and(Storage::disk('local')->get($source->favicon_path))->toBe(FAVICON_PNG);
     Http::assertSent(fn (Request $request): bool => $request->url() === 'https://www.example.org/img/icon.png' && $request->header('If-Modified-Since') === ['Tue, 01 Sep 2026 10:00:00 GMT']);
 
     // 200 with a new icon: replaced, with its Last-Modified.
     app(FetchUpdates::class)($source);
-    expect(Storage::disk('local')->get($source->refresh()->favicon_path))->toBe('NEWPNG')->and($source->favicon_modified_at?->toIso8601String())->toBe('2026-09-22T09:00:00+00:00');
+    expect(Storage::disk('local')->get($source->refresh()->favicon_path))->toBe(FAVICON_PNG.'new')->and($source->favicon_modified_at?->toIso8601String())->toBe('2026-09-22T09:00:00+00:00');
 
     // 404: the URL is forgotten; the icon stays until a new one is found.
     app(FetchUpdates::class)($source);
@@ -227,4 +231,18 @@ it('can be queued again from the source detail screen', function () {
 
     expect($source->refresh()->status)->toBe('configuring');
     Queue::assertPushed(ConfigureSource::class);
+});
+
+// A favicon is kept only when its bytes are an image: an HTML page or an SVG served as an icon is not stored, so nothing can run from the icon's URL.
+it('keeps a favicon only when its bytes are an image', function () {
+    Storage::fake('local');
+    Http::fake([
+        'www.example.org/news' => Http::response('<html><head><link rel="icon" href="/x.png"><link rel="icon" href="/y.svg"></head></html>', 200, ['Content-Type' => 'text/html']),
+        'www.example.org/x.png' => Http::response('<html><script>alert(1)</script></html>', 200, ['Content-Type' => 'image/png']),
+        'www.example.org/y.svg' => Http::response('<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>', 200, ['Content-Type' => 'image/svg+xml']),
+        'www.example.org/favicon.ico' => Http::response('<html><body>list</body></html>', 200, ['Content-Type' => 'text/html']),
+    ]);
+    $source = Source::factory()->create(['url' => 'https://www.example.org/news']);
+
+    expect(app(FetchFavicon::class)($source))->toBeNull()->and(Storage::disk('local')->allFiles('favicons'))->toBe([]);
 });

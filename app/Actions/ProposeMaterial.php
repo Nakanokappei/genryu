@@ -56,8 +56,9 @@ class ProposeMaterial
 
         return Responses::request($model, [
             Responses::policy($policy),
+            Responses::dataRule(),
             ['role' => 'developer', 'content' => implode("\n\n", $instructions)],
-            ['role' => 'user', 'content' => "Primary source:\n".mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS)],
+            ['role' => 'user', 'content' => "Primary source:\n".Responses::tagged('primary_source', mb_substr($markdown, 0, self::MAX_MARKDOWN_CHARS))],
         ], 'material', self::schema());
     }
 

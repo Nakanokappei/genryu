@@ -56,10 +56,11 @@ class ProposeHeadline
                 ."\n\n";
         }
 
-        $input .= "Material (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $input .= "Material (JSON):\n".Responses::tagged('material', json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
 
         return Responses::request($model, [
             Responses::policy($policy),
+            Responses::dataRule(),
             // 言語別の追加プロンプト (UI "Additional prompt per language").
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".ScoreHeadline::rubric()],

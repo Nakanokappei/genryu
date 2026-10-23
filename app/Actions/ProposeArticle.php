@@ -41,10 +41,11 @@ class ProposeArticle
     {
         $input = [
             Responses::policy($policy),
+            Responses::dataRule(),
             // 言語別の追加プロンプト (UI "Additional prompt per language").
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-            ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES).self::figureList($material)],
+            ['role' => 'user', 'content' => "Headline: {$headline}\n\nSource document: {$documentTitle}\nURL: {$url}\n\nMaterial (JSON):\n".Responses::tagged('material', json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR).self::figureList($material))],
         ];
 
         // Rewrite: the previous body and its problems.

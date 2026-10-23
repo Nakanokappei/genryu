@@ -80,7 +80,7 @@ it('screens a fetched document with the prompt cached and keeps the decision, th
     Http::assertSent(function (Request $request): bool {
         $body = $request->data();
         $developer = $body['input'][0];
-        $user = $body['input'][1];
+        $user = $body['input'][2];
 
         return $request->url() === 'https://api.openai.com/v1/responses'
             && $request->hasHeader('Authorization', 'Bearer test-key')
@@ -116,7 +116,7 @@ it('keeps document revisions and screens the pinned one', function () {
 
     Http::fake(['api.openai.com/v1/responses' => Http::response(screeningAnswer(['decision' => 'ADOPT', 'primary_reason' => 'DEMONSTRATION', 'evidence' => '', 'reason' => '']))]);
     (new ScreenDocument($screening))->handle(app(ProposeDecision::class), app(ReviseDocumentSettings::class));
-    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][1]['content'], 'First text.') && ! str_contains($request->data()['input'][1]['content'], 'Second text.'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][2]['content'], 'First text.') && ! str_contains($request->data()['input'][2]['content'], 'Second text.'));
 });
 
 // The cost comes from the prices per million tokens configured for the model: cached input at the cached price.
@@ -176,10 +176,10 @@ it('runs a second pass by the next model up when the first pass says review', fu
         $body = $request->data();
 
         // The second pass: the cached prompt untouched, the instruction after it, REVIEW gone from the schema.
-        return count($body['input']) === 3
+        return count($body['input']) === 4
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
-            && $body['input'][1] === ['role' => 'developer', 'content' => ProposeDecision::SECOND_PASS]
-            && $body['input'][2]['role'] === 'user'
+            && $body['input'][2] === ['role' => 'developer', 'content' => ProposeDecision::SECOND_PASS]
+            && $body['input'][3]['role'] === 'user'
             && $body['text']['format']['schema']['properties']['decision']['enum'] === ['ADOPT', 'REJECT'];
     });
 });

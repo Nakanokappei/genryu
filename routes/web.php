@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\FetchFavicon;
 use App\Enums\Language;
 use App\Http\Controllers\MediaController;
 use App\Models\Article;
@@ -30,11 +31,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::livewire('sources/{source}', 'pages::editorial.sources.show')->name('sources.show');
         // ベンチマーク: the secondary-source sites the documents are compared with.
         Route::livewire('benchmarks', 'pages::editorial.benchmarks.index')->name('benchmarks.index');
-        // The source's favicon from the local disk; not found when it has none.
+        // The source's favicon from the local disk, always as an image; not found when it has none.
         Route::get('sources/{source}/favicon', function (Source $source) {
-            abort_if($source->favicon_path === null || ! Storage::disk('local')->exists($source->favicon_path), 404);
+            $type = FetchFavicon::SERVED_TYPES[pathinfo((string) $source->favicon_path, PATHINFO_EXTENSION)] ?? null;
+            abort_if($type === null || ! Storage::disk('local')->exists((string) $source->favicon_path), 404);
 
-            return Storage::disk('local')->response($source->favicon_path);
+            return Storage::disk('local')->response((string) $source->favicon_path, null, ['Content-Type' => $type, 'Content-Security-Policy' => "default-src 'none'; sandbox"]);
         })->name('sources.favicon');
         Route::livewire('documents', 'pages::editorial.documents.index')->name('documents.index');
         Route::livewire('documents/{document}', 'pages::editorial.documents.show')->name('documents.show');

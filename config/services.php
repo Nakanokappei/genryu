@@ -39,6 +39,8 @@ return [
             'gpt-5.6-sol' => ['input' => env('OPENAI_PRICE_SOL_INPUT'), 'cached' => env('OPENAI_PRICE_SOL_CACHED'), 'output' => env('OPENAI_PRICE_SOL_OUTPUT')],
             'gpt-6-astra' => ['input' => env('OPENAI_PRICE_ASTRA_INPUT'), 'cached' => env('OPENAI_PRICE_ASTRA_CACHED'), 'output' => env('OPENAI_PRICE_ASTRA_OUTPUT')],
         ],
+        // Tokens the generating calls may use in a day (Japan time); 0 for no limit. About four times an ordinary day (400–500k).
+        'daily_token_limit' => (int) env('OPENAI_DAILY_TOKEN_LIMIT', 2_000_000),
         // USD per million tokens for the image models (text input / image output), from the pricing page as of 2026-09-23.
         'image_prices' => [
             'gpt-image-2.5-flare' => ['input' => 5.00, 'output' => 30.00],

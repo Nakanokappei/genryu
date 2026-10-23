@@ -129,8 +129,8 @@ it('writes the headline from the material and keeps one that passes', function (
             && $body['input'][0]['content'][0]['text'] === HEADLINE_POLICY
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
             && $body['text']['format']['schema']['required'] === ['topic_word', 'title_draft', 'assumption', 'headline']
-            && str_contains($body['input'][2]['content'], 'ナフサ分解炉はアンモニアでも燃える')
-            && ! str_contains($body['input'][2]['content'], 'already tried');
+            && str_contains($body['input'][3]['content'], 'ナフサ分解炉はアンモニアでも燃える')
+            && ! str_contains($body['input'][3]['content'], 'already tried');
     });
 
     // The judge scores the headline on the material, not on a body that does not exist yet.
@@ -138,9 +138,9 @@ it('writes the headline from the material and keeps one that passes', function (
         $body = $request->data();
 
         return ($body['text']['format']['name'] ?? '') === 'headline_score'
-            && str_contains($body['input'][1]['content'], 'specific_to_this_article (20)')
-            && str_contains($body['input'][2]['content'], 'ナフサ分解炉の炎は、メタンだけではない')
-            && str_contains($body['input'][2]['content'], 'ナフサ分解炉はアンモニアでも燃える');
+            && str_contains($body['input'][2]['content'], 'specific_to_this_article (20)')
+            && str_contains($body['input'][3]['content'], 'ナフサ分解炉の炎は、メタンだけではない')
+            && str_contains($body['input'][3]['content'], 'ナフサ分解炉はアンモニアでも燃える');
     });
 });
 
@@ -163,8 +163,8 @@ it('writes the headline again until it passes', function () {
         ]);
 
     // The rewriter is given what fell short and what was tried, never a headline to imitate.
-    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request->data()['input'][2]['content'] ?? ''), '燃料を替える取り組み')
-        && str_contains((string) ($request->data()['input'][2]['content'] ?? ''), '記事にしかない事実を中心に置く'));
+    Http::assertSent(fn (Request $request): bool => str_contains((string) ($request->data()['input'][3]['content'] ?? ''), '燃料を替える取り組み')
+        && str_contains((string) ($request->data()['input'][3]['content'] ?? ''), '記事にしかない事実を中心に置く'));
 });
 
 // Nothing passes: the loop stops at ATTEMPTS and keeps the best of what it saw.

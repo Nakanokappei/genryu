@@ -90,7 +90,7 @@ it('writes the parts of an article and counts what came from each side', functio
 
         return $body['input'][0]['content'][0]['text'] === MATERIAL_POLICY
             && isset($body['input'][0]['content'][0]['prompt_cache_breakpoint'])
-            && str_contains($body['input'][2]['content'], 'NEDO は、工業炉向けの')
+            && str_contains($body['input'][3]['content'], 'NEDO は、工業炉向けの')
             // The angle is asked for last, after the facts it should rest on.
             && array_keys($body['text']['format']['schema']['properties']) === ['before', 'change', 'after', 'facts', 'background', 'winners', 'losers', 'future_society', 'angle'];
     });
@@ -119,7 +119,7 @@ it('checks the parts an article needs are there and repairs once', function () {
 
     expect(extractMaterial(Document::factory()->fetched()->create(['markdown' => MATERIAL_MARKDOWN]))->status)->toBe('extracted');
 
-    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][1]['content'], 'angle: missing; an article cannot be written without it'));
+    Http::assertSent(fn (Request $request): bool => str_contains($request->data()['input'][2]['content'], 'angle: missing; an article cannot be written without it'));
     expect(Http::recorded())->toHaveCount(2);
 });
 

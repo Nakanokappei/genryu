@@ -11,6 +11,9 @@ use Smalot\PdfParser\Parser;
  */
 class PdfParser extends Parser
 {
+    /** The most bytes one compressed stream may inflate to. */
+    public const DECODE_MEMORY_LIMIT = 32 * 1024 * 1024;
+
     /**
      * Configure the library and swap in the decrypting raw reader.
      *
@@ -22,6 +25,10 @@ class PdfParser extends Parser
         $config->setIgnoreEncryption(true);
         // Font sizes with each positioned text, which PdfMarkdown reads headings from.
         $config->setDataTmFontInfoHasToBeIncluded(true);
+        // A compressed stream inflates to at most this, so a decompression bomb cannot exhaust the worker's memory.
+        $config->setDecodeMemoryLimit(self::DECODE_MEMORY_LIMIT);
+        // Images are not read from a PDF; their bytes are not kept.
+        $config->setRetainImageContent(false);
 
         parent::__construct($cfg, $config);
 

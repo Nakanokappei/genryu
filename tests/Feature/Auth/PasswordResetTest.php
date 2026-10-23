@@ -78,4 +78,29 @@ class PasswordResetTest extends TestCase
             return true;
         });
     }
+
+    // An unknown address is answered as a known one is, so the form does not tell which accounts exist.
+    public function test_an_unknown_address_gets_the_same_answer_as_a_known_one(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+
+        $known = $this->from(route('password.request'))->post(route('password.email'), ['email' => $user->email]);
+        $unknown = $this->from(route('password.request'))->post(route('password.email'), ['email' => 'nobody@example.invalid']);
+
+        $unknown->assertRedirect(route('password.request'))->assertSessionHas('status', $known->getSession()->get('status'))->assertSessionHasNoErrors();
+    }
+
+    // The password-reset posts take five tries a minute from one address.
+    public function test_the_password_reset_posts_are_throttled(): void
+    {
+        Notification::fake();
+
+        foreach (range(1, 5) as $try) {
+            $this->post(route('password.email'), ['email' => "nobody{$try}@example.invalid"])->assertRedirect();
+        }
+
+        $this->post(route('password.email'), ['email' => 'nobody6@example.invalid'])->assertTooManyRequests();
+        $this->post(route('password.update'), ['token' => 'x', 'email' => 'nobody@example.invalid', 'password' => 'x', 'password_confirmation' => 'x'])->assertTooManyRequests();
+    }
 }

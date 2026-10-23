@@ -36,8 +36,9 @@ class ScoreQuality
     {
         return Responses::request($model, [
             Responses::policy($policy),
+            Responses::dataRule(),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS],
-            ['role' => 'user', 'content' => "Article:\n\n# {$article->headline}\n\n{$article->body}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+            ['role' => 'user', 'content' => "Article:\n\n".Responses::tagged('article', "# {$article->headline}\n\n{$article->body}")."\n\nMaterial (JSON):\n".Responses::tagged('material', json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR))],
         ], 'quality', [
             'type' => 'object',
             'properties' => [

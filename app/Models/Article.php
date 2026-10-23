@@ -86,7 +86,7 @@ class Article extends Model
     {
         [$lead, $body] = $this->leadAndBody();
         // Lead in its own block.
-        $html = $lead !== null ? '<div data-lead>'.Str::markdown($lead, ['html_input' => 'strip', 'allow_unsafe_links' => false]).'</div>' : '';
+        $html = $lead !== null ? '<div data-lead>'.$this->markdownHtml($lead).'</div>' : '';
         // Split into the opening and one section per ## heading.
         $sections = preg_split('/^(?=## )/m', $body) ?: [''];
         $figures = $this->quotedFigures();
@@ -94,7 +94,7 @@ class Article extends Model
 
         // Render each section, then the figures that belong after it.
         foreach ($sections as $index => $section) {
-            $html .= Str::markdown($section, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+            $html .= $this->markdownHtml($section);
 
             foreach ($figures as $figure) {
                 // A figure for a missing section goes after the opening.
@@ -109,6 +109,22 @@ class Article extends Model
         }
 
         return $html.'</div>';
+    }
+
+    /** Markdown as HTML with no raw HTML or images, and no link but to the primary source. */
+    private function markdownHtml(string $markdown): string
+    {
+        $html = Str::markdown($markdown, ['html_input' => 'strip', 'allow_unsafe_links' => false]);
+        // Images in the text are dropped: the page shows only our top image and the quoted figures.
+        $html = (string) preg_replace('/<img\b[^>]*>/i', '', $html);
+        $source = (string) $this->material?->document?->url;
+
+        // A link to anywhere but the primary source keeps its text only.
+        return (string) preg_replace_callback('/<a\b[^>]*\bhref="([^"]*)"[^>]*>(.*?)<\/a>/is', function (array $link) use ($source): string {
+            $target = rawurldecode(html_entity_decode($link[1], ENT_QUOTES | ENT_HTML5));
+
+            return $source !== '' && $target === rawurldecode($source) ? $link[0] : $link[2];
+        }, $html);
     }
 
     /** The body without a leading # headline line. */
@@ -180,10 +196,14 @@ class Article extends Model
         return $this->translated_from_id === null;
     }
 
-    /** Whether 言語設定 publishes this language version (else it is a working copy). */
-    public function isPublishable(): bool
+    /**
+     * Whether 言語設定 publishes this language version (else it is a working copy).
+     *
+     * @param  array<string, string>|null  $coverages  every language's coverage when already in hand (LanguageSetting::coverages())
+     */
+    public function isPublishable(?array $coverages = null): bool
     {
-        return LanguageSetting::publishes((string) $this->language, $this->original()?->language);
+        return LanguageSetting::publishes((string) $this->language, $this->original()?->language, $coverages);
     }
 
     /** @return BelongsTo<Material, $this> */

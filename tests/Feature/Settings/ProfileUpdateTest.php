@@ -27,6 +27,7 @@ class ProfileUpdateTest extends TestCase
         $response = Livewire::test('pages::settings.profile')
             ->set('name', 'Test User')
             ->set('email', 'test@example.com')
+            ->set('current_password', 'password')
             ->call('updateProfileInformation');
 
         $response->assertHasNoErrors();
@@ -85,5 +86,28 @@ class ProfileUpdateTest extends TestCase
         $response->assertHasErrors(['password']);
 
         $this->assertNotNull($user->fresh());
+    }
+
+    // A new email address takes the current password: without it, or with a wrong one, the address stays.
+    public function test_the_email_address_is_not_changed_without_the_current_password(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Livewire::test('pages::settings.profile')->set('email', 'attacker@example.com')->call('updateProfileInformation')->assertHasErrors(['current_password' => 'required']);
+        Livewire::test('pages::settings.profile')->set('email', 'attacker@example.com')->set('current_password', 'wrong')->call('updateProfileInformation')->assertHasErrors(['current_password']);
+
+        $this->assertNotEquals('attacker@example.com', $user->refresh()->email);
+    }
+
+    // The name alone changes without the password.
+    public function test_the_name_changes_without_the_current_password(): void
+    {
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        Livewire::test('pages::settings.profile')->set('name', 'New Name')->call('updateProfileInformation')->assertHasNoErrors();
+
+        $this->assertEquals('New Name', $user->refresh()->name);
     }
 }

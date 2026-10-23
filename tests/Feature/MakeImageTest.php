@@ -83,9 +83,9 @@ it('draws the top image of a scheduled article in the style of its hour', functi
     // The writer is told the hour's style and given what could change, never the source's figures.
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
         && $request['input'][0]['content'][0]['text'] === IMAGE_POLICY
-        && str_contains($request['input'][2]['content'], 'Style of lunch_break (test).')
-        && str_contains($request['input'][2]['content'], '千葉のコンビナート')
-        && ! str_contains($request['input'][2]['content'], 'fig1.jpg'));
+        && str_contains($request['input'][3]['content'], 'Style of lunch_break (test).')
+        && str_contains($request['input'][3]['content'], '千葉のコンビナート')
+        && ! str_contains($request['input'][3]['content'], 'fig1.jpg'));
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/images/generations')
         && $request['model'] === 'gpt-image-2.5-flare' && $request['size'] === DrawImage::SIZE);
 
@@ -144,7 +144,7 @@ it('picks a palette other than the ones last drawn at the same hour', function (
     expect($image->palette)->toBe('plum, sage, sand and charcoal')
         ->and($image->image_prompt)->toContain('Palette of this picture: plum, sage, sand and charcoal.');
     Http::assertSent(fn (Request $request): bool => str_contains($request->url(), '/responses')
-        && str_contains($request['input'][2]['content'], 'navy, teal, mustard and warm grey')
-        && ! str_contains($request['input'][2]['content'], 'cobalt, chartreuse')
+        && str_contains($request['input'][3]['content'], 'navy, teal, mustard and warm grey')
+        && ! str_contains($request['input'][3]['content'], 'cobalt, chartreuse')
         && $request['text']['format']['schema']['required'] === ['scene', 'palette']);
 });

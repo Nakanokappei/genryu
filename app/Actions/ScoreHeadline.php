@@ -87,10 +87,11 @@ class ScoreHeadline
     {
         return Responses::request($model, [
             Responses::policy($policy),
+            Responses::dataRule(),
             // Language rules, so the judge does not mark a headline down for following them.
             ...LanguageSetting::messages($language),
             ['role' => 'developer', 'content' => self::INSTRUCTIONS."\n\n".self::rubric()],
-            ['role' => 'user', 'content' => "Headline:\n{$headline}\n\nMaterial (JSON):\n".json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)],
+            ['role' => 'user', 'content' => "Headline:\n".Responses::tagged('headline', $headline)."\n\nMaterial (JSON):\n".Responses::tagged('material', json_encode($material, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR))],
         ], 'headline_score', self::schema());
     }
 

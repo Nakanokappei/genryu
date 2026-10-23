@@ -6,6 +6,7 @@ use App\Crawl\Crawler;
 use App\Crawl\Url;
 use App\Models\Source;
 use Carbon\CarbonImmutable;
+use finfo;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Storage;
 use Throwable;
@@ -17,15 +18,23 @@ use Throwable;
  */
 class FetchFavicon
 {
-    /** Accepted content types and the extension each is stored under. */
+    /** Accepted image types, told from the bytes, and the extension each is stored under (no SVG: it can carry script). */
     public const ICON_TYPES = [
         'image/x-icon' => 'ico',
         'image/vnd.microsoft.icon' => 'ico',
         'image/png' => 'png',
-        'image/svg+xml' => 'svg',
         'image/gif' => 'gif',
         'image/jpeg' => 'jpg',
         'image/webp' => 'webp',
+    ];
+
+    /** The content type each stored extension is served with. */
+    public const SERVED_TYPES = [
+        'ico' => 'image/x-icon',
+        'png' => 'image/png',
+        'gif' => 'image/gif',
+        'jpg' => 'image/jpeg',
+        'webp' => 'image/webp',
     ];
 
     /** Fetches the icon if missing, or rechecks it when $checkAgain; returns its path. */
@@ -93,10 +102,10 @@ class FetchFavicon
     /** Stores a response as the icon when it is one, with its URL and Last-Modified (or now). */
     private function keep(Source $source, string $url, Response $response): bool
     {
-        $extension = self::extension($url, (string) $response->header('Content-Type'));
+        $extension = self::extension($response->body());
 
-        // Not an icon.
-        if (! $response->successful() || $extension === null || $response->body() === '') {
+        // Not an image, whatever the server says it is.
+        if (! $response->successful() || $extension === null) {
             return false;
         }
 
@@ -148,17 +157,14 @@ class FetchFavicon
         return $icons;
     }
 
-    /** The icon's extension, from its content type or else its URL. */
-    private static function extension(string $url, string $contentType): ?string
+    /** The icon's extension, from the image type its bytes show; null when they are not an accepted image. */
+    private static function extension(string $bytes): ?string
     {
-        $type = strtolower(trim(explode(';', $contentType)[0]));
-
-        if (isset(self::ICON_TYPES[$type])) {
-            return self::ICON_TYPES[$type];
+        // Nothing to look at.
+        if ($bytes === '') {
+            return null;
         }
 
-        $fromUrl = strtolower(pathinfo((string) parse_url($url, PHP_URL_PATH), PATHINFO_EXTENSION));
-
-        return in_array($fromUrl, self::ICON_TYPES, true) ? $fromUrl : null;
+        return self::ICON_TYPES[(string) (new finfo(FILEINFO_MIME_TYPE))->buffer($bytes)] ?? null;
     }
 }

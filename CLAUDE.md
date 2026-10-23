@@ -680,6 +680,22 @@ a Media Management System; the name itself stays Genryu.
   pinned for the connection, and a response over 50 MB is cut off. A link
   that is not http(s) never becomes a document or a figure (`Url::isWeb`,
   checked where they are listed and again where they are rendered).
+- **Text from outside is material, never instructions** (2026-10-24,
+  after the security review). Every agent gets `Responses::dataRule()`
+  after the policy, and the primary source, the material, an article and
+  a headline go in inside tags (`Responses::tagged`). What a model was
+  talked into writing does not reach readers: `Article::bodyHtml` drops
+  images from the text and keeps a link only when it points at the
+  primary source (the quoted figures are set in apart). The generating
+  calls stop for the day at `OPENAI_DAILY_TOKEN_LIMIT` (2,000,000, about
+  four ordinary days; Japan time; embeddings not counted;
+  `Client::tokensToday`) — tokens, since no prices are set in production.
+  A favicon is kept only when its bytes are an image (no SVG) and is
+  served with a fixed image type and a sandbox CSP. The password-reset
+  posts take five a minute per address and answer an unknown address as
+  a known one; a new email address on the profile takes the current
+  password. nginx limits requests reaching PHP to 10 a second per
+  address (`deploy/nginx/genryu.conf`).
 
 - **The day runs on its own** (decided 2026-09-25, `routes/console.php`,
   Japan time; production needs `schedule:run` from cron and a queue

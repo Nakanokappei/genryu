@@ -1,19 +1,23 @@
 <?php
 
+use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Session;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Profile settings')] class extends Component {
-    use ProfileValidationRules;
+    use PasswordValidationRules, ProfileValidationRules;
 
     public string $name = '';
     public string $email = '';
+    public string $current_password = '';
 
     /**
      * Mount the component.
@@ -33,6 +37,11 @@ new #[Title('Profile settings')] class extends Component {
 
         $validated = $this->validate($this->profileRules($user->id));
 
+        // A new email address takes the current password, so a stolen session cannot take the account over.
+        if ($validated['email'] !== $user->email) {
+            $this->confirmCurrentPassword($user->id);
+        }
+
         $user->fill($validated);
 
         if ($user->isDirty('email')) {
@@ -40,8 +49,26 @@ new #[Title('Profile settings')] class extends Component {
         }
 
         $user->save();
+        $this->reset('current_password');
 
         Flux::toast(variant: 'success', text: __('Profile updated.'));
+    }
+
+    /**
+     * Checks the current password, at most five tries a minute.
+     */
+    private function confirmCurrentPassword(int $userId): void
+    {
+        $key = 'profile-email:'.$userId;
+
+        // Too many wrong passwords: wait.
+        if (RateLimiter::tooManyAttempts($key, 5)) {
+            throw ValidationException::withMessages(['current_password' => __('auth.throttle', ['seconds' => RateLimiter::availableIn($key)])]);
+        }
+
+        RateLimiter::hit($key);
+        $this->validate(['current_password' => $this->currentPasswordRules()]);
+        RateLimiter::clear($key);
     }
 
     /**
@@ -106,6 +133,15 @@ new #[Title('Profile settings')] class extends Component {
                     </div>
                 @endif
             </div>
+
+            <flux:input
+                wire:model="current_password"
+                :label="__('Current password')"
+                :description="__('Needed to change the email address.')"
+                type="password"
+                autocomplete="current-password"
+                viewable
+            />
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">

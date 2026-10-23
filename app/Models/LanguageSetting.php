@@ -22,6 +22,18 @@ class LanguageSetting extends Model
         return (string) (static::query()->where('language', $language)->value('coverage') ?? Language::tryFrom($language)?->defaultCoverage() ?? 'none');
     }
 
+    /**
+     * Every language's coverage in one query, the default where no row is set.
+     *
+     * @return array<string, string>
+     */
+    public static function coverages(): array
+    {
+        $set = static::query()->pluck('coverage', 'language')->all();
+
+        return collect(Language::cases())->mapWithKeys(fn (Language $language): array => [$language->value => (string) ($set[$language->value] ?? $language->defaultCoverage())])->all();
+    }
+
     /** A language's additional prompt, or ''. */
     public static function additionalPrompt(?string $language): string
     {
@@ -47,10 +59,14 @@ class LanguageSetting extends Model
         return $prompt === '' ? [] : [['role' => 'developer', 'content' => 'Additional rules for writing in '.Language::nameOf($language).":\n".$prompt]];
     }
 
-    /** Whether an article from a source in one language is published in another (or in its own). */
-    public static function publishes(string $language, ?string $sourceLanguage): bool
+    /**
+     * Whether an article from a source in one language is published in another (or in its own).
+     *
+     * @param  array<string, string>|null  $coverages  every language's coverage when already in hand (coverages())
+     */
+    public static function publishes(string $language, ?string $sourceLanguage, ?array $coverages = null): bool
     {
-        return match (self::coverage($language)) {
+        return match ($coverages[$language] ?? self::coverage($language)) {
             'all' => true,
             'own' => $language === $sourceLanguage,
             default => false,

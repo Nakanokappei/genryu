@@ -3,6 +3,7 @@
 use App\Models\Article;
 use App\Models\ArticleImage;
 use App\Models\Prompt;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -99,4 +100,21 @@ it('does not show an article scheduled for later', function () {
     $this->get(route('media.article', ['ja', $upcoming]))->assertNotFound();
     $this->get(route('media.image', $upcoming))->assertNotFound();
     $this->get(route('media.article', ['ja', $published]))->assertOk()->assertSee('2026年9月25日');
+});
+
+// The front page reads 言語設定 and each language's articles once, so its queries do not grow with the articles shown.
+it('reads the front page in a number of queries that does not grow with the articles', function () {
+    $this->travelTo('2026-09-25 03:00:00');
+    $queriesFor = function (): int {
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+        $this->get('/media')->assertOk();
+
+        return count(DB::getQueryLog());
+    };
+    Article::factory()->count(2)->create(['language' => 'ja', 'body' => 'リード。', 'published_at' => '2026-09-24 03:00:00']);
+    $few = $queriesFor();
+    Article::factory()->count(20)->create(['language' => 'ja', 'body' => 'リード。', 'published_at' => '2026-09-24 03:00:00']);
+
+    expect($queriesFor())->toBe($few);
 });
