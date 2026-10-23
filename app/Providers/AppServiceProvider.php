@@ -10,6 +10,7 @@ use Composer\CaBundle\CaBundle;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Psr\Http\Message\RequestInterface;
@@ -30,6 +31,17 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->constrainModelIds();
+    }
+
+    /**
+     * A model id in a URL is a positive bigint; anything else is not found rather than a database error.
+     */
+    protected function constrainModelIds(): void
+    {
+        foreach (['article', 'document', 'material', 'source', 'image'] as $parameter) {
+            Route::pattern($parameter, '[1-9][0-9]{0,17}');
+        }
     }
 
     /**

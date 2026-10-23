@@ -118,3 +118,8 @@ it('reads the front page in a number of queries that does not grow with the arti
 
     expect($queriesFor())->toBe($few);
 });
+
+// An id that is not a number, or too large for the database, is not found rather than a server error.
+it('answers not found for an id that cannot be one', function (string $path) {
+    $this->get($path)->assertNotFound();
+})->with(['/media/images/abc', '/media/ja/articles/abc', '/media/en/articles/99999999999999999999', '/media/images/0']);

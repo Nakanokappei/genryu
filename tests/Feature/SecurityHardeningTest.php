@@ -115,3 +115,12 @@ it('stops calling the models for the day once the daily token limit is reached',
     $this->travel(1)->days();
     expect(Client::tokensToday())->toBe(0);
 });
+
+// A job still running is never taken up again by another worker: the queue waits longer than any job may run.
+it('waits longer before retrying a job than any job may run', function () {
+    $longest = collect(File::files(app_path('Jobs')))
+        ->map(fn (SplFileInfo $file): int => (int) ((new ReflectionClass('App\\Jobs\\'.$file->getBasename('.php')))->getDefaultProperties()['timeout'] ?? 0))
+        ->max();
+
+    expect(config('queue.connections.database.retry_after'))->toBeGreaterThan($longest);
+});
